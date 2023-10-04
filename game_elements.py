@@ -1,5 +1,6 @@
 ﻿import os
 import json
+import string
 
 
 class Mana:
@@ -17,7 +18,10 @@ class Mana:
     # Note that generic mana symbols are supported only up until {20}.  
     def get_mana_symbols(mana_cost):
         mana_symbols = {}
-        mana_cost = mana_cost.lower()
+        try:
+            mana_cost = mana_cost.lower()
+        except:
+            return {}
         for symbol in Mana.mana_symbols:
             count = mana_cost.count('{'+symbol+'}')
             if count>0:
@@ -83,6 +87,14 @@ class Mana:
     def is_gruul(mana_cost):
         return Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
     # TODO -- add 3 color and 4 color boolean functions
+
+    # Sorts the input colors list to wubrg order:
+    def colors_to_wubrg_order(colors):
+        sorted_colors = []
+        for color in "wubrgcs":
+            if color in colors:
+                sorted_colors.append(color)
+        return sorted_colors
 
 class Set:
     # Whenever a new custom set is created with a default setname conflicting with an existing setname, add that original and replacement setname as a key-value pair to the dictionary below. 
@@ -325,6 +337,9 @@ class Card:
     def is_mdfc(self):
         special = self.special.lower() if type(self.special)==str else ""
         return "mdfc" in special
+    
+    def is_spell(self):
+        return (not self.is_land()) and (self.is_creature() or self.is_artifact() or self.is_enchantment() or self.is_planeswalker() or self.is_instant() or self.is_sorcery() or self.is_battle())
 
     # Returns the complete line (string) giving a card's supertype(s), card type(s), and subtype(s).
     def get_type_line(self):
@@ -455,9 +470,10 @@ class Card:
 
 
 class Deck:
-    def from_json(deck_filepath, setname="UNK"):
-        f = open(deck_filepath)
+    def from_json(deck_json_filepath, setname="UNK", deck_name=None):
+        f = open(deck_json_filepath)
         card_dict = json.load(f)
+        tags = []
         for card in card_dict.values():
             if "artist" not in card.keys():
                 card["artist"]=None
@@ -501,6 +517,10 @@ class Deck:
                 card["complete"]=0
             if "real" not in card.keys():
                 card["real"]=0
+            if card["tags"] is not None:
+                for tag in card["tags"]:
+                    if tag not in tags:
+                        tags.append(tag)
         cards = [Card(name=card["name"],
                       artist=card["artist"],
                       artwork=card["artwork"],
@@ -524,19 +544,32 @@ class Deck:
                       complete=card["complete"],
                       real=card["real"])
                   for card in card_dict.values()]
-        return Deck(cards)
+        deck_name = os.path.basename(deck_json_filepath).replace(".json","") if deck_name is None else deck_name
+        return Deck(cards=cards, name=deck_name, tags=tags)
 
     def from_deck_folder(deck_folder):
         setname = (deck_folder.lower().replace("the ",""))[0:3].upper()
         setname = Set.adjust_forbidden_custom_setname(setname)
         deck_folder = deck_folder.title()
-        deck_filepath = os.path.join(deck_folder, (os.path.basename(deck_folder).replace(" ", "_") + ".json"))
-        return Deck.from_json(deck_filepath, setname=setname)
+        if not os.path.isdir(deck_folder):
+            raise ValueError(f"The input deck folder ({deck_folder}) does not exist. Ensure a folder exists of the input name in the path defined by DECK_PATH in paths.py.")
+        deck_json_filepath = os.path.join(deck_folder, (os.path.basename(deck_folder).replace(" ", "_") + ".json"))
+        return Deck.from_json(deck_json_filepath, setname=setname) # , deck_name=deck_folder
 
-    def __init__(self, cards=[]):
+    def __init__(self, cards=[], name="Unknown", tags=[]):
         if any([type(c)!=Card for c in cards]):
             raise TypeError("All inputs must be of type Card.")
+        if type(name)!=str:
+            raise TypeError("Input deck name must be a string (str).")
         self.cards = cards
+        self.name = name
+        self.tags = tags
+
+    def count_spells(self):
+        return sum([card.is_spell() for card in self.cards])
+    
+    def count_lands(self):
+        return sum([not card.is_spell() for card in self.cards])
 
     def get_cardtypes(self, count_backs=False, count_tokens=False):
         cardtypes_dict = {c.capitalize():0 for c in Card.cardtypes}
@@ -550,49 +583,76 @@ class Deck:
         return cardtypes_dict
 
     def print_type_summary(self):
-        pass
-        """
-        total_cards = 0
-        max_cmc_count = 0
-        for cmc in sorted(cmc_dict.keys()):
-            total_cards += cmc_dict[cmc]
-            max_cmc_count = max(cmc_dict[cmc], max_cmc_count)
-        print(".................................")
+        print()
+        print("TYPE SUMMARY FOR: ", self.name, ".....................")
+        type_dict = {typ:0 for typ in ["Creature", "Artifact", "Enchantment", "Instant", "Sorcery", "Land", "Planeswalker", "Battle"]}
+        num_spells = self.count_spells()
+        type_dict = self.get_cardtypes()
         print(type_dict["Land"], "\tLands")
-        print(total_cards, "\tSpells\t")
-        print(type_dict["Creature"], "\tCreatures\t", round(100*type_dict["Creature"]/total_cards, 1), "%")
-        print(type_dict["Artifact"], "\tArtifacts\t", round(100*type_dict["Artifact"]/total_cards, 1), "%")
-        print(type_dict["Enchantment"], "\tEnchantments\t", round(100*type_dict["Enchantment"]/total_cards, 1), "%")
-        print(type_dict["Instant"], "\tInstants\t", round(100*type_dict["Instant"]/total_cards, 1), "%")
-        print(type_dict["Sorcery"], "\tSorceries\t", round(100*type_dict["Sorcery"]/total_cards, 1), "%")
-        """
+        print(num_spells, "\tSpells\t")
+        for typ in ["Creature", "Artifact", "Enchantment", "Instant", "Sorcery"]:
+            if typ=="Sorcery":
+                print(type_dict[typ], "\tSorceries\t", round(100*type_dict[typ]/num_spells, 1), "%")
+            else:
+                print(type_dict[typ], "\t"+typ+"s\t", round(100*type_dict[typ]/num_spells, 1), "%")
+        for typ in ["Planeswalker", "Battle"]:
+            if type_dict[typ]>0:
+                print(type_dict[typ], "\t"+typ+"s\t", round(100*type_dict[typ]/num_spells, 1), "%")
+        print()
 
     def print_tag_summary(self):
-        pass
-        """
-        print(".................................")
-        for tag in sorted(tags_dict.keys()):
-            print(tags_dict[tag], "\t", string.title(tag))
-        """
-
-    def print_mana_summary(self):
-        pass
-        """
-        print(".................................")
-        cmc_sum = 0
-        for cmc in sorted(cmc_dict.keys()):
-            cmc_sum += cmc_dict[cmc] * cmc
-            print("CMC", cmc, ": ", "#"*cmc_dict[cmc], " "*(max_cmc_count-cmc_dict[cmc]), round(cmc_dict[cmc]/total_cards*100, 1), "%")
-        print("Average CMC:", round(cmc_sum / total_cards, 2))
-        print(".................................")
-        print("Colors: ", deck_colors)
+        print()
+        print("TAG SUMMARY FOR: ", self.name, ".....................")
+        tag_dict = {}
+        for tag in self.tags:
+            tag_dict[tag] = len([card for card in self.cards if card.tags is not None and tag in card.tags])
+        for tag in sorted(tag_dict.keys()):
+            print(tag_dict[tag], "\t", string.capwords(tag))
+        print()
+    
+    def print_color_summary(self):
+        print()
+        print("COLOR SUMMARY FOR: ", self.name, ".....................")
+        deck_colors = []
+        mana_symbol_dict = {}
+        for card in self.cards:
+            if not card.is_spell():
+                continue
+            for color in card.colors:
+                if color not in deck_colors:
+                    deck_colors.append(color)
+                if color in mana_symbol_dict.keys():
+                    mana_symbol_dict[color] += 1
+                else:
+                    mana_symbol_dict[color] = 1
         total_mana_symbols = 0
         for color in mana_symbol_dict.keys():
             total_mana_symbols += mana_symbol_dict[color]
-        for color in mana_symbol_dict.keys():
-            print(color, ": ", round(mana_symbol_dict[color]*100/total_mana_symbols, 1), "%")
-        print(".................................")
-        """
+        deck_colors = Mana.colors_to_wubrg_order(deck_colors)
+        print("All deck colors: ", deck_colors)
+        for color in deck_colors:
+            print("\t", color, "spells: ", round(mana_symbol_dict[color]*100/total_mana_symbols, 1), "%")
+        print()
+        # TODO -- scan lands and print mana symbols on lands summary
+
+    def print_mana_summary(self):
+        print()
+        print("MANA SUMMARY FOR: ", self.name, ".....................")
+        mana_value_dict = {}
+        total_deck_mana_value = 0
+        for card in self.cards:
+            mana_value = card.get_mana_value()
+            total_deck_mana_value += mana_value
+            if mana_value not in mana_value_dict.keys():
+                mana_value_dict[mana_value] = 1
+            else:
+                mana_value_dict[mana_value] += 1
+        max_mana_value = max(mana_value_dict.values())
+        for mana_value in sorted(mana_value_dict.keys()):
+            print("Mana Value "+str(mana_value)+":"+(" " if mana_value<10 else ""), "#"*mana_value_dict[mana_value], " "*(max_mana_value-mana_value_dict[mana_value]), round(mana_value_dict[mana_value]/len(self.cards)*100, 1), "%")
+        print("Average Mana Value (Including Lands):", round(total_deck_mana_value / len(self.cards), 3))
+        print("Average Mana Value (Excluding Lands):", round(total_deck_mana_value / self.count_spells(), 3))
+        print()
     
 all_symbols = Mana.mana_symbols + ["q", "t"]
 all_symbols_bracketed = ["{"+s+"}" for s in all_symbols] 

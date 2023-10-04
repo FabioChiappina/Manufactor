@@ -40,6 +40,21 @@ WHITE = (255,255,255)
 
 ################################################################################
 ################################################################################
+
+def create_image_from_Card(card, save_path=None):
+    if type(card)!=game_elements.Card:
+        raise TypeError("Input card must be of type Card.")
+    card_draw = CardDraw(card, save_path=save_path)
+    card_draw.write_name()
+    card_draw.write_type_line()
+    card_draw.write_rules_text()
+    card_draw.paste_mana_symbols()
+    card_draw.paste_set_symbol()
+    card_draw.write_power_toughness()
+    card_draw.save()
+
+################################################################################
+################################################################################
 # Modified from the ImageText object created by Alvaro Justen:
 # Copyright 2011 Álvaro Justen [alvarojusten at gmail dot com]
 # License: GPL <http://www.gnu.org/copyleft/gpl.html>
@@ -346,28 +361,3 @@ class CardDraw(object):
         rarity_image = rarity_image.resize((int((1200/981)*SET_SYMBOL_SIZE), SET_SYMBOL_SIZE))
         position = POSITION_TOKEN_SET_SYMBOL if self.card.is_token() else POSITION_SET_SYMBOL
         self.image.paste(rarity_image, position, rarity_image)
-
-
-
-##################################################################################
-##################################################################################
-
-def create_image_from_Card(card, save_path=None):
-    if type(card)!=game_elements.Card:
-        raise TypeError("Input card must be of type Card.")
-    card_draw = CardDraw(card, save_path=save_path)
-    card_draw.write_name()
-    card_draw.write_type_line()
-    card_draw.write_rules_text()
-    card_draw.paste_mana_symbols()
-    card_draw.paste_set_symbol()
-    card_draw.write_power_toughness()
-    card_draw.save()
-
-# TODO -- make this a separate file that takes a command line argument for deck name like before
-# TODO -- maybe make a Card folder inside of the deck folder to save the images into 
-deck_folder = os.path.join("..", "Test")
-deck = game_elements.Deck.from_deck_folder(deck_folder)
-for card in deck.cards:
-    print(card.name)
-    create_image_from_Card(card, save_path=deck_folder)
