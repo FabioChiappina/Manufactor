@@ -41,7 +41,7 @@ WHITE = (255,255,255)
 ################################################################################
 ################################################################################
 
-def create_image_from_Card(card, save_path=None):
+def create_card_image_from_Card(card, save_path=None):
     if type(card)!=game_elements.Card:
         raise TypeError("Input card must be of type Card.")
     card_draw = CardDraw(card, save_path=save_path)
@@ -50,8 +50,48 @@ def create_image_from_Card(card, save_path=None):
     card_draw.write_rules_text()
     card_draw.paste_mana_symbols()
     card_draw.paste_set_symbol()
+    card_draw.paste_artwork(artwork_path=os.path.join(os.path.dirname(save_path), "Images"))
     card_draw.write_power_toughness()
     card_draw.save()
+
+def create_printing_image_from_Card(card, saved_image_path=None, save_path=None):
+    if type(card)!=game_elements.Card:
+        raise TypeError("Input card must be of type Card.")
+    if saved_image_path is None:
+        saved_image_path = card.name+".jpg"
+    if not saved_image_path.endswith(card.name+".jpg"):
+        saved_image_path = os.path.join(saved_image_path, card.name+".jpg")
+    if save_path is None:
+        save_path = card.name+"_printing.jpg"
+    if not save_path.endswith(card.name+".jpg"):
+        save_path = os.path.join(save_path, card.name+".jpg")
+    image_bkg = Image.open(os.path.join(ASSETS_PATH, 'black_card.jpg'))
+    image_card = Image.open(saved_image_path)
+    shrink_ratio = 0.85
+    image_card = image_card.resize((round(744*shrink_ratio),round(1039*shrink_ratio)))
+    new_image = image_bkg.copy()
+    new_image.paste(image_card, (round((1-shrink_ratio)/2 * 744), round((1-shrink_ratio)/2 * 1039)))
+    xy = [(55,78),(55,106),(82,78)]
+    draw = ImageDraw.Draw(new_image)
+    draw.polygon(xy, fill ="black", outline ="black")
+    xy = [(660,78),(690,106),(690,78)]
+    draw = ImageDraw.Draw(new_image)
+    draw.polygon(xy, fill ="black", outline ="black")
+    xy = [(55,934),(55,962),(82,962)]
+    draw = ImageDraw.Draw(new_image)
+    draw.polygon(xy, fill ="black", outline ="black")
+    xy = [(660,962),(690,934),(690,962)]
+    draw = ImageDraw.Draw(new_image)
+    draw.polygon(xy, fill ="black", outline ="black")
+    if card.is_creature():
+        xy = [(428,913),(428,947),(650,947),(650,913)]
+        draw = ImageDraw.Draw(new_image)
+        draw.polygon(xy, fill ="black", outline ="black")
+    else:
+        xy = [(428,900),(428,947),(650,947),(650,900)]
+        draw = ImageDraw.Draw(new_image)
+        draw.polygon(xy, fill ="black", outline ="black")
+    new_image.save(save_path)
 
 ################################################################################
 ################################################################################
@@ -361,3 +401,19 @@ class CardDraw(object):
         rarity_image = rarity_image.resize((int((1200/981)*SET_SYMBOL_SIZE), SET_SYMBOL_SIZE))
         position = POSITION_TOKEN_SET_SYMBOL if self.card.is_token() else POSITION_SET_SYMBOL
         self.image.paste(rarity_image, position, rarity_image)
+
+    def paste_artwork(self, artwork_path=None):
+        if artwork_path is None:
+            artwork_path = os.path.join(".", "Images")
+        if not artwork_path.endswith(self.card.name+".jpg"):
+            artwork_path = os.path.join(artwork_path, self.card.name+".jpg")
+        try:
+            artwork_image = Image.open(artwork_path)
+        except:
+            print("  Failed to open artwork image for card " + self.card.name + ".jpeg")
+            return
+        if self.card.is_saga():
+            self.image.paste(artwork_image, (373, 118))
+        else:
+            self.image.paste(artwork_image, (58, 118))
+        # TODO -- tokens
