@@ -1,13 +1,14 @@
 ﻿import os
 import json
 import string
+from functools import cmp_to_key
 
 
 class Mana:
     mana_symbols_standard = ['w','u','b','r','g','c','s']
     mana_symbols_variable = ['x','y','z']
     mana_symbols_numeric = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20']
-    mana_symbols_dual_hybrid = ['w/u', 'u/w', 'w/b', 'b/w', 'w/r', 'r/w', 'w/g', 'g/w', 'u/b', 'b/u', 'u/r', 'r/u', 'u/g', 'g/u', 'b/r', 'r/b', 'b/g', 'g/b', 'r/g', 'g/r']
+    mana_symbols_dual_hybrid = ['w/u', 'w/b', 'r/w', 'g/w', 'u/b', 'u/r', 'g/u', 'b/r', 'b/g', 'r/g']
     mana_symbols_mono_hybrid = ['2/w', '2/u', '2/b', '2/r', '2/g']
     mana_symbols_phyrexian = ['w/p', 'u/p', 'b/p', 'r/p', 'g/p']
     mana_symbols_phyrexian_hybrid = [] # TODO -- unsupported. Need images for: ['w/u/p', 'u/w/p', 'w/b/p', 'b/w/p', 'w/r/p', 'r/w/p', 'w/g/p', 'g/w/p', 'u/b/p', 'b/u/p', 'u/r/p', 'r/u/p', 'u/g/p', 'g/u/p', 'b/r/p', 'r/b/p', 'b/g/p', 'g/b/p', 'r/g/p', 'g/r/p']
@@ -22,6 +23,7 @@ class Mana:
             mana_cost = mana_cost.lower()
         except:
             return {}
+        mana_cost = Mana.correct_hybrid_symbols(mana_cost)
         for symbol in Mana.mana_symbols:
             count = mana_cost.count('{'+symbol+'}')
             if count>0:
@@ -86,15 +88,114 @@ class Mana:
         return Mana.is_black(mana_cost) and Mana.is_green(mana_cost)
     def is_gruul(mana_cost):
         return Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
-    # TODO -- add 3 color and 4 color boolean functions
-
-    # Sorts the input colors list to wubrg order:
+    def is_abzan(mana_cost):
+        return Mana.is_white(mana_cost) and Mana.is_black(mana_cost) and Mana.is_green(mana_cost)
+    def is_bant(mana_cost):
+        return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_green(mana_cost)
+    def is_esper(mana_cost):
+        return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_black(mana_cost)
+    def is_grixis(mana_cost):
+        return Mana.is_blue(mana_cost) and Mana.is_black(mana_cost) and Mana.is_red(mana_cost)
+    def is_jeskai(mana_cost):
+        return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_red(mana_cost)
+    def is_jund(mana_cost):
+        return Mana.is_black(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
+    def is_mardu(mana_cost):
+        return Mana.is_white(mana_cost) and Mana.is_black(mana_cost) and Mana.is_red(mana_cost)
+    def is_naya(mana_cost):
+        return Mana.is_white(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
+    def is_sultai(mana_cost):
+        return Mana.is_blue(mana_cost) and Mana.is_black(mana_cost) and Mana.is_green(mana_cost)
+    def is_temur(mana_cost):
+        return Mana.is_blue(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
+    def is_glint(mana_cost):
+        return Mana.is_blue(mana_cost) and Mana.is_black(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
+    def is_dune(mana_cost):
+        return Mana.is_white(mana_cost) and Mana.is_black(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
+    def is_ink(mana_cost):
+        return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
+    def is_witch(mana_cost):
+        return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_black(mana_cost) and Mana.is_green(mana_cost)
+    def is_yore(mana_cost):
+        return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_black(mana_cost) and Mana.is_red(mana_cost)
+    
+    # Sorts the input colors list to WUBRG order.
+    # Colors are not wrapped around -- the order is always WUBRG. (e.g., W is always before G)
     def colors_to_wubrg_order(colors):
         sorted_colors = []
         for color in "wubrgcs":
             if color in colors:
                 sorted_colors.append(color)
         return sorted_colors
+    
+    # Corrects any hybrid mana symbols with incorrect orderings (e.g., {u/w} --> {w/u})
+    def correct_hybrid_symbols(mana_cost):
+        if mana_cost is None:
+            return None
+        mana_cost = mana_cost.replace("u/w", "w/u")
+        mana_cost = mana_cost.replace("b/w", "w/b")
+        mana_cost = mana_cost.replace("w/r", "r/w")
+        mana_cost = mana_cost.replace("w/g", "g/w")
+        mana_cost = mana_cost.replace("b/u", "u/b")
+        mana_cost = mana_cost.replace("r/u", "u/r")
+        mana_cost = mana_cost.replace("u/g", "g/u")
+        mana_cost = mana_cost.replace("r/b", "b/r")
+        mana_cost = mana_cost.replace("g/b", "b/g")
+        mana_cost = mana_cost.replace("g/r", "r/g")
+        mana_cost = mana_cost.replace("p/w", "w/p")
+        mana_cost = mana_cost.replace("p/u", "u/p")
+        mana_cost = mana_cost.replace("p/b", "b/p")
+        mana_cost = mana_cost.replace("p/r", "r/p")
+        mana_cost = mana_cost.replace("p/g", "g/p")
+        return mana_cost
+    
+    # Sorts the input mana cost so that wrap-around WUBRG order is reinforced. (e.g, WG --> GW)
+    def sort(mana_cost):
+        if mana_cost is None or type(mana_cost)!=str:
+            return None
+        if mana_cost == "{t}" or mana_cost == "{q}":
+            return mana_cost
+        mana_cost = Mana.correct_hybrid_symbols(mana_cost.lower())
+        mana_symbols = Mana.get_mana_symbols(mana_cost)
+        mana_symbols_list = []
+        for mana_symbol in mana_symbols.keys():
+            mana_symbols_list += [mana_symbol for i in range(mana_symbols[mana_symbol])]
+        mana_symbols_list = sorted(mana_symbols_list, key=cmp_to_key(Mana.compare_two_mana_symbols))
+        mana_symbols_list = ["{"+m+"}" for m in mana_symbols_list]
+        return "".join(mana_symbols_list)
+    
+    # Comparator used to decide which of two input mana symbols comes first in wrap-around WUBRG order.
+    def compare_two_mana_symbols(mana_symbol_1, mana_symbol_2):
+        mana_symbol_1 = mana_symbol_1.replace("{","").replace("}","")
+        mana_symbol_2 = mana_symbol_2.replace("{","").replace("}","")
+        if mana_symbol_1 == mana_symbol_2:
+            return 0
+        sorted_order = ["x","y","z","20","19","18","17","16","15","14","13","12","11","10","9","8","7","6","5","4","3","2","1","0","s","c","w","2/w","w/p","w/u","w/u/p","u","2/u","u/p","u/b","u/b/p","b","2/b","b/p","b/r","b/r/p","r","2/r","r/p","r/g","r/g/p","g","2/g","g/p","g/w","g/w/p","w","2/w","w/p","w/u","w/u/p","u","2/u","u/p","u/b","u/b/p","b","2/b","b/p","b/r","b/r/p","r","2/r","r/p","r/g","r/g/p","g"]
+        distance_1_to_2, distance_2_to_1 = len(sorted_order), len(sorted_order)
+        found_first_index = None
+        for mi, mana_symbol in enumerate(sorted_order):
+            if mana_symbol == mana_symbol_1:
+                found_first_index = mi
+            if mana_symbol == mana_symbol_2 and found_first_index is not None:
+                distance_1_to_2 = mi - found_first_index
+                break
+        found_second_index = None
+        for mi, mana_symbol in enumerate(sorted_order):
+            if mana_symbol == mana_symbol_2:
+                found_second_index = mi
+            if mana_symbol == mana_symbol_1 and found_second_index is not None:
+                distance_2_to_1 = mi - found_second_index
+                break
+        if found_first_index is None and found_second_index is None: # Two unrecognized symbols:
+            return 0
+        if found_first_index is None: # Unrecognized symbol always at the beginning
+            return -1
+        if found_second_index is None: # Unrecognized symbol always at the beginning
+            return 1
+        if distance_1_to_2 <= distance_2_to_1: # 1 comes before 2
+            return -1 * distance_1_to_2
+        else: # 2 comes before 1
+            return distance_2_to_1
 
 class Set:
     # Whenever a new custom set is created with a default setname conflicting with an existing setname, add that original and replacement setname as a key-value pair to the dictionary below. 
@@ -213,17 +314,17 @@ class Card:
         self.name=name
         self.artist=artist
         self.artwork=artwork
-        self.setname= setname if real else Set.adjust_forbidden_custom_setname(setname)
-        self.mana=mana
+        self.setname = setname if real else Set.adjust_forbidden_custom_setname(setname)
+        self.mana = Mana.sort(mana)
         self.subtype=subtype
         self.power=power
         self.toughness=toughness
         self.rarity=rarity
-        self.rules=rules
-        self.rules1=rules1
-        self.rules2=rules2
-        self.rules3=rules3
-        self.rules4=rules4
+        self.rules = Card.sort_rules_text_mana_symbols(rules)
+        self.rules1 = Card.sort_rules_text_mana_symbols(rules1)
+        self.rules2 = Card.sort_rules_text_mana_symbols(rules2)
+        self.rules3 = Card.sort_rules_text_mana_symbols(rules3)
+        self.rules4 = Card.sort_rules_text_mana_symbols(rules4)
         self.flavor=flavor
         self.special=special
         self.related=related
@@ -300,8 +401,37 @@ class Card:
         return Mana.is_golgari(self.mana)
     def is_gruul(self):
         return Mana.is_gruul(self.mana)
-    # TODO -- add 3 color and 4 color boolean functions
-
+    def is_abzan(self):
+        return Mana.is_abzan(self.mana)
+    def is_bant(self):
+        return Mana.is_bant(self.mana)
+    def is_esper(self):
+        return Mana.is_esper(self.mana)
+    def is_grixis(self):
+        return Mana.is_grixis(self.mana)
+    def is_jeskai(self):
+        return Mana.is_jeskai(self.mana)
+    def is_jund(self):
+        return Mana.is_jund(self.mana)
+    def is_mardu(self):
+        return Mana.is_mardu(self.mana)
+    def is_naya(self):
+        return Mana.is_naya(self.mana)
+    def is_sultai(self):
+        return Mana.is_sultai(self.mana)
+    def is_temur(self):
+        return Mana.is_temur(self.mana)
+    def is_glint(self):
+        return Mana.is_glint(self.mana)
+    def is_dune(self):
+        return Mana.is_dune(self.mana)
+    def is_ink(self):
+        return Mana.is_ink(self.mana)
+    def is_witch(self):
+        return Mana.is_witch(self.mana)
+    def is_yore(self):
+        return Mana.is_yore(self.mana)
+    
     def is_land(self):
         return "land" in self.cardtype.lower()
     def is_creature(self):
@@ -341,6 +471,24 @@ class Card:
     def is_spell(self):
         return (not self.is_land()) and (self.is_creature() or self.is_artifact() or self.is_enchantment() or self.is_planeswalker() or self.is_instant() or self.is_sorcery() or self.is_battle())
 
+    # Sorts any groups of mana symbols by wrap-around WUBRG order.
+    def sort_rules_text_mana_symbols(rules):
+        if rules is None or type(rules)!=str:
+            return None
+        rebuilt_rules_text = ""
+        found_open_bracket = None
+        for index, character in enumerate(rules):
+            if character=="{" and found_open_bracket is None:
+                found_open_bracket = index
+            if (index>0) and (rules[index-1]=="}") and (found_open_bracket is not None) and (character!="{"):
+                rebuilt_rules_text += Mana.sort(rules[found_open_bracket:index]) # replace the last found mana symbol grouping with sorted
+                found_open_bracket = None
+            if found_open_bracket is None:
+                rebuilt_rules_text += character
+        if found_open_bracket is not None: # Push one more series of mana symbols to the rules text
+            rebuilt_rules_text += Mana.sort(rules[found_open_bracket:])
+        return rebuilt_rules_text
+
     # Returns the complete line (string) giving a card's supertype(s), card type(s), and subtype(s).
     def get_type_line(self):
         type_line = ""
@@ -362,7 +510,7 @@ class Card:
         return Mana.get_mana_value(self.mana)
 
     # Returns the name of the file containing the appropriate frame for this card
-    # TODO -- for lands, the frame filename will have to do with the colors of mana symbols in their text boxes. Not their own colors.
+    # TODO -- for lands (or any spells with no mana cost), the frame filename will have to do with the colors of mana symbols in their text boxes. Not their own colors.
     def get_frame_filename(self, card_borders_folder=None):
         if self.is_tricolored():
             filename = "m"
