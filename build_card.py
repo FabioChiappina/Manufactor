@@ -4,26 +4,34 @@ import os
 from PIL import Image, ImageDraw, ImageFilter, ImagePath, ImageFont
 import pandas
 import game_elements
-from paths import ASSETS_PATH, CARD_BORDERS_PATH, SYMBOL_PATH, SET_SYMBOL_PATH, FONT_PATHS
+from paths import ASSETS_PATH, CARD_BORDERS_PATH, SYMBOL_PATH, SET_SYMBOL_PATH, SAGA_SYMBOL_PATH, FONT_PATHS
 
 POSITION_CARD_NAME  = (66,80)
 POSITION_CARD_TYPE  = (66,611)
 POSITION_TOKEN_CARD_TYPE = (66,POSITION_CARD_TYPE[1]+115)
+POSITION_SAGA_CARD_TYPE = (66,POSITION_CARD_TYPE[1]+295)
 POSITION_RULES_TEXT = (70,650)
 POSITION_TOKEN_RULES_TEXT = (70,POSITION_RULES_TEXT[1]+110)
+POSITION_SAGA_RULES_TEXT = (97,306)
 POSITION_SET_SYMBOL = (634,593)
 POSITION_TOKEN_SET_SYMBOL = (634,POSITION_SET_SYMBOL[1]+115)
+POSITION_SAGA_SET_SYMBOL = (634,POSITION_SET_SYMBOL[1]+295)
 POSITION_POWER      = (610,947)
 POSITION_TOUGHNESS  = (651,947)
 POSITION_MANA_SYMBOL = (648,61)
 POSITION_FLAVOR_LINE = (82,None)
+POSITION_SAGA_LINE = (84,None)
+POSITION_SAGA_NUM_CHAPTERS = (250,232)
+POSITION_SAGA_CHAPTER_SYMBOLS = (31,None)
 
 MAX_HEIGHT_CARD_NAME  = 44.5
 MAX_HEIGHT_CARD_TYPE  = 37.5
 MAX_FONT_SIZE_RULES_TEXT_LETTERS = 37
-MAX_HEIGHT_RULES_TEXT_BOX = 280 
+MAX_HEIGHT_RULES_TEXT_BOX = 277 
 MAX_HEIGHT_TOKEN_RULES_TEXT_BOX = 178
+MAX_HEIGHT_SAGA_RULES_TEXT_BOX = 537
 MAX_WIDTH_RULES_TEXT_BOX = 605
+MAX_WIDTH_SAGA_RULES_TEXT_BOX = 255
 MAX_WIDTH_CARD_NAME = 575
 MAX_WIDTH_CARD_TYPE = 567
 MAX_HEIGHT_POWER_TOUGHNESS = 39
@@ -186,30 +194,57 @@ class CardDraw(object):
         else:
             return text_size
 
-    # TODO -- handle sagas
-    # TODO -- Subtract 15 from box_height if creature and if the last line runs into the creature p/t box
     # TODO -- within flavor text, support non-italicized words
     # TODO -- support manual italics and parenthesis italics. Would need to just find what line it starts on and call write_text twice with diff fonts. Then do the same for lines it ends on. Lines in the middle can all be italics.
     def write_rules_text(self, font_size='fill', color=BLACK, place='left'):
-        text, text_flavor = self.card.rules, self.card.flavor
         font_filename, font_filename_flavor = FONT_PATHS["rules"], FONT_PATHS["flavor"]
+        text, text_flavor = self.card.rules, self.card.flavor
+        if self.card.is_saga():
+            max_width = MAX_WIDTH_SAGA_RULES_TEXT_BOX
+        else:
+            max_width = MAX_WIDTH_RULES_TEXT_BOX
         if (text is None or len(text)==0) and text_flavor is not None:
             text = text_flavor
             font_filename = font_filename_flavor
             text_flavor = None
+        elif self.card.is_saga():
+            all_chapter_texts = [self.card.rules1, self.card.rules2, self.card.rules3, self.card.rules4, self.card.rules5, self.card.rules6]
+            unique_chapter_groups = [] # Each element contains unique text. If all chapters are unique, this has the same length as the number of chapters.
+            unique_chapter_group_numbers = [] # Element i contains the chapter numbers (1-6) that have the text of the ith element of unique_chapter_groups.
+            num_chapters = sum([ctext is not None for ctext in all_chapter_texts])
+            num_chapters_image = Image.open(os.path.join(SAGA_SYMBOL_PATH, str(num_chapters)+".jpg"))
+            self.image.paste(num_chapters_image, POSITION_SAGA_NUM_CHAPTERS)
+            for ci, chapter_text in enumerate(all_chapter_texts):
+                if chapter_text is None:
+                    break
+                if chapter_text not in unique_chapter_groups:
+                    unique_chapter_groups.append(chapter_text)
+                    unique_chapter_group_numbers.append([ci+1])
+                else:
+                    unique_chapter_group_numbers[unique_chapter_groups.index(chapter_text)].append(ci+1)
+            text = ""
+            for ci, chapter_text in enumerate(unique_chapter_groups):
+                if chapter_text is not None:
+                    text += chapter_text
+                    if ci!=len(unique_chapter_groups)-1:
+                        text += "\n\n"
+            text_flavor = None
         elif text is None and text_flavor is None:
             return
+        if self.card.is_token():
+            max_height = MAX_HEIGHT_TOKEN_RULES_TEXT_BOX
+            x,y = POSITION_TOKEN_RULES_TEXT
+        elif self.card.is_saga():
+            max_height = MAX_HEIGHT_SAGA_RULES_TEXT_BOX
+            x,y = POSITION_SAGA_RULES_TEXT
+        else:
+            max_height = MAX_HEIGHT_RULES_TEXT_BOX
+            x,y = POSITION_RULES_TEXT
         if font_size == 'fill':
             fill = True
             font_size = self.get_font_size(text, font_filename, max_height=MAX_FONT_SIZE_RULES_TEXT_LETTERS, max_width=MAX_WIDTH_RULES_TEXT_BOX)
         else:
             fill = False
-        if self.card.is_token():
-            max_height = MAX_HEIGHT_TOKEN_RULES_TEXT_BOX
-            x,y = POSITION_TOKEN_RULES_TEXT
-        else:
-            max_height = MAX_HEIGHT_RULES_TEXT_BOX
-            x,y = POSITION_RULES_TEXT
         text_blocks = text.split('\n')
         if text_flavor is None:
             flavor_block_index = None
@@ -217,6 +252,8 @@ class CardDraw(object):
             flavor_block_index = len(text_blocks)
             text_blocks_flavor = text_flavor.split('\n')
             text_blocks += text_blocks_flavor
+        if self.card.is_saga():
+            saga_separator_indices = list(range(len(text_blocks)))[1::2]
         # Need to replace all of the possible symbols with  ○ , and need to record which character number in the string that is.
         list_of_symbols = []
         for ti, text_block in enumerate(text_blocks):
@@ -252,7 +289,11 @@ class CardDraw(object):
         while total_height > max_height:
             if not first_box_fill_attempt:
                 font_size -= 1
+            text_height = self.get_text_size(font_filename, font_size, "j")[1]
+            text_height_flavor = self.get_text_size(font_filename_flavor, font_size, "j")[1]
+            saga_separator_line_indices = []
             text_lines = []
+            cumulative_text_height = text_height
             for ti, this_text_block in enumerate(text_blocks):
                 while True:
                     lines = []
@@ -272,29 +313,49 @@ class CardDraw(object):
                             last_symbol_seen = wi
                         if wi==len(words)-1:
                             words_adjusted_for_symbols.append(" " + "  ".join(words[last_symbol_seen:]))
-                    words = words_adjusted_for_symbols.copy()
+                    # One more pass through the adjusted words, combining any symbols with following punctuation:
+                    words_readjusted = []
+                    previous_word_is_symbol = False
+                    for word in words_adjusted_for_symbols:
+                        if previous_word_is_symbol and word in [".",",",":"]:
+                            words_readjusted[-1] = words_readjusted[-1] + " " + word
+                        else:
+                            words_readjusted.append(word)
+                        previous_word_is_symbol = "○" in word
+                    words = words_readjusted.copy()
                     for word in words:
+                        reached_creature_pt_box = self.card.is_creature() and (cumulative_text_height > (MAX_HEIGHT_RULES_TEXT_BOX-50))
                         new_line = ' '.join(line + [word])
                         size = self.get_text_size(font_filename, font_size, new_line)
-                        text_height = size[1]
-                        if size[0] <= MAX_WIDTH_RULES_TEXT_BOX:
+                        this_max_width = max_width-80 if reached_creature_pt_box else max_width # Ensures the rules text doesn't run into the power/toughness box
+                        if size[0] <= this_max_width:
                             line.append(word)
                         else:
+                            cumulative_text_height += text_height
                             lines.append(line)
                             line = [word]
                     if line:
+                        cumulative_text_height += text_height
+                        reached_creature_pt_box = self.card.is_creature() and (cumulative_text_height > (MAX_HEIGHT_RULES_TEXT_BOX-50))
                         lines.append(line)
                     if font_size >= MAX_FONT_SIZE_RULES_TEXT_LETTERS:
                         break
                     elif fill and ti==0 and first_box_fill_attempt:
                         font_size += 1
+                        cumulative_text_height = text_height
                     else:
                         break
                 if ti == flavor_block_index:
+                    cumulative_text_height += text_height
+                    text_height = text_height_flavor
                     flavor_block_line_index = len(text_lines)
+                    text_lines += [" "]
+                elif self.card.is_saga() and ti in saga_separator_indices:
+                    saga_separator_line_indices.append(len(text_lines))
                     text_lines += [" "]
                 text_lines += [' '.join(line) for line in lines if line]
                 if ti != len(text_blocks)-1 and (True if flavor_block_index is None else ti < flavor_block_index):
+                    cumulative_text_height += text_height/2
                     text_lines += [""]
             text_height = self.get_text_size(font_filename, font_size, "j")[1]
             total_height = len(text_lines)*text_height - (0.5*text_height)*len([t for t in text_lines if t==""])
@@ -302,12 +363,17 @@ class CardDraw(object):
                 break
             first_box_fill_attempt = False
         if max_height > total_height:
-            y += (max_height - total_height) / 2
-            y -= 3
+            if self.card.is_saga():
+                y += (max_height - total_height) / 3
+                y -= 3
+            else:
+                y += (max_height - total_height) / 2
+                y -= 3
         height = y
         list_of_symbol_positions = []
         symbol_size = self.get_text_size(font_filename, font_size, "I")[1]
         flavor_line_position = None
+        saga_line_positions = []
         for index, line in enumerate(text_lines):
             total_size = self.get_text_size(font_filename, font_size, line)
             if line=="":
@@ -319,36 +385,68 @@ class CardDraw(object):
             if index == flavor_block_line_index:
                 font_filename = font_filename_flavor
                 flavor_line_position = (POSITION_FLAVOR_LINE[0], int(height-text_height/4))
+            elif self.card.is_saga() and index in saga_separator_line_indices:
+                saga_line_positions.append((POSITION_SAGA_LINE[0], int(height)))
             if place == 'left':
                 _, symbol_positions = self.write_text((x, height), line, font_filename, font_size, color, return_symbol_positions=True)
             elif place == 'right':
-                x_left = x + MAX_WIDTH_RULES_TEXT_BOX - total_size[0]
+                x_left = x + max_width - total_size[0]
                 _, symbol_positions = self.write_text((x_left, height), line, font_filename, font_size, color, return_symbol_positions=True)
             elif place == 'center':
-                x_left = int(x + ((MAX_WIDTH_RULES_TEXT_BOX - total_size[0]) / 2))
+                x_left = int(x + ((max_width - total_size[0]) / 2))
                 _, symbol_positions = self.write_text((x_left, height), line, font_filename, font_size, color, return_symbol_positions=True)
             list_of_symbol_positions += [(s[0], s[1]+int(0.1*symbol_size)) for s in symbol_positions]
         self.paste_in_text_symbols(list_of_symbols, list_of_symbol_positions, symbol_size)
+        # Paste the line between text and flavor text:
         if flavor_line_position is not None:
             flavor_line_image = Image.open(os.path.join(ASSETS_PATH, "flavor_line.png"))
             self.image.paste(flavor_line_image, flavor_line_position, flavor_line_image)
-        return (MAX_WIDTH_RULES_TEXT_BOX, height - y)
+        # Paste the lines between Saga chapters:
+        if len(saga_line_positions)>0:
+            saga_line_image = Image.open(os.path.join(ASSETS_PATH, "saga_line.png"))
+            for saga_line_position in saga_line_positions:
+                self.image.paste(saga_line_image, saga_line_position, saga_line_image)
+        # Paste Saga chapter symbols:
+        if self.card.is_saga():
+            single_saga_symbol_height = 65
+            y_bounds = [POSITION_SAGA_RULES_TEXT[1]-3] + [slp[1] for slp in saga_line_positions] + [POSITION_SAGA_RULES_TEXT[1]+MAX_HEIGHT_SAGA_RULES_TEXT_BOX-20-46*(len(unique_chapter_group_numbers)==1)]
+            y_bounds_by_group = []
+            for gi, group_numbers in enumerate(unique_chapter_group_numbers):
+                y_bounds_by_group.append((y_bounds[gi],y_bounds[gi+1]))
+                group_center_ypos = (y_bounds_by_group[gi][0]+y_bounds_by_group[gi][1])/2
+                this_group_ypos = int(group_center_ypos - (single_saga_symbol_height * len(group_numbers))/2)
+                for gnum in group_numbers:
+                    saga_chapter_symbol_image = Image.open(os.path.join(SAGA_SYMBOL_PATH, "ch"+str(gnum)+".png"))
+                    self.image.paste(saga_chapter_symbol_image, (POSITION_SAGA_CHAPTER_SYMBOLS[0], this_group_ypos), saga_chapter_symbol_image)
+                    this_group_ypos += single_saga_symbol_height + 4 + 4*(len(unique_chapter_group_numbers)==1)
+        return (max_width, height - y)
 
     def write_name(self):
         mdfc_or_transform = self.card.special is not None and (("mdfc" in self.card.special) or ("transform" in self.card.special))
         position = (POSITION_CARD_NAME[0]+ SPECIAL_SYMBOL_SIZE, POSITION_CARD_NAME[1]) if mdfc_or_transform else POSITION_CARD_NAME
         position = (position[0]+(int(CARD_WIDTH/2)-POSITION_CARD_NAME[0] if self.card.is_token() else 0), position[1])
         max_width = MAX_WIDTH_CARD_NAME - (0 if self.card.mana is None else self.card.mana.count("{")*MANA_SYMBOL_SIZE) - (SPECIAL_SYMBOL_SIZE if mdfc_or_transform else 0)
-        color = WHITE if self.card.is_token() else BLACK
+        if self.card.is_token():
+            color = WHITE
+            # TODO -- other cases also have white text
+        else:
+            color = BLACK
         font_filename = FONT_PATHS["token"] if self.card.is_token() else FONT_PATHS["name"]
         x_centered = self.card.is_token()
         self.write_text(position, self.card.name, font_filename=font_filename, font_size='fill', max_height=MAX_HEIGHT_CARD_NAME, max_width=max_width, adjust_for_below_letters=1, x_centered=x_centered, color=color)
 
     def write_type_line(self):
-        position = POSITION_TOKEN_CARD_TYPE if self.card.is_token() else POSITION_CARD_TYPE
+        # TODO -- some type lines should be white text
+        if self.card.is_token():
+            position = POSITION_TOKEN_CARD_TYPE
+        elif self.card.is_saga():
+            position = POSITION_SAGA_CARD_TYPE
+        else:
+            position = POSITION_CARD_TYPE
         self.write_text(position, self.card.get_type_line(), font_filename=FONT_PATHS["name"], font_size='fill', max_height=MAX_HEIGHT_CARD_TYPE, max_width=MAX_WIDTH_CARD_TYPE, adjust_for_below_letters=1)
 
     def write_power_toughness(self):
+        # TODO -- some power toughness should be white text
         maxpt = max(0 if self.card.power is None else int(self.card.power), 0 if self.card.toughness is None else int(self.card.toughness))
         minpt = min(0 if self.card.power is None else int(self.card.power), 0 if self.card.toughness is None else int(self.card.toughness))
         max_height = MAX_HEIGHT_POWER_TOUGHNESS-3 if (maxpt >= 10 and minpt < 10) else MAX_HEIGHT_POWER_TOUGHNESS
@@ -399,7 +497,12 @@ class CardDraw(object):
             set_symbol_path = os.path.join(SET_SYMBOL_PATH, "Mythic.png")
         rarity_image = Image.open(set_symbol_path)
         rarity_image = rarity_image.resize((int((1200/981)*SET_SYMBOL_SIZE), SET_SYMBOL_SIZE))
-        position = POSITION_TOKEN_SET_SYMBOL if self.card.is_token() else POSITION_SET_SYMBOL
+        if self.card.is_token():
+            position = POSITION_TOKEN_SET_SYMBOL
+        elif self.card.is_saga():
+            position = POSITION_SAGA_SET_SYMBOL
+        else:  
+            position = POSITION_SET_SYMBOL
         self.image.paste(rarity_image, position, rarity_image)
 
     def paste_artwork(self, artwork_path=None):
@@ -414,6 +517,7 @@ class CardDraw(object):
             return
         if self.card.is_saga():
             self.image.paste(artwork_image, (373, 118))
+        elif self.card.is_token():
+            self.image.paste(artwork_image, (58, 170))
         else:
             self.image.paste(artwork_image, (58, 118))
-        # TODO -- tokens

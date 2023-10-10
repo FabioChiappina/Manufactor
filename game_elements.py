@@ -239,7 +239,7 @@ class Card:
 
     # special: front or transform-front, back or transform-back, mdfc-front, mdfc-back (later add adventure, ...)
     # real: 1 if a real mtg card, 0 if custom
-    def __init__(self, name=None, artist=None, artwork=None, setname=None, mana=None, cardtype=None, subtype=None, power=None, toughness=None, rarity=None, rules=None, rules1=None, rules2=None, rules3=None, rules4=None, flavor=None, special=None, related=None, colors=None, tags=None, complete=0, real=0):
+    def __init__(self, name=None, artist=None, artwork=None, setname=None, mana=None, cardtype=None, subtype=None, power=None, toughness=None, rarity=None, rules=None, rules1=None, rules2=None, rules3=None, rules4=None, rules5=None, rules6=None, flavor=None, special=None, related=None, colors=None, tags=None, complete=0, real=0):
         if name is not None and type(name)!=str:
             raise TypeError("name input must be of type str.")
         if artist is not None and type(artist)!=str:
@@ -278,6 +278,10 @@ class Card:
             raise TypeError("rules3 input must be of type str.")
         if rules4 is not None and type(rules4)!=str:
             raise TypeError("rules4 input must be of type str.")
+        if rules5 is not None and type(rules5)!=str:
+            raise TypeError("rules5 input must be of type str.")
+        if rules6 is not None and type(rules6)!=str:
+            raise TypeError("rules6 input must be of type str.")
         if flavor is not None and type(flavor)!=str:
             raise TypeError("flavor input must be of type str.")
         if special is not None and type(special)!=str:
@@ -325,6 +329,8 @@ class Card:
         self.rules2 = Card.sort_rules_text_mana_symbols(rules2)
         self.rules3 = Card.sort_rules_text_mana_symbols(rules3)
         self.rules4 = Card.sort_rules_text_mana_symbols(rules4)
+        self.rules5 = Card.sort_rules_text_mana_symbols(rules5)
+        self.rules6 = Card.sort_rules_text_mana_symbols(rules6)
         self.flavor=flavor
         self.special=special
         self.related=related
@@ -512,7 +518,7 @@ class Card:
     # Returns the name of the file containing the appropriate frame for this card
     # TODO -- for lands (or any spells with no mana cost), the frame filename will have to do with the colors of mana symbols in their text boxes. Not their own colors.
     def get_frame_filename(self, card_borders_folder=None):
-        if self.is_tricolored():
+        if self.is_tricolored() or self.is_quadcolored() or self.is_pentacolored():
             filename = "m"
         elif self.is_bicolored():
             if self.is_azorius():
@@ -567,20 +573,15 @@ class Card:
             available_frames = ["creature", "noncreature", "artifact-creature", "artifact-noncreature", "land", "enchantment-artifact-creature", "enchantment-artifact-noncreature", "enchantment-creature", "enchantment-land"]
         if special is not None:
             filename += special+"_"
-        # Manage alternative frames (sagas, planeswalkers, etc.):
+        # Manage alternative frames (sagas, planeswalkers, battles, etc.): 
         if self.is_saga():
-            if self.rules1==self.rules2 and self.rules2==self.rules3:
-                numbers="123"
-            elif self.rules1==self.rules2:
-                numbers="12-3"
-            elif self.rules2==self.rules3:
-                numbers="1-23"
-            else:
-                numbers="1-2-3"
-            filename += "saga_"+numbers
-            # TODO -- add support for four-chapter sagas
+            filename += "saga"
         elif self.is_planeswalker(): # TODO -- add support for planeswalkers
-            raise ValueError("planeswalkers are not currently supported.")
+            raise ValueError("Planeswalkers are not currently supported.")
+        elif self.is_battle(): # TODO -- add support for battles
+            raise ValueError("Battles are not currently supported.")
+        # TODO -- add support for adventures
+        # TODO -- add support for vehicles
         else:
             frame = ""
             if self.is_enchantment() and any([f.startswith("enchantment") for f in available_frames]):
@@ -650,7 +651,11 @@ class Deck:
             if "rules3" not in card.keys():
                 card["rules3"]=None
             if "rules4" not in card.keys():
-                card["rules4"]=None
+                card["rules4"]=None            
+            if "rules5" not in card.keys():
+                card["rules5"]=None            
+            if "rules6" not in card.keys():
+                card["rules6"]=None
             if "flavor" not in card.keys():
                 card["flavor"]=None
             if "special" not in card.keys(): 
@@ -684,6 +689,8 @@ class Deck:
                       rules2=card["rules2"],
                       rules3=card["rules3"],
                       rules4=card["rules4"],
+                      rules5=card["rules5"],
+                      rules6=card["rules6"],
                       flavor=card["flavor"],
                       special=card["special"],
                       related=card["related"],
