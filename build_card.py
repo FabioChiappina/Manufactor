@@ -446,14 +446,18 @@ class CardDraw(object):
         self.write_text(position, self.card.get_type_line(), font_filename=FONT_PATHS["name"], font_size='fill', max_height=MAX_HEIGHT_CARD_TYPE, max_width=MAX_WIDTH_CARD_TYPE, adjust_for_below_letters=1)
 
     def write_power_toughness(self):
-        # TODO -- some power toughness should be white text
+        if self.card.is_vehicle():
+            color = WHITE
+            # TODO -- some other power toughness should be white text
+        else:
+            color = BLACK
         maxpt = max(0 if self.card.power is None else int(self.card.power), 0 if self.card.toughness is None else int(self.card.toughness))
         minpt = min(0 if self.card.power is None else int(self.card.power), 0 if self.card.toughness is None else int(self.card.toughness))
         max_height = MAX_HEIGHT_POWER_TOUGHNESS-3 if (maxpt >= 10 and minpt < 10) else MAX_HEIGHT_POWER_TOUGHNESS
         if self.card.power is not None:
-            self.write_text(POSITION_POWER if int(self.card.power)<10 else (POSITION_POWER[0]-15, POSITION_POWER[1]), self.card.power, font_filename=FONT_PATHS["name"], font_size='fill', max_height=max_height, max_width=MAX_HEIGHT_POWER_TOUGHNESS, adjust_for_below_letters=0)
+            self.write_text(POSITION_POWER if int(self.card.power)<10 else (POSITION_POWER[0]-15, POSITION_POWER[1]), self.card.power, font_filename=FONT_PATHS["name"], font_size='fill', max_height=max_height, max_width=MAX_HEIGHT_POWER_TOUGHNESS, adjust_for_below_letters=0, color=color)
         if self.card.toughness is not None:
-            self.write_text(POSITION_TOUGHNESS, self.card.toughness, font_filename=FONT_PATHS["name"], font_size='fill', max_height=max_height, max_width=MAX_HEIGHT_POWER_TOUGHNESS, adjust_for_below_letters=0)
+            self.write_text(POSITION_TOUGHNESS, self.card.toughness, font_filename=FONT_PATHS["name"], font_size='fill', max_height=max_height, max_width=MAX_HEIGHT_POWER_TOUGHNESS, adjust_for_below_letters=0, color=color)
 
     def paste_in_text_symbols(self, symbols, symbol_positions, symbol_size, shadow=False):
         symbols = [os.path.join(SYMBOL_PATH, symbol.replace('/','')+".png") for symbol in symbols]

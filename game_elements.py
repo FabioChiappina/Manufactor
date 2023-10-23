@@ -438,6 +438,58 @@ class Card:
     def is_yore(self):
         return Mana.is_yore(self.mana)
     
+    # Returns a list with each color of mana (among WUBRG) that the card produces, if this card is a land.
+    # Colors of mana in the costs of abilities are not considered -- only colors that the land itself produces.
+    def get_colors_produced_by_land(self):
+        if not self.is_land():
+            return []
+        if self.rules is None and self.rules1 is not None:
+            rules = self.rules1
+            for this_rules in [self.rules2, self.rules3, self.rules4, self.rules5, self.rules6]:
+                if this_rules is None:
+                    break
+                rules += "\n"+this_rules
+        elif self.rules is not None:
+            rules = self.rules
+        else:
+            return []
+        rules = rules.lower()
+        colors = []
+        rules_lines = rules.split("\n")
+        for line in rules_lines:
+            split_by_colon = line.split(":")
+            if len(split_by_colon)==2:
+                line = split_by_colon[1]
+            for c in ["w","u","b","r","g"]:
+                if "{"+c in line or c+"}" in line:
+                    if c not in colors:
+                        colors.append(c)
+        if "mana of any" in rules and "color" in rules:
+            for c in ["w","u","b","r","g"]:
+                if c not in colors:
+                    colors.append(c)
+        return colors
+    
+    # Returns a list with each color of mana (among WUBRG) in the rules text of the card.
+    def get_colors_in_rules(self):
+        if self.rules is None and self.rules1 is not None:
+            rules = self.rules1
+            for this_rules in [self.rules2, self.rules3, self.rules4, self.rules5, self.rules6]:
+                if this_rules is None:
+                    break
+                rules += "\n"+this_rules
+        elif self.rules is not None:
+            rules = self.rules
+        else:
+            return []
+        rules = rules.lower()
+        colors = []
+        for c in ["w","u","b","r","g"]:
+            if "{"+c in rules or c+"}" in rules:
+                if c not in colors:
+                    colors.append(c)
+        return colors               
+    
     def is_land(self):
         return "land" in self.cardtype.lower()
     def is_creature(self):
@@ -457,6 +509,8 @@ class Card:
 
     def is_saga(self):
         return False if self.subtype is None else (self.is_enchantment() and "saga" in self.subtype.lower())
+    def is_vehicle(self):
+        return False if self.subtype is None else (self.is_artifact() and "vehicle" in self.subtype.lower())
 
     def is_token(self):
         return False if self.supertype is None else ("token" in self.supertype.lower())
@@ -516,9 +570,21 @@ class Card:
         return Mana.get_mana_value(self.mana)
 
     # Returns the name of the file containing the appropriate frame for this card
-    # TODO -- for lands (or any spells with no mana cost), the frame filename will have to do with the colors of mana symbols in their text boxes. Not their own colors.
     def get_frame_filename(self, card_borders_folder=None):
-        if self.is_tricolored() or self.is_quadcolored() or self.is_pentacolored():
+        if self.mana is None or len(self.mana)==0:
+            if self.is_land():
+                colors = self.get_colors_produced_by_land()
+            else:
+                colors = self.get_colors_in_rules()
+            if len(colors)==0:
+                filename = "c"
+            elif len(colors)==1:
+                filename = colors[0]
+            elif len(colors)==2:
+                filename = Mana.sort("{"+colors[0].lower().strip()+"}" + "{"+colors[1].lower().strip()+"}").replace("{","").replace("}","")
+            elif len(colors)>=3:
+                filename = "m"
+        elif self.is_tricolored() or self.is_quadcolored() or self.is_pentacolored():
             filename = "m"
         elif self.is_bicolored():
             if self.is_azorius():
@@ -576,12 +642,13 @@ class Card:
         # Manage alternative frames (sagas, planeswalkers, battles, etc.): 
         if self.is_saga():
             filename += "saga"
+        elif self.is_vehicle():
+            filename += "artifact-vehicle"
         elif self.is_planeswalker(): # TODO -- add support for planeswalkers
             raise ValueError("Planeswalkers are not currently supported.")
         elif self.is_battle(): # TODO -- add support for battles
             raise ValueError("Battles are not currently supported.")
         # TODO -- add support for adventures
-        # TODO -- add support for vehicles
         else:
             frame = ""
             if self.is_enchantment() and any([f.startswith("enchantment") for f in available_frames]):
@@ -593,6 +660,8 @@ class Card:
                     frame = "enchantment-land"
                 elif self.is_creature():
                     frame = "enchantment-creature"
+                else:
+                    frame = "noncreature"
             elif self.is_artifact() and any([f.startswith("artifact") for f in available_frames]):
                 if self.is_creature():
                     frame = "artifact-creature"
