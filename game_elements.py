@@ -3,6 +3,7 @@ import json
 import string
 from functools import cmp_to_key
 
+from paths import CARD_BORDERS_PATH
 
 class Mana:
     mana_symbols_standard = ['w','u','b','r','g','c','s']
@@ -239,7 +240,7 @@ class Card:
 
     # special: front or transform-front, back or transform-back, mdfc-front, mdfc-back (later add adventure, ...)
     # real: 1 if a real mtg card, 0 if custom
-    def __init__(self, name=None, artist=None, artwork=None, setname=None, mana=None, cardtype=None, subtype=None, power=None, toughness=None, rarity=None, rules=None, rules1=None, rules2=None, rules3=None, rules4=None, rules5=None, rules6=None, flavor=None, special=None, related=None, colors=None, tags=None, complete=0, real=0):
+    def __init__(self, name=None, artist=None, artwork=None, setname=None, mana=None, cardtype=None, subtype=None, power=None, toughness=None, rarity=None, rules=None, rules1=None, rules2=None, rules3=None, rules4=None, rules5=None, rules6=None, flavor=None, special=None, related=None, colors=None, tags=None, complete=0, real=0, frame=None):
         if name is not None and type(name)!=str:
             raise TypeError("name input must be of type str.")
         if artist is not None and type(artist)!=str:
@@ -339,6 +340,15 @@ class Card:
         self.supertype=Card.get_supertype_from_cardtype(cardtype)
         self.cardtype=Card.filter_supertypes_from_cardtype(cardtype)
         self.colors = self.get_colors() if colors is None else colors
+        if frame is not None and type(frame)==str and frame.endswith(".jpg"):
+            if frame in os.listdir("."):
+                self.frame = frame
+            elif frame in os.listdir(CARD_BORDERS_PATH):
+                self.frame = os.path.join(CARD_BORDERS_PATH, frame)
+            else:
+                self.frame = self.get_frame_filename(CARD_BORDERS_PATH)
+        else:
+            self.frame = self.get_frame_filename(CARD_BORDERS_PATH)
 
     def get_colors(self):
         if self.is_token():
@@ -619,18 +629,14 @@ class Card:
                 special += "-front"
             elif "back" in self.special.lower():
                 special += "-back"
-            available_frames = ["creature", "noncreature"]
-            if self.is_colorless():
-                available_frames += ["artifact-creature", "artifact-noncreature"]
+            available_frames = ["creature", "noncreature", "artifact-creature", "artifact-noncreature", "land"]
         elif self.is_mdfc():
             special="mdfc"
             if "front" in self.special.lower():
                 special += "-front"
             elif "back" in self.special.lower():
                 special += "-back"
-            available_frames = ["creature", "noncreature"]
-            if self.is_colorless():
-                available_frames += ["artifact-creature", "artifact-noncreature"]
+            available_frames = ["creature", "noncreature", "artifact-creature", "artifact-noncreature", "land"]
         elif self.is_token():
             special="token"
             available_frames = ["creature", "noncreature", "artifact-creature", "artifact-noncreature"]
@@ -743,6 +749,8 @@ class Deck:
                 for tag in card["tags"]:
                     if tag not in tags:
                         tags.append(tag)
+            if "frame" not in card.keys():
+                card["frame"]=None
         cards = [Card(name=card["name"],
                       artist=card["artist"],
                       artwork=card["artwork"],
@@ -766,7 +774,8 @@ class Deck:
                       colors=card["colors"],
                       tags=card["tags"],
                       complete=card["complete"],
-                      real=card["real"])
+                      real=card["real"],
+                      frame=card["frame"])
                   for card in card_dict.values()]
         deck_name = os.path.basename(deck_json_filepath).replace(".json","") if deck_name is None else deck_name
         return Deck(cards=cards, name=deck_name, tags=tags)

@@ -1,10 +1,7 @@
-﻿import json
-import string
-import os
-from PIL import Image, ImageDraw, ImageFilter, ImagePath, ImageFont
-import pandas
+﻿import os
+from PIL import Image, ImageDraw, ImageFont
 import game_elements
-from paths import ASSETS_PATH, CARD_BORDERS_PATH, SYMBOL_PATH, SET_SYMBOL_PATH, SAGA_SYMBOL_PATH, FONT_PATHS
+from paths import ASSETS_PATH, SYMBOL_PATH, SET_SYMBOL_PATH, SAGA_SYMBOL_PATH, FONT_PATHS
 
 POSITION_CARD_NAME  = (66,80)
 POSITION_CARD_TYPE  = (66,611)
@@ -121,7 +118,7 @@ class CardDraw(object):
         elif not save_path.endswith(".jpg"):
             save_path = os.path.join(save_path, self.filename)
         self.save_path = save_path
-        self.image = Image.open(self.card.get_frame_filename(CARD_BORDERS_PATH))
+        self.image = Image.open(self.card.frame)
         self.size = self.image.size
         self.draw = ImageDraw.Draw(self.image)
 
@@ -428,7 +425,8 @@ class CardDraw(object):
         max_width = MAX_WIDTH_CARD_NAME - (0 if self.card.mana is None else self.card.mana.count("{")*MANA_SYMBOL_SIZE) - (SPECIAL_SYMBOL_SIZE if mdfc_or_transform else 0)
         if self.card.is_token():
             color = WHITE
-            # TODO -- other cases also have white text
+        elif self.card.special is not None and "back" in self.card.special:
+            color = WHITE
         else:
             color = BLACK
         font_filename = FONT_PATHS["token"] if self.card.is_token() else FONT_PATHS["name"]
@@ -436,19 +434,23 @@ class CardDraw(object):
         self.write_text(position, self.card.name, font_filename=font_filename, font_size='fill', max_height=MAX_HEIGHT_CARD_NAME, max_width=max_width, adjust_for_below_letters=1, x_centered=x_centered, color=color)
 
     def write_type_line(self):
-        # TODO -- some type lines should be white text
+        if self.card.special is not None and "back" in self.card.special:
+            color = WHITE
+        else:
+            color = BLACK
         if self.card.is_token():
             position = POSITION_TOKEN_CARD_TYPE
         elif self.card.is_saga():
             position = POSITION_SAGA_CARD_TYPE
         else:
             position = POSITION_CARD_TYPE
-        self.write_text(position, self.card.get_type_line(), font_filename=FONT_PATHS["name"], font_size='fill', max_height=MAX_HEIGHT_CARD_TYPE, max_width=MAX_WIDTH_CARD_TYPE, adjust_for_below_letters=1)
+        self.write_text(position, self.card.get_type_line(), font_filename=FONT_PATHS["name"], font_size='fill', max_height=MAX_HEIGHT_CARD_TYPE, max_width=MAX_WIDTH_CARD_TYPE, adjust_for_below_letters=1, color=color)
 
     def write_power_toughness(self):
         if self.card.is_vehicle():
             color = WHITE
-            # TODO -- some other power toughness should be white text
+        elif self.card.special is not None and "back" in self.card.special:
+            color = WHITE
         else:
             color = BLACK
         maxpt = max(0 if self.card.power is None else int(self.card.power), 0 if self.card.toughness is None else int(self.card.toughness))
