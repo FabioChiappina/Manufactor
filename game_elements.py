@@ -880,3 +880,6 @@ class Deck:
     
 all_symbols = Mana.mana_symbols + ["q", "t"]
 all_symbols_bracketed = ["{"+s+"}" for s in all_symbols] 
+
+# TODO -- eventually edit the MDFC frames to show that there's a backside.
+# TODO -- eventually add indicator for what transform cards transform into
