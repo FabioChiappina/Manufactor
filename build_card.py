@@ -129,6 +129,10 @@ class CardDraw(object):
         font = ImageFont.truetype(font_filename, font_size)
         _, _, x, y = font.getbbox(text)
         return (x,y)
+    
+    def get_text_size_adjusted_for_italics(self, font_filename, font_size, text, italics_start_indices, italics_end_indices):
+        pass # TODO 
+
 
     def get_font_size(self, text, font, max_width=None, max_height=None, min_font_size=1):
         if max_width is None and max_height is None:
@@ -147,10 +151,11 @@ class CardDraw(object):
             text_size = self.get_text_size(font, font_size, text)
 
     # Writes a single line of text:
-    def write_text(self, position, text, font_filename, font_size="fill", color=BLACK, max_width=None, max_height=None, adjust_for_below_letters=False, x_centered=False, y_centered=True, return_symbol_positions=False):
+    # TODO italics adjustment -- needs an input for italics start/stop indices.
+    def write_text(self, position, text, font_filename, font_size="fill", color=BLACK, max_width=None, max_height=None, adjust_for_below_letters=False, x_centered=False, y_centered=True, return_symbol_positions=False, italics_indices=()):
         if font_size == 'fill' and (max_width is not None or max_height is not None):
             font_size = self.get_font_size(text, font_filename, max_width, max_height)
-        text_size = self.get_text_size(font_filename, font_size, text)
+        text_size = self.get_text_size(font_filename, font_size, text) # TODO italics adjustment
         font = ImageFont.truetype(font_filename, font_size)
         if position == 'center':
             x = (self.size[0] - text_size[0]) / 2
@@ -171,7 +176,7 @@ class CardDraw(object):
             # If any of the very below letters are present, don't raise the y-value at all:
             if any([l in text for l in letters_very_below]):
                 pass
-            # If none of the very below lettesr are present, but some of the mid below letters are present, raise the y-value slightly:
+            # If none of the very below letters are present, but some of the mid below letters are present, raise the y-value slightly:
             elif any([l in text for l in letters_mid_below]):
                 y -= text_size[1]*adjustment_weight_slight
             # If none of the very or mid below letters are present, but some of the slightly below letters are present, raise the y-value a medium amount:
@@ -180,12 +185,12 @@ class CardDraw(object):
             # If none of the slightly/mid/very below letters are present, raise the y-value significantly:  
             else:
                 y -= text_size[1]*adjustment_weight_very
-        self.draw.text((x, y), text, font=font, fill=color)
+        self.draw.text((x, y), text, font=font, fill=color) # TODO italics adjustment -- may need up to three draw calls for a single line
         if return_symbol_positions:
             symbol_positions = []
             for i, char in enumerate(text):
                 if char=="○":
-                    size_so_far = self.get_text_size(font_filename, font_size, text[0:i-1])
+                    size_so_far = self.get_text_size(font_filename, font_size, text[0:i-1]) # TODO italics adjustment
                     symbol_positions.append((int(x+size_so_far[0]), int(y)))
             return text_size, symbol_positions
         else:
@@ -193,6 +198,8 @@ class CardDraw(object):
 
     # TODO -- within flavor text, support non-italicized words
     # TODO -- support manual italics and parenthesis italics. Would need to just find what line it starts on and call write_text twice with diff fonts. Then do the same for lines it ends on. Lines in the middle can all be italics.
+    #   Plan: go thru text after finished replacing mana symbols. Find each index where open or closed parenthesis or italics token happens and mark those in a list of tuples of italics start/stops. Also remove every italics token.
+    #        Then every time text size is computed, need to change that computation to adjust for italics.
     def write_rules_text(self, font_size='fill', color=BLACK, place='left'):
         font_filename, font_filename_flavor = FONT_PATHS["rules"], FONT_PATHS["flavor"]
         text, text_flavor = self.card.rules, self.card.flavor
@@ -283,6 +290,51 @@ class CardDraw(object):
         first_box_fill_attempt = True
         text_lines = []
         flavor_block_line_index = None
+        # Find the indices where each italics element should start/end in each text block:
+        italics_start_indices_per_text_block = []
+        italics_end_indices_per_text_block = []
+        for ti, this_text_block in enumerate(text_blocks):
+            if not any([it in this_text_block for it in ["(",")","<i>","</i>"]]):
+                italics_start_indices_per_text_block.append([])
+                italics_end_indices_per_text_block.append([])
+                continue
+            need_to_update_text_block = False
+            force_italics_start_positions, force_italics_end_positions = [], []
+            last_found_indicator = None
+            for position in range(len(this_text_block)):
+                try:
+                    if this_text_block[position:position+3]=="<i>":
+                        if last_found_indicator is None or last_found_indicator != "<i>":
+                            force_italics_start_positions.append(position)
+                            this_text_block = this_text_block[0:position] + this_text_block[position+3:]
+                            need_to_update_text_block = True
+                            last_found_indicator = "<i>"
+                    elif this_text_block[position:position+4]=="</i>":
+                        if last_found_indicator is None or last_found_indicator != "</i>":
+                            force_italics_end_positions.append(position)
+                            this_text_block = this_text_block[0:position] + this_text_block[position+4:]
+                            need_to_update_text_block = True
+                            last_found_indicator = "</i>"
+                    elif this_text_block[position]=="(":
+                        if last_found_indicator is None or last_found_indicator != "(":
+                            force_italics_start_positions.append(position)
+                            last_found_indicator = "("
+                    elif this_text_block[position]==")":
+                        if last_found_indicator is None or last_found_indicator != ")":
+                            force_italics_end_positions.append(position+1)
+                            last_found_indicator = ")"
+                except:
+                    pass
+            if need_to_update_text_block:
+                text_blocks[ti] = this_text_block
+            while len(force_italics_end_positions) < len(force_italics_start_positions):
+                force_italics_end_positions.append(len(text_blocks[ti])+1)
+            while len(force_italics_start_positions) < len(force_italics_end_positions):
+                force_italics_start_positions = [0] + force_italics_start_positions
+            italics_start_indices_per_text_block.append(force_italics_start_positions)
+            italics_end_indices_per_text_block.append(force_italics_end_positions)
+        # For text block i, italics_start_indices_per_text_block[i] gives a list of each time the font should switch to italics, and italics_end_indices_per_text_block[i] gives a list of identical length giving each time the font should switch back to normal.
+        # Determine the size of the complete rules text and break it up into separate lines:
         while total_height > max_height:
             if not first_box_fill_attempt:
                 font_size -= 1
@@ -296,13 +348,22 @@ class CardDraw(object):
                     lines = []
                     line = []
                     words = this_text_block.split()
+                    # TODO -- need to see how this adjusts the italics indices. Those indices need to be reshifted so the proper words are being italicized.
+                    if len(italics_start_indices_per_text_block[ti])>0:
+                        print()
+                        print("BEFORE ADJUSTING FOR SYMBOLS:")
+                        print("ITALICS INDICES:")
+                        starti, endi = italics_start_indices_per_text_block[ti], italics_end_indices_per_text_block[ti]
+                        for ii, (si, ei) in enumerate(zip(starti, endi)):
+                            print("\t", this_text_block[si:ei])
+                        print()
                     # Preprocess the split words to combine all of the symbols into a single word:
                     words_adjusted_for_symbols = []
                     last_symbol_seen = None
                     for wi, word in enumerate(words):
                         if word != "○":
                             if last_symbol_seen is not None:
-                                words_adjusted_for_symbols.append(" " + "  ".join(words[last_symbol_seen:wi])+(" " if ((wi<len(words)-1) and (words[wi] not in [".",",",":"]))else "")) # Need an extra space after?
+                                words_adjusted_for_symbols.append(" " + "  ".join(words[last_symbol_seen:wi])+(" " if ((wi<len(words)-1) and (words[wi] not in [".",",",":"]))else ""))
                                 last_symbol_seen = None
                             words_adjusted_for_symbols.append(word)
                             continue
@@ -320,11 +381,21 @@ class CardDraw(object):
                             words_readjusted.append(word)
                         previous_word_is_symbol = "○" in word
                     words = words_readjusted.copy()
+                    if len(italics_start_indices_per_text_block[ti])>0:
+                        newtxt = " ".join(words)
+                        print()
+                        print("AFTER ADJUSTING FOR SYMBOLS:")
+                        print("ITALICS INDICES:")
+                        starti, endi = italics_start_indices_per_text_block[ti], italics_end_indices_per_text_block[ti]
+                        for ii, (si, ei) in enumerate(zip(starti, endi)):
+                            print("\t", newtxt[si:ei])
+                        print()
+                    # Compute the size of this text block and divide it into separate lines:
                     for word in words:
-                        reached_creature_pt_box = self.card.is_creature() and (cumulative_text_height > (MAX_HEIGHT_RULES_TEXT_BOX-50))
+                        reached_creature_pt_box = self.card.is_creature() and (cumulative_text_height > (MAX_HEIGHT_RULES_TEXT_BOX-45))
                         new_line = ' '.join(line + [word])
-                        size = self.get_text_size(font_filename, font_size, new_line)
-                        this_max_width = max_width-80 if reached_creature_pt_box else max_width # Ensures the rules text doesn't run into the power/toughness box
+                        size = self.get_text_size(font_filename, font_size, new_line) # TODO italics adjustment
+                        this_max_width = max_width-75 if reached_creature_pt_box else max_width # Ensures the rules text doesn't run into the power/toughness box
                         if size[0] <= this_max_width:
                             line.append(word)
                         else:
@@ -333,7 +404,7 @@ class CardDraw(object):
                             line = [word]
                     if line:
                         cumulative_text_height += text_height
-                        reached_creature_pt_box = self.card.is_creature() and (cumulative_text_height > (MAX_HEIGHT_RULES_TEXT_BOX-50))
+                        reached_creature_pt_box = self.card.is_creature() and (cumulative_text_height > (MAX_HEIGHT_RULES_TEXT_BOX-45))
                         lines.append(line)
                     if font_size >= MAX_FONT_SIZE_RULES_TEXT_LETTERS:
                         break
@@ -384,6 +455,7 @@ class CardDraw(object):
                 flavor_line_position = (POSITION_FLAVOR_LINE[0], int(height-text_height/4))
             elif self.card.is_saga() and index in saga_separator_line_indices:
                 saga_line_positions.append((POSITION_SAGA_LINE[0], int(height)))
+            # TODO italics adjustment -- Will need to find the index within each line where italics turn on/off and pass that tuple as a parameter to write_text.
             if place == 'left':
                 _, symbol_positions = self.write_text((x, height), line, font_filename, font_size, color, return_symbol_positions=True)
             elif place == 'right':
