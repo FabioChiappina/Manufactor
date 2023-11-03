@@ -198,8 +198,7 @@ class CardDraw(object):
 
     # TODO -- within flavor text, support non-italicized words
     # TODO -- support manual italics and parenthesis italics. Would need to just find what line it starts on and call write_text twice with diff fonts. Then do the same for lines it ends on. Lines in the middle can all be italics.
-    #   Plan: go thru text after finished replacing mana symbols. Find each index where open or closed parenthesis or italics token happens and mark those in a list of tuples of italics start/stops. Also remove every italics token.
-    #        Then every time text size is computed, need to change that computation to adjust for italics.
+    #   Plan: every time text size is computed, need to change that computation to adjust for italics using the indices acquired in the previous step
     def write_rules_text(self, font_size='fill', color=BLACK, place='left'):
         font_filename, font_filename_flavor = FONT_PATHS["rules"], FONT_PATHS["flavor"]
         text, text_flavor = self.card.rules, self.card.flavor
@@ -356,41 +355,21 @@ class CardDraw(object):
                     lines = []
                     line = []
                     words = this_text_block.split()
-                    # TODO -- need to see how this adjusts the italics indices. Those indices need to be reshifted so the proper words are being italicized.
-                    # (100% the adjustment definitely has to be made here. I literally need to count how much adjustment is necessary every time symbols are combined into a single word. Should happen within the symbol loop.)
-                    # Looks like whenever there's two symbols side by side, we need to add one to each start/stop index starting there
-                    if len(italics_start_indices_per_text_block[ti])>0:
-                        print()
-                        print("BEFORE ADJUSTING FOR SYMBOLS:")
-                        print("ITALICS INDICES:")
-                        print("Start: ", italics_start_indices_per_text_block[ti])
-                        print("End: ", italics_end_indices_per_text_block[ti])
-                        starti, endi = italics_start_indices_per_text_block[ti], italics_end_indices_per_text_block[ti]
-                        for ii, (si, ei) in enumerate(zip(starti, endi)):
-                            print("\t", this_text_block[si:ei])
-                        print()
                     # Count any times that a symbol is preceded by a character separated only ONE space -- this will require any later italics indices to be shifted by one.
-                    print("WORDS:", this_text_block)
                     extra_italics_shift_indices = []
                     if len(italics_start_indices_per_text_block[ti])>0:
-                        for ii, (si, ei) in enumerate(zip(italics_start_indices_per_text_block[ti], italics_end_indices_per_text_block[ti])):
-                            for txtchr_i, txtchr in enumerate(this_text_block):
-                                if txtchr_i < si or txtchr_i > ei:
-                                    continue
-                                if txtchr_i < 2 or txtchr != "○":
-                                    continue
-                                if (this_text_block[txtchr_i-2] != " ") and (this_text_block[txtchr_i-1] == " "):
+                        for txtchr_i, txtchr in enumerate(this_text_block):
+                            if txtchr_i < 2 or txtchr != "○":
+                                continue
+                            if (this_text_block[txtchr_i-2] not in [" ", "○"]) and (this_text_block[txtchr_i-1] == " "):
+                                if txtchr_i not in extra_italics_shift_indices:
                                     extra_italics_shift_indices.append(txtchr_i)
                     # Re-adjust for edge case where symbol is preceded by a char separated only by one space (no spaces in original input text):
-                    print("EXTRA SHIFTS: ", extra_italics_shift_indices)
-                    print("..................................................................")
                     for extra_italics_shift_index in extra_italics_shift_indices:
                         for italics_i in range(len(italics_start_indices_per_text_block[ti])):
                             if italics_start_indices_per_text_block[ti][italics_i] > extra_italics_shift_index:
-                                print("\t\tShifting start index:", "\tAdjusting from", italics_start_indices_per_text_block[ti][italics_i])
                                 italics_start_indices_per_text_block[ti][italics_i] += 1
                             if italics_end_indices_per_text_block[ti][italics_i] > extra_italics_shift_index:
-                                print("\t\tShifting end index:", "\tAdjusting from", italics_start_indices_per_text_block[ti][italics_i])
                                 italics_end_indices_per_text_block[ti][italics_i] += 1
                     # Preprocess the split words to combine all of the symbols into a single word:
                     words_adjusted_for_symbols = []
@@ -398,14 +377,11 @@ class CardDraw(object):
                     for wi, word in enumerate(words):
                         if word != "○":
                             if last_symbol_seen is not None:
-                                italics_index_adjustment = wi - last_symbol_seen - 1 # TODO -- actually adjust all the italics indices. Everything after len(" ".join(words_adjusted_for_symbols[:last_symbol_seen]))
-                                print("\tFOUND SYMBOL:", "WORD:", word, "\tSYMBOL:", "  ".join(words[last_symbol_seen:wi]))
+                                italics_index_adjustment = wi - last_symbol_seen - 1
                                 for italics_i in range(len(italics_start_indices_per_text_block[ti])):
                                     if italics_start_indices_per_text_block[ti][italics_i] > len(" ".join(words_adjusted_for_symbols[:last_symbol_seen])):
-                                        print("\t\tShifting start index:", "Length was:", len(" ".join(words_adjusted_for_symbols[:last_symbol_seen])), "\tAdjusting from", italics_start_indices_per_text_block[ti][italics_i], "by", italics_index_adjustment)
                                         italics_start_indices_per_text_block[ti][italics_i] += italics_index_adjustment
                                     if italics_end_indices_per_text_block[ti][italics_i] > len(" ".join(words_adjusted_for_symbols[:last_symbol_seen])):
-                                        print("\t\tShifting end index:", "Length was:", len(" ".join(words_adjusted_for_symbols[:last_symbol_seen])), "\tAdjusting from", italics_end_indices_per_text_block[ti][italics_i], "by", italics_index_adjustment)
                                         italics_end_indices_per_text_block[ti][italics_i] += italics_index_adjustment
                                 words_adjusted_for_symbols.append(" " + "  ".join(words[last_symbol_seen:wi])+(" " if ((wi<=len(words)-1) and (words[wi] not in [".",",",":"]))else ""))
                                 last_symbol_seen = None
@@ -425,19 +401,16 @@ class CardDraw(object):
                             words_readjusted.append(word)
                         previous_word_is_symbol = "○" in word
                     words = words_readjusted.copy()
+                    """
+                    # TODO -- now will use the newly modified italics indices in all subsequent italics adjustments
                     if len(italics_start_indices_per_text_block[ti])>0:
                         newtxt = " ".join(words)
-                        print()
-                        print("AFTER ADJUSTING FOR SYMBOLS:")
-                        print("ITALICS INDICES:")
                         print("Start: ", italics_start_indices_per_text_block[ti])
                         print("End: ", italics_end_indices_per_text_block[ti])
                         starti, endi = italics_start_indices_per_text_block[ti], italics_end_indices_per_text_block[ti]
                         for ii, (si, ei) in enumerate(zip(starti, endi)):
                             print("\t", newtxt[si:ei])
-                        print()
-                    # TODO -- could do a post-processing italics step here where for any italics starting at parentheses, keep adding to the end until you get to a parentheses. But this doesn't fix the start which can be an issue if there's multiple italics in one block. 
-                    # THE PROBLEM Is when a symbol is preceded WITHOUT WHITESPACE by some other character (e.g., ({1} or pay{1} ) need an extra shift.
+                    """
                     # Compute the size of this text block and divide it into separate lines:
                     for word in words:
                         reached_creature_pt_box = self.card.is_creature() and (cumulative_text_height > (MAX_HEIGHT_RULES_TEXT_BOX-45))
