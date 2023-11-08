@@ -12,3 +12,5 @@ FONT_PATHS = {"name":   os.path.join(ASSETS_PATH, "Fonts", "Beleren-Bold.ttf"),
               "flavor": os.path.join(ASSETS_PATH, "Fonts", "MPlantin-Italic.ttf")}
 
 DECK_PATH = os.path.join("..", "Decks")
+
+COCKATRICE_IMAGE_PATH = os.path.join("/", "Users", "fabiochiappina", "Library", "Application Support", "Cockatrice", "Cockatrice", "pics", "CUSTOM")

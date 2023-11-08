@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw, ImageFont
 import game_elements
 from paths import ASSETS_PATH, SYMBOL_PATH, SET_SYMBOL_PATH, SAGA_SYMBOL_PATH, FONT_PATHS
 
-POSITION_CARD_NAME  = (66,78)
+POSITION_CARD_NAME  = (66,77)
 POSITION_CARD_TYPE  = (66,609)
 POSITION_TOKEN_CARD_TYPE = (66,POSITION_CARD_TYPE[1]+115)
 POSITION_SAGA_CARD_TYPE = (66,POSITION_CARD_TYPE[1]+295)
@@ -24,7 +24,7 @@ POSITION_SAGA_CHAPTER_SYMBOLS = (31,None)
 MAX_HEIGHT_CARD_NAME  = 44.5
 MAX_HEIGHT_CARD_TYPE  = 37.5
 MAX_FONT_SIZE_RULES_TEXT_LETTERS = 37
-MAX_HEIGHT_RULES_TEXT_BOX = 277 
+MAX_HEIGHT_RULES_TEXT_BOX = 280 
 MAX_HEIGHT_TOKEN_RULES_TEXT_BOX = 178
 MAX_HEIGHT_SAGA_RULES_TEXT_BOX = 537
 MAX_WIDTH_RULES_TEXT_BOX = 605
@@ -146,7 +146,7 @@ class CardDraw(object):
         if len(italics_start_indices)==0:
             return self.get_text_size(font_filename, font_size, text)
         starts_italicized, ends_italicized = (0 in italics_start_indices), (max(italics_end_indices)>=len(text))
-        combined_indices = italics_start_indices.copy() + italics_end_indices.copy()
+        combined_indices = sorted(italics_start_indices.copy() + italics_end_indices.copy())
         if not starts_italicized:
             combined_indices = [0] + combined_indices
         if not ends_italicized:
@@ -176,7 +176,6 @@ class CardDraw(object):
             text_size = self.get_text_size(font, font_size, text)
         
     # Writes a single line of text:
-    # TODO italics adjustment -- needs an input for italics start/stop indices.
     # italics_start_indices -- a list of every index in the current block of text where font should change to italics from regular
     # italics_end_indices   -- a list of every index in the current block of text where font should change from italics to regular
     # italics_index_offset  -- an integer giving the number of characters from the current text block that occurred BEFORE the input line of text. Used to adjust italics_start_indices.
@@ -229,7 +228,7 @@ class CardDraw(object):
             combined_indices = [0, len(text)]
         else:
             starts_italicized, ends_italicized = (0 in italics_start_indices), (max(italics_end_indices)>=len(text))
-            combined_indices = italics_start_indices.copy() + italics_end_indices.copy()
+            combined_indices = sorted(italics_start_indices.copy() + italics_end_indices.copy())
             if not starts_italicized:
                 combined_indices = [0] + combined_indices
             if not ends_italicized:
@@ -250,15 +249,13 @@ class CardDraw(object):
             for i, char in enumerate(text):
                 if char=="○":
                     # size_so_far = self.get_text_size(font_filename, font_size, text[0:i-1])
-                    size_so_far = self.get_text_size_adjusted_for_italics(font_size, text[0:i-1], italics_start_indices, italics_end_indices, italics_index_offset)
+                    size_so_far = self.get_text_size_adjusted_for_italics(font_size, text[0:i-1], italics_start_indices, italics_end_indices, 0, font_filename=font_filename, font_filename_italics=font_filename_italics)                  
                     symbol_positions.append((int(x+size_so_far[0]), int(y)))
             return text_size, symbol_positions
         else:
             return text_size
 
     # TODO -- within flavor text, support non-italicized words
-    # TODO -- support manual italics and parenthesis italics. Would need to just find what line it starts on and call write_text twice with diff fonts. Then do the same for lines it ends on. Lines in the middle can all be italics.
-    #   Plan: every time text size is computed, need to change that computation to adjust for italics using the indices acquired in the previous step
     def write_rules_text(self, font_size='fill', color=BLACK, place='left'):
         font_filename, font_filename_flavor = FONT_PATHS["rules"], FONT_PATHS["flavor"]
         text, text_flavor = self.card.rules, self.card.flavor
@@ -462,24 +459,14 @@ class CardDraw(object):
                             words_readjusted.append(word)
                         previous_word_is_symbol = "○" in word
                     words = words_readjusted.copy()
-                    """
-                    # TODO -- now will use the newly modified italics indices in all subsequent italics adjustments
-                    if len(italics_start_indices_per_text_block[ti])>0:
-                        newtxt = " ".join(words)
-                        print("Start: ", italics_start_indices_per_text_block[ti])
-                        print("End: ", italics_end_indices_per_text_block[ti])
-                        starti, endi = italics_start_indices_per_text_block[ti], italics_end_indices_per_text_block[ti]
-                        for ii, (si, ei) in enumerate(zip(starti, endi)):
-                            print("\t", newtxt[si:ei])
-                    """
                     # Compute the size of this text block and divide it into separate lines:
                     current_italics_index_offset = 0
                     for word in words:
-                        reached_creature_pt_box = self.card.is_creature() and (cumulative_text_height > (MAX_HEIGHT_RULES_TEXT_BOX-45))
+                        reached_creature_pt_box = self.card.is_creature() and (cumulative_text_height > (MAX_HEIGHT_RULES_TEXT_BOX-40))
                         new_line = ' '.join(line + [word])
                         # size = self.get_text_size(font_filename, font_size, new_line)
                         size = self.get_text_size_adjusted_for_italics(font_size, new_line, italics_start_indices_per_text_block[ti], italics_end_indices_per_text_block[ti], current_italics_index_offset, font_filename, font_filename_flavor)
-                        this_max_width = max_width-75 if reached_creature_pt_box else max_width # Ensures the rules text doesn't run into the power/toughness box
+                        this_max_width = max_width-70 if reached_creature_pt_box else max_width # Ensures the rules text doesn't run into the power/toughness box
                         if size[0] <= this_max_width:
                             line.append(word)
                         else:
@@ -489,7 +476,7 @@ class CardDraw(object):
                             line = [word]
                     if line:
                         cumulative_text_height += text_height
-                        reached_creature_pt_box = self.card.is_creature() and (cumulative_text_height > (MAX_HEIGHT_RULES_TEXT_BOX-45))
+                        reached_creature_pt_box = self.card.is_creature() and (cumulative_text_height > (MAX_HEIGHT_RULES_TEXT_BOX-40))
                         lines.append(line)
                     if font_size >= MAX_FONT_SIZE_RULES_TEXT_LETTERS:
                         break

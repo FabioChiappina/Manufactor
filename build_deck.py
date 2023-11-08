@@ -2,6 +2,7 @@ import os
 import argparse
 import string
 import json
+import shutil
 from random import randint
 
 import paths
@@ -33,7 +34,7 @@ def create_images_from_Deck(deck, save_path=None, skip_complete=True):
 # Updates the custom.xml file that Cockatrice uses to generate card information
 # xml_filepath -- path to the custom.xml file used within Cockatrice.
 # json_filepath -- path to the custom.json file used only to keep track of each different custom card. Since this is used to build custom.xml, if a card needs to be removed, it should be deleted from custom.json (possibly also from custom.json).
-def update_cockatrice(deck, xml_filepath=None, json_filepath=None):
+def update_cockatrice(deck, xml_filepath=None, json_filepath=None, image_path=paths.COCKATRICE_IMAGE_PATH):
     if xml_filepath is None:
         xml_filepath = os.path.dirname(paths.DECK_PATH)
     if not xml_filepath.endswith(".xml"):
@@ -46,6 +47,8 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None):
     setname = game_elements.Set.adjust_forbidden_custom_setname((deck.name.lower().replace("the ",""))[0:3].upper())
     cdict = {}
     for ci, card in enumerate(deck.cards):
+        current_image_path = os.path.join(paths.DECK_PATH, deck.name, "Cards", card.name+".jpg")
+        shutil.copy(current_image_path, os.path.join(paths.COCKATRICE_IMAGE_PATH, (card.name.replace('"', ''))+".full.jpeg"))
         name = (card.name).replace('"','&quot;')
         text = (card.rules).replace('"','&quot;')
         coloridentity = "".join(card.colors).upper()
@@ -55,7 +58,10 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None):
         fulltype = card.get_type_line()
         maintype = card.cardtype if type(card.supertype) is not str else card.supertype.title() + " " + card.cardtype.title()
         cmc = str(card.get_mana_value())
-        manacost = ((card.mana.replace("{","")).replace("}","")).upper()
+        if card.mana is None:
+            manacost = ""
+        else:
+            manacost = ((card.mana.replace("{","")).replace("}","")).upper()
         colors = coloridentity
         layout = "normal"
         if card.special == "transform-front" or card.special == "transform-back":
