@@ -27,7 +27,7 @@ MAX_FONT_SIZE_RULES_TEXT_LETTERS = 37
 MAX_HEIGHT_RULES_TEXT_BOX = 280 
 MAX_HEIGHT_TOKEN_RULES_TEXT_BOX = 178
 MAX_HEIGHT_SAGA_RULES_TEXT_BOX = 537
-MAX_WIDTH_RULES_TEXT_BOX = 605
+MAX_WIDTH_RULES_TEXT_BOX = 598
 MAX_WIDTH_SAGA_RULES_TEXT_BOX = 255
 MAX_WIDTH_CARD_NAME = 575
 MAX_WIDTH_CARD_TYPE = 567
@@ -42,6 +42,8 @@ SPECIAL_SYMBOL_SIZE = 60
 
 BLACK = (0, 0, 0)
 WHITE = (255,255,255)
+
+# TODO -- there may be some issue with the deck stats counting how many of each mana value
 
 ################################################################################
 ################################################################################

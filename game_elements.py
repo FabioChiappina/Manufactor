@@ -34,13 +34,14 @@ class Mana:
     # Returns the integer mana value (converted mana cost) of the input card. 
     def get_mana_value(mana_cost):
         mana_value = 0
-        for symbol in Mana.get_mana_symbols(mana_cost).keys():
+        mana_value_dict = Mana.get_mana_symbols(mana_cost)
+        for symbol in mana_value_dict.keys():
             if symbol in Mana.mana_symbols_numeric:
-                mana_value += int(symbol)
+                mana_value += int(symbol) * mana_value_dict[symbol]
             elif symbol in Mana.mana_symbols_mono_hybrid:
-                mana_value += 2
+                mana_value += 2 * mana_value_dict[symbol]
             elif symbol not in Mana.mana_symbols_variable:
-                mana_value += 1
+                mana_value += 1 * mana_value_dict[symbol]
         return mana_value
 
     def get_colors(mana_cost):
