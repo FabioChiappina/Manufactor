@@ -27,7 +27,7 @@ MAX_FONT_SIZE_RULES_TEXT_LETTERS = 37
 MAX_HEIGHT_RULES_TEXT_BOX = 280 
 MAX_HEIGHT_TOKEN_RULES_TEXT_BOX = 178
 MAX_HEIGHT_SAGA_RULES_TEXT_BOX = 537
-MAX_WIDTH_RULES_TEXT_BOX = 598
+MAX_WIDTH_RULES_TEXT_BOX = 596
 MAX_WIDTH_SAGA_RULES_TEXT_BOX = 255
 MAX_WIDTH_CARD_NAME = 575
 MAX_WIDTH_CARD_TYPE = 567
@@ -261,6 +261,8 @@ class CardDraw(object):
     def write_rules_text(self, font_size='fill', color=BLACK, place='left'):
         font_filename, font_filename_flavor = FONT_PATHS["rules"], FONT_PATHS["flavor"]
         text, text_flavor = self.card.rules, self.card.flavor
+        if (text is None or len(text)==0) and (text_flavor is None or len(text_flavor)==0):
+            return
         if self.card.is_saga():
             max_width = MAX_WIDTH_SAGA_RULES_TEXT_BOX
         else:
@@ -614,11 +616,11 @@ class CardDraw(object):
             color = WHITE
         else:
             color = BLACK
-        maxpt = max(0 if self.card.power is None else int(self.card.power), 0 if self.card.toughness is None else int(self.card.toughness))
-        minpt = min(0 if self.card.power is None else int(self.card.power), 0 if self.card.toughness is None else int(self.card.toughness))
+        maxpt = max(0 if (self.card.power is None or self.card.power in ["*","x","X"]) else int(self.card.power), 0 if (self.card.toughness is None or self.card.toughness in ["*","x","X"]) else int(self.card.toughness))
+        minpt = min(0 if (self.card.power is None or self.card.power in ["*","x","X"]) else int(self.card.power), 0 if (self.card.toughness is None or self.card.toughness in ["*","x","X"]) else int(self.card.toughness))
         max_height = MAX_HEIGHT_POWER_TOUGHNESS-3 if (maxpt >= 10 and minpt < 10) else MAX_HEIGHT_POWER_TOUGHNESS
         if self.card.power is not None:
-            self.write_text(POSITION_POWER if int(self.card.power)<10 else (POSITION_POWER[0]-15, POSITION_POWER[1]), self.card.power, font_filename=FONT_PATHS["name"], font_size='fill', max_height=max_height, max_width=MAX_HEIGHT_POWER_TOUGHNESS, adjust_for_below_letters=0, color=color)
+            self.write_text(POSITION_POWER if (self.card.power in ["*","x","X"] or int(self.card.power)<10) else (POSITION_POWER[0]-15, POSITION_POWER[1]), self.card.power, font_filename=FONT_PATHS["name"], font_size='fill', max_height=max_height, max_width=MAX_HEIGHT_POWER_TOUGHNESS, adjust_for_below_letters=0, color=color)
         if self.card.toughness is not None:
             self.write_text(POSITION_TOUGHNESS, self.card.toughness, font_filename=FONT_PATHS["name"], font_size='fill', max_height=max_height, max_width=MAX_HEIGHT_POWER_TOUGHNESS, adjust_for_below_letters=0, color=color)
 
