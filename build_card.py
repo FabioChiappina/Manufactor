@@ -261,7 +261,7 @@ class CardDraw(object):
     def write_rules_text(self, font_size='fill', color=BLACK, place='left'):
         font_filename, font_filename_flavor = FONT_PATHS["rules"], FONT_PATHS["flavor"]
         text, text_flavor = self.card.rules, self.card.flavor
-        if (text is None or len(text)==0) and (text_flavor is None or len(text_flavor)==0):
+        if (text is None or len(text)==0) and (text_flavor is None or len(text_flavor)==0) and (self.card.rules1 is None and self.card.rules2 is None and self.card.rules3 is None and self.card.rules4 is None and self.card.rules5 is None):
             return
         if self.card.is_saga():
             max_width = MAX_WIDTH_SAGA_RULES_TEXT_BOX

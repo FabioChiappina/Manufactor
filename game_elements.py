@@ -476,7 +476,7 @@ class Card:
                 if "{"+c in line or c+"}" in line:
                     if c not in colors:
                         colors.append(c)
-        if "mana of any" in rules and "color" in rules:
+        if ("mana of any" in rules and "color" in rules) or ("mana in any combination of colors" in rules):
             for c in ["w","u","b","r","g"]:
                 if c not in colors:
                     colors.append(c)
@@ -876,6 +876,10 @@ class Deck:
         mana_value_dict = {}
         total_deck_mana_value = 0
         for card in self.cards:
+            if card.special is not None and "transform" in card.special and "back" in card.special:
+                continue
+            if card.is_land():
+                continue
             mana_value = card.get_mana_value()
             total_deck_mana_value += mana_value
             if mana_value not in mana_value_dict.keys():
