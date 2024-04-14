@@ -90,7 +90,7 @@ def create_printing_image_from_Card(card, saved_image_path=None, save_path=None)
     xy = [(660,962),(690,934),(690,962)]
     draw = ImageDraw.Draw(new_image)
     draw.polygon(xy, fill ="black", outline ="black")
-    if card.is_creature():
+    if card.is_creature() or card.is_vehicle():
         xy = [(428,913),(428,947),(650,947),(650,913)]
         draw = ImageDraw.Draw(new_image)
         draw.polygon(xy, fill ="black", outline ="black")

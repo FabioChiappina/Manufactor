@@ -49,10 +49,10 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, image_path=pa
     for ci, card in enumerate(deck.cards):
         current_image_path = os.path.join(paths.DECK_PATH, deck.name, "Cards", card.name+".jpg")
         try:
-            shutil.copy(current_image_path, os.path.join(paths.COCKATRICE_IMAGE_PATH, (card.name.replace('"', ''))+".full.jpeg"))
+            shutil.copy(current_image_path, os.path.join(paths.COCKATRICE_IMAGE_PATH, (card.name.replace('"', '').replace("."," "))+".full.jpeg"))
         except:
             print("\nWARNING -- could not copy the image from the path " + os.path.join(paths.DECK_PATH, deck.name, "Cards", card.name+".jpg") + " to the Cockatrice path -- check to make sure the image exists.")
-        name = (card.name).replace('"','&quot;')
+        name = (card.name).replace('"','&quot;').replace("."," ")
         if card.rules is None:
             text = ""
         else:
