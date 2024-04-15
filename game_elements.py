@@ -241,8 +241,9 @@ class Card:
         return supertype_string
 
     # special: front or transform-front, back or transform-back, mdfc-front, mdfc-back (later add adventure, ...)
+    # mdfc_indicator: Text/mana cost to be written on an indicator of the opposite side of the card. If omitted, default text/mana value is computed from the card's "related" field if present and if special is mdfc. Otherwise, indicator is omitted.
     # real: 1 if a real mtg card, 0 if custom
-    def __init__(self, name=None, artist=None, artwork=None, setname=None, mana=None, cardtype=None, subtype=None, power=None, toughness=None, rarity=None, rules=None, rules1=None, rules2=None, rules3=None, rules4=None, rules5=None, rules6=None, flavor=None, special=None, related=None, colors=None, tags=None, complete=0, real=0, frame=None):
+    def __init__(self, name=None, artist=None, artwork=None, setname=None, mana=None, cardtype=None, subtype=None, power=None, toughness=None, rarity=None, rules=None, rules1=None, rules2=None, rules3=None, rules4=None, rules5=None, rules6=None, flavor=None, special=None, related=None, mdfc_indicator=None, colors=None, tags=None, complete=0, real=0, frame=None):
         if name is not None and type(name)!=str:
             raise TypeError("name input must be of type str.")
         if artist is not None and type(artist)!=str:
@@ -291,6 +292,8 @@ class Card:
             raise TypeError("special input must be of type str.")
         if related is not None and type(related)!=str:
             raise TypeError("related input must be of type str.")
+        if mdfc_indicator is not None and type(mdfc_indicator)!=str:
+            raise TypeError("mdfc_indicator input must be of type str.")
         if colors is not None and type(colors)!=list:
             raise TypeError("colors input must be of type list.")
         elif type(colors)==list:
@@ -337,6 +340,7 @@ class Card:
         self.flavor=flavor
         self.special=special
         self.related=related
+        self.mdfc_indicator=mdfc_indicator
         self.tags=tags
         self.complete=complete
         self.supertype=Card.get_supertype_from_cardtype(cardtype)
@@ -737,8 +741,18 @@ class Deck:
                 card["flavor"]=None
             if "special" not in card.keys(): 
                 card["special"]=None
+            if "mdfc_indicator" not in card.keys():
+                card["mdfc_indicator"]=None
             if "related" not in card.keys():
                 card["related"]=None
+            elif ("mdfc" in card["special"].lower()) and (card["mdfc_indicator"] is None):
+                related_name, related_mana = "", ""
+                for card2 in card_dict.values():
+                    if card2["name"] == card["related"]:
+                        related_name = card2["name"] if "name" in card2.keys() else ""
+                        related_mana = card2["mana"] if "mana" in card2.keys() else ""
+                        break
+                card["mdfc_indicator"]=related_name+" "+related_mana
             if "colors" not in card.keys():
                 card["colors"]=None
             if "tags" not in card.keys():
@@ -773,6 +787,7 @@ class Deck:
                       flavor=card["flavor"],
                       special=card["special"],
                       related=card["related"],
+                      mdfc_indicator=card["mdfc_indicator"],
                       colors=card["colors"],
                       tags=card["tags"],
                       complete=card["complete"],

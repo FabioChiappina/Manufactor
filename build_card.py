@@ -1,7 +1,7 @@
 ﻿import os
 from PIL import Image, ImageDraw, ImageFont
 import game_elements
-from paths import ASSETS_PATH, SYMBOL_PATH, SET_SYMBOL_PATH, SAGA_SYMBOL_PATH, FONT_PATHS
+from paths import ASSETS_PATH, SYMBOL_PATH, SET_SYMBOL_PATH, SAGA_SYMBOL_PATH, MDFC_INDICATOR_PATH, FONT_PATHS
 
 POSITION_CARD_NAME  = (66,77)
 POSITION_CARD_TYPE  = (66,609)
@@ -58,6 +58,7 @@ def create_card_image_from_Card(card, save_path=None):
     card_draw.paste_mana_symbols()
     card_draw.paste_set_symbol()
     card_draw.paste_artwork(artwork_path=os.path.join(os.path.dirname(save_path), "Images"))
+    card_draw.paste_mdfc_indicator()
     card_draw.write_power_toughness()
     card_draw.save()
 
@@ -304,6 +305,8 @@ class CardDraw(object):
         else:
             max_height = MAX_HEIGHT_RULES_TEXT_BOX
             x,y = POSITION_RULES_TEXT
+        if (self.card.mdfc_indicator is not None) and len(self.card.mdfc_indicator)>0:
+            max_height -= 14
         if font_size == 'fill':
             fill = True
             font_size = self.get_font_size(text, font_filename, max_height=MAX_FONT_SIZE_RULES_TEXT_LETTERS, max_width=MAX_WIDTH_RULES_TEXT_BOX)
@@ -690,3 +693,80 @@ class CardDraw(object):
             self.image.paste(artwork_image, (58, 170))
         else:
             self.image.paste(artwork_image, (58, 118))
+        
+    def paste_mdfc_indicator(self):
+        mdfc_indicator = self.card.mdfc_indicator
+        if mdfc_indicator is None:
+            return
+        parts = mdfc_indicator.split('{', 1)
+        if len(parts) > 1:
+            text = parts[0].strip()
+            mana = ('{' + parts[1]).strip()
+        else:
+            text = mdfc_indicator
+            mana = ""
+        text_length_threshold = 15
+        if len(text) > text_length_threshold:
+            parts = text.split(',', 1)
+            if len(parts) > 1:
+                text = parts[0].strip()
+        if len(text) > text_length_threshold:
+            parts = text.split()
+            newtext = ""
+            for pi, part in enumerate(parts):
+                newtext += part
+                if len(newtext) > text_length_threshold - 3:
+                    newtext += "..."
+                    break
+                elif (pi<len(parts)-1) and (len(newtext+parts[pi+1]) > text_length_threshold):
+                    newtext += "..."
+                    break
+                newtext += " "
+            if text.replace(",","") != newtext.replace("...",""):
+                text = newtext
+        # TODO -- strip any mana symbols that have l or L in them, as they signify lands that make that color, but don't actually have that mana cost. Also need to do this 
+        # Paste MDFC indicator:
+        colors = game_elements.Mana.get_colors(mana)
+        indicator_filename = "indicator_"
+        if len(colors)==0:
+            indicator_filename += "c_"
+        elif len(colors)>1:
+            indicator_filename += "m_"
+        else:
+            indicator_filename += colors[0]+"_"
+        if (self.card.special is not None) and ("back" in self.card.special):
+            indicator_filename += "back.png"
+        else:
+            indicator_filename += "front.png"
+        indicator_image = Image.open(os.path.join(MDFC_INDICATOR_PATH, indicator_filename))
+        indicator_position_x, indicator_position_y = 27, 929
+        self.image.paste(indicator_image, (indicator_position_x, indicator_position_y), indicator_image)
+        # Paste mana symbols:
+        mana_symbol_size_mdfc_indicator = 23
+        if (mana is not None) and len(mana)>0:
+            mana_symbols = [m.replace('}','').replace('/','') for m in mana.split('{')]
+            mana_symbol_paths = [os.path.join(SYMBOL_PATH, symbol+".png") for symbol in mana_symbols if (len(symbol)!=0 and os.path.isfile(os.path.join(SYMBOL_PATH, symbol+".png")))]
+            mana_symbol_paths.reverse()
+            mana_position = (305, 936)
+            for mana_symbol in mana_symbol_paths:
+                shadow_image = Image.open(os.path.join(SYMBOL_PATH, "black.png"))
+                shadow_image = shadow_image.resize((mana_symbol_size_mdfc_indicator, mana_symbol_size_mdfc_indicator))
+                self.image.paste(shadow_image, (mana_position[0]-1, mana_position[1]+3), shadow_image)
+                mana_image = Image.open(mana_symbol)
+                mana_image = mana_image.resize((mana_symbol_size_mdfc_indicator, mana_symbol_size_mdfc_indicator))
+                self.image.paste(mana_image, mana_position, mana_image)
+                mana_position = (mana_position[0]-(3+mana_symbol_size_mdfc_indicator), mana_position[1])
+        # Paste text:
+        text_position = (64, 944)
+        max_height_mdfc_indicator = 30
+        max_width_mdfc_indicator = 245 - (0 if (mana is None) else mana.count("{")*mana_symbol_size_mdfc_indicator)
+        color = BLACK if ((self.card.special is not None) and ("back" in self.card.special)) else WHITE
+        font_filename = FONT_PATHS["name"]
+        self.write_text(text_position, text, font_filename=font_filename, font_size='fill', max_height=max_height_mdfc_indicator, max_width=max_width_mdfc_indicator, adjust_for_below_letters=1, x_centered=False, color=color)
+
+        
+
+            
+        
+
+        
