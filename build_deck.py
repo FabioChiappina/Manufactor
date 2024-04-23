@@ -147,7 +147,7 @@ def main():
     args = parser.parse_args()
     deck_folder = os.path.join(paths.DECK_PATH, string.capwords(args.deck))
     print("BUILDING DECK: ", deck_folder, "\n")
-    for directory in ["Cards", "Images", "Printing"]:
+    for directory in ["Cards", "Artwork", "Printing"]:
         if not os.path.isdir(os.path.join(deck_folder, directory)):
             os.mkdir(os.path.join(deck_folder, directory))
     deck = game_elements.Deck.from_deck_folder(deck_folder)

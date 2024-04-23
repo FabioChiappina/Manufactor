@@ -57,7 +57,7 @@ def create_card_image_from_Card(card, save_path=None):
     card_draw.write_rules_text()
     card_draw.paste_mana_symbols()
     card_draw.paste_set_symbol()
-    card_draw.paste_artwork(artwork_path=os.path.join(os.path.dirname(save_path), "Images"))
+    card_draw.paste_artwork(artwork_path=os.path.join(os.path.dirname(save_path), "Artwork"))
     card_draw.paste_mdfc_indicator()
     card_draw.write_power_toughness()
     card_draw.save()
@@ -679,7 +679,7 @@ class CardDraw(object):
 
     def paste_artwork(self, artwork_path=None):
         if artwork_path is None:
-            artwork_path = os.path.join(".", "Images")
+            artwork_path = os.path.join(".", "Artwork")
         if not artwork_path.endswith(self.card.name+".jpg"):
             artwork_path = os.path.join(artwork_path, self.card.name+".jpg")
         try:
