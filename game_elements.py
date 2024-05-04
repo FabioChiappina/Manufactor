@@ -46,6 +46,14 @@ class Mana:
 
     def get_colors(mana_cost):
         return [] if mana_cost is None else [color for color in ['w','u','b','r','g'] if color in mana_cost.lower()]
+    def get_colors_in_text(text):
+        text = text.lower()
+        colors = []
+        for c in ["w","u","b","r","g"]:
+            if "{"+c in text or c+"}" in text:
+                if c not in colors:
+                    colors.append(c)
+        return colors               
     def is_monocolored(mana_cost):
         return len(Mana.get_colors(mana_cost))==1
     def is_colorless(mana_cost):
@@ -241,9 +249,9 @@ class Card:
         return supertype_string
 
     # special: front or transform-front, back or transform-back, mdfc-front, mdfc-back (later add adventure, ...)
-    # mdfc_indicator: Text/mana cost to be written on an indicator of the opposite side of the card. If omitted, default text/mana value is computed from the card's "related" field if present and if special is mdfc. Otherwise, indicator is omitted.
+    # related_indicator: Text/mana cost to be written on an indicator of the opposite side of the card. If omitted, default text/mana value is computed from the card's "related" field if present and if special is mdfc/transform. Otherwise, indicator is omitted.
     # real: 1 if a real mtg card, 0 if custom
-    def __init__(self, name=None, artist=None, artwork=None, setname=None, mana=None, cardtype=None, subtype=None, power=None, toughness=None, rarity=None, rules=None, rules1=None, rules2=None, rules3=None, rules4=None, rules5=None, rules6=None, flavor=None, special=None, related=None, mdfc_indicator=None, colors=None, tags=None, complete=0, real=0, frame=None):
+    def __init__(self, name=None, artist=None, artwork=None, setname=None, mana=None, cardtype=None, subtype=None, power=None, toughness=None, rarity=None, rules=None, rules1=None, rules2=None, rules3=None, rules4=None, rules5=None, rules6=None, flavor=None, special=None, related=None, related_indicator=None, colors=None, tags=None, complete=0, real=0, frame=None):
         if name is not None and type(name)!=str:
             raise TypeError("name input must be of type str.")
         if artist is not None and type(artist)!=str:
@@ -292,8 +300,8 @@ class Card:
             raise TypeError("special input must be of type str.")
         if related is not None and type(related)!=str:
             raise TypeError("related input must be of type str.")
-        if mdfc_indicator is not None and type(mdfc_indicator)!=str:
-            raise TypeError("mdfc_indicator input must be of type str.")
+        if related_indicator is not None and type(related_indicator)!=str:
+            raise TypeError("related_indicator input must be of type str.")
         if colors is not None and type(colors)!=list:
             raise TypeError("colors input must be of type list.")
         elif type(colors)==list:
@@ -340,7 +348,7 @@ class Card:
         self.flavor=flavor
         self.special=special
         self.related=related
-        self.mdfc_indicator=mdfc_indicator
+        self.related_indicator=related_indicator
         self.tags=tags
         self.complete=complete
         self.supertype=Card.get_supertype_from_cardtype(cardtype)
@@ -498,13 +506,7 @@ class Card:
             rules = self.rules
         else:
             return []
-        rules = rules.lower()
-        colors = []
-        for c in ["w","u","b","r","g"]:
-            if "{"+c in rules or c+"}" in rules:
-                if c not in colors:
-                    colors.append(c)
-        return colors               
+        return Mana.get_colors_in_text(rules)
     
     def is_land(self):
         return "land" in self.cardtype.lower()
@@ -590,8 +592,12 @@ class Card:
         if self.mana is None or len(self.mana)==0:
             if self.is_land():
                 colors = self.get_colors_produced_by_land()
-            else:
+            elif not self.is_artifact():
                 colors = self.get_colors_in_rules()
+            else:
+                colors = ""
+            if (len(colors)==0) and (self.special is not None) and ("transform" in self.special) and (self.related_indicator is not None) and len(self.related_indicator)>0:
+                colors = Mana.get_colors_in_text(self.related_indicator)
             if len(colors)==0:
                 filename = "c"
             elif len(colors)==1:
@@ -741,18 +747,18 @@ class Deck:
                 card["flavor"]=None
             if "special" not in card.keys(): 
                 card["special"]=None
-            if "mdfc_indicator" not in card.keys():
-                card["mdfc_indicator"]=None
+            if "related_indicator" not in card.keys():
+                card["related_indicator"]=None
             if "related" not in card.keys():
                 card["related"]=None
-            elif ("mdfc" in card["special"].lower()) and (card["mdfc_indicator"] is None):
+            elif (("mdfc" in card["special"].lower()) or ("transform" in card["special"].lower())) and (card["related_indicator"] is None):
                 related_name, related_mana = "", ""
                 for card2 in card_dict.values():
                     if card2["name"] == card["related"]:
                         related_name = card2["name"] if "name" in card2.keys() else ""
                         related_mana = card2["mana"] if "mana" in card2.keys() else ""
                         break
-                card["mdfc_indicator"]=related_name+" "+related_mana
+                card["related_indicator"]=related_name+" "+related_mana
             if "colors" not in card.keys():
                 card["colors"]=None
             if "tags" not in card.keys():
@@ -787,7 +793,7 @@ class Deck:
                       flavor=card["flavor"],
                       special=card["special"],
                       related=card["related"],
-                      mdfc_indicator=card["mdfc_indicator"],
+                      related_indicator=card["related_indicator"],
                       colors=card["colors"],
                       tags=card["tags"],
                       complete=card["complete"],
@@ -854,10 +860,26 @@ class Deck:
         print()
         print("TAG SUMMARY FOR: ", self.name, ".....................")
         tag_dict = {}
-        for tag in self.tags:
-            tag_dict[tag] = len([card for card in self.cards if card.tags is not None and tag in card.tags])
+        subtag_dict_of_dicts = {}
+        for card in self.cards:
+            if not card.tags:
+                continue
+            supertags_this_card = []
+            for tag in card.tags:
+                supertag, _, subtag = tag.partition('-')
+                if subtag:
+                    if supertag not in supertags_this_card:
+                        supertags_this_card.append(supertag)
+                        tag_dict[supertag] = tag_dict.get(supertag, 0) + 1
+                    subtag_dict_of_dicts.setdefault(supertag, {})
+                    subtag_dict_of_dicts[supertag][subtag] = subtag_dict_of_dicts.get(supertag, {}).get(subtag, 0) + 1
+                else:
+                    tag_dict[supertag] = tag_dict.get(supertag, 0) + 1
         for tag in sorted(tag_dict.keys()):
-            print(tag_dict[tag], "\t", string.capwords(tag))
+            print(tag_dict[tag], "\t", tag)
+            if tag in subtag_dict_of_dicts:
+                for subtag in sorted(subtag_dict_of_dicts[tag].keys()):
+                    print("  ", subtag_dict_of_dicts[tag][subtag], "\t", subtag)
         print()
     
     def print_color_summary(self):
@@ -902,8 +924,8 @@ class Deck:
             else:
                 mana_value_dict[mana_value] += 1
         max_mana_value = max(mana_value_dict.values())
-        for mana_value in sorted(mana_value_dict.keys()):
-            print("Mana Value "+str(mana_value)+":"+(" " if mana_value<10 else ""), "#"*mana_value_dict[mana_value], " "*(max_mana_value-mana_value_dict[mana_value]), round(mana_value_dict[mana_value]/len(self.cards)*100, 1), "%")
+        for mana_value in range(min(mana_value_dict.keys()), max(mana_value_dict.keys())+1):
+            print("Mana Value "+str(mana_value)+":"+(" " if mana_value<10 else ""), "#"*mana_value_dict.get(mana_value, 0), " "*(max_mana_value-mana_value_dict.get(mana_value, 0)), "("+str(mana_value_dict.get(mana_value, 0))+")"+("" if mana_value_dict.get(mana_value, 0)>=10 else " "), round(mana_value_dict.get(mana_value, 0)/len(self.cards)*100, 1), "%")
         print("Average Mana Value (Including Lands):", round(total_deck_mana_value / len(self.cards), 3))
         print("Average Mana Value (Excluding Lands):", round(total_deck_mana_value / self.count_spells(), 3))
         print()

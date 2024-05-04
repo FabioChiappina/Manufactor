@@ -305,7 +305,7 @@ class CardDraw(object):
         else:
             max_height = MAX_HEIGHT_RULES_TEXT_BOX
             x,y = POSITION_RULES_TEXT
-        if (self.card.mdfc_indicator is not None) and len(self.card.mdfc_indicator)>0:
+        if (self.card.related_indicator is not None) and len(self.card.related_indicator)>0 and (self.card.special is not None) and ("mdfc" in self.card.special.lower()):
             max_height -= 14
         if font_size == 'fill':
             fill = True
@@ -665,7 +665,7 @@ class CardDraw(object):
             set_symbol_path = os.path.join(SET_SYMBOL_PATH, "Uncommon.png")
         elif rarity=="rare":
             set_symbol_path = os.path.join(SET_SYMBOL_PATH, "Rare.png")
-        elif rarity=="mythic":
+        else:
             set_symbol_path = os.path.join(SET_SYMBOL_PATH, "Mythic.png")
         rarity_image = Image.open(set_symbol_path)
         rarity_image = rarity_image.resize((int((1200/981)*SET_SYMBOL_SIZE), SET_SYMBOL_SIZE))
@@ -695,8 +695,8 @@ class CardDraw(object):
             self.image.paste(artwork_image, (58, 118))
         
     def paste_mdfc_indicator(self):
-        mdfc_indicator = self.card.mdfc_indicator
-        if mdfc_indicator is None:
+        mdfc_indicator = self.card.related_indicator
+        if (mdfc_indicator is None) or (self.card.special is None) or ("mdfc" not in self.card.special):
             return
         parts = mdfc_indicator.split('{', 1)
         if len(parts) > 1:
