@@ -2,6 +2,7 @@
 import json
 import string
 from functools import cmp_to_key
+from num2words import num2words
 
 from paths import CARD_BORDERS_PATH
 
@@ -51,6 +52,23 @@ class Mana:
         colors = []
         for c in ["w","u","b","r","g"]:
             if "{"+c in text or c+"}" in text:
+                if c not in colors:
+                    colors.append(c)
+        return colors
+    def get_colors_produced_by_land(text):
+        rules = text.lower()
+        colors = []
+        rules_lines = rules.split("\n")
+        for line in rules_lines:
+            split_by_colon = line.split(":")
+            if len(split_by_colon)==2:
+                line = split_by_colon[1]
+            for c in ["w","u","b","r","g"]:
+                if "{"+c in line or c+"}" in line:
+                    if c not in colors:
+                        colors.append(c)
+        if ("mana of any" in rules and "color" in rules) or ("mana in any combination of colors" in rules):
+            for c in ["w","u","b","r","g"]:
                 if c not in colors:
                     colors.append(c)
         return colors               
@@ -214,13 +232,13 @@ class Set:
 
     # Adjusts the input setname if the name is reserved for an existing MTG set.    
     def adjust_forbidden_custom_setname(setname):
-        if setname.upper() in Set.forbidden_custom_set_names.keys():
+        if setname is not None and setname.upper() in Set.forbidden_custom_set_names.keys():
             return Set.forbidden_custom_set_names[setname]
         return setname
 
 class Card:
     supertypes = ["token", "legendary", "basic", "snow"]
-    cardtypes  = ["land", "creature", "artifact", "enchantment", "planeswalker", "instant", "sorcery", "battle"]
+    cardtypes  = ["artifact", "enchantment", "land", "creature", "planeswalker", "instant", "sorcery", "battle"]
 
     rarities = ["common", "uncommon", "rare", "mythic"]
 
@@ -477,22 +495,7 @@ class Card:
             rules = self.rules
         else:
             return []
-        rules = rules.lower()
-        colors = []
-        rules_lines = rules.split("\n")
-        for line in rules_lines:
-            split_by_colon = line.split(":")
-            if len(split_by_colon)==2:
-                line = split_by_colon[1]
-            for c in ["w","u","b","r","g"]:
-                if "{"+c in line or c+"}" in line:
-                    if c not in colors:
-                        colors.append(c)
-        if ("mana of any" in rules and "color" in rules) or ("mana in any combination of colors" in rules):
-            for c in ["w","u","b","r","g"]:
-                if c not in colors:
-                    colors.append(c)
-        return colors
+        return Mana.get_colors_produced_by_land(rules)
     
     # Returns a list with each color of mana (among WUBRG) in the rules text of the card.
     def get_colors_in_rules(self):
@@ -703,7 +706,116 @@ class Card:
         if card_borders_folder is not None:
             filename = os.path.join(card_borders_folder, filename)
         return filename
+    
+    def get_tokens(self):
+        t0 = Card.get_tokens_from_rules_text(self.rules)
+        t1 = Card.get_tokens_from_rules_text(self.rules1)
+        t2 = Card.get_tokens_from_rules_text(self.rules2)
+        t3 = Card.get_tokens_from_rules_text(self.rules3)
+        t4 = Card.get_tokens_from_rules_text(self.rules4)
+        t5 = Card.get_tokens_from_rules_text(self.rules5)
+        t6 = Card.get_tokens_from_rules_text(self.rules6)
+        return t0+t1+t2+t3+t4+t5+t6
 
+    def get_tokens_from_rules_text(rules_text, exclude_list=["Treasure", "Clue"]):
+        if rules_text is None or len(rules_text) == 0:
+            return []
+        tokens = []
+        lines = rules_text.split("\n")
+        colors_dict = {"white": "w", "blue": "u", "black": "b", "red": "r", "green": "g"}
+        for line in lines:
+            name = ""
+            cardtype = ""
+            subtype = ""
+            power = ""
+            toughness = ""
+            rules = ""
+            found_power_toughness = False
+            words = [w.lower() for w in line.split()]
+            if not ("create" in words) or not (("token" in [w.replace(',','').replace('.','') for w in words]) or ("tokens" in [w.replace(',','').replace('.','') for w in words])):
+                continue
+            create_word_index = words.index("create")
+            try:
+                token_word_index = [w.replace(',','').replace('.','') for w in words].index("token")
+            except:
+                token_word_index = [w.replace(',','').replace('.','') for w in words].index("tokens")
+            if token_word_index < create_word_index:
+                continue
+            # Extract name
+            name_default_to_subtype = False
+            if ("named" in words[create_word_index:]): # Check if "named" appears -- if so, the phrase that follows is the name.
+                words_until_next_punctuation = []
+                for index in range(words.index("named")+1, len(words)):
+                    words_until_next_punctuation.append(words[index].replace(',','').replace('.',''))
+                    if (',' in words[index]) or ('.' in words[index]):
+                        break
+                name = " ".join(words_until_next_punctuation).title()
+            else:
+                # Check if the word immediately following "create" is not a number word or "a", "an", or "and"
+                if (create_word_index < len(words)-1) and (words[create_word_index + 1].lower() not in ["a", "an"]) and  (words[create_word_index + 1] not in [num2words(n) for n in range(101)]):
+                    # The words between "create" and the next comma are the name of the token
+                    words_until_next_comma = []
+                    for index in range(create_word_index+1, len(words)):
+                        words_until_next_comma.append(words[index].replace(',',''))
+                        if ',' in words[index]:
+                            break
+                    name = " ".join(words_until_next_comma).title()
+                else:
+                    # If neither 1 nor 2 are true, the name is equal to the subtypes
+                    name = ""
+                    name_default_to_subtype = True
+            # Extract cardtype & subtype
+            cardtype = " ".join([cardtype for cardtype in Card.cardtypes if (cardtype in [w.lower() for w in words[create_word_index:token_word_index]])]).title()
+            if "token" not in cardtype.lower():
+                cardtype = "Token "+cardtype
+            if "legendary" in [w.lower() for w in words[create_word_index:token_word_index]]:
+                cardtype = "Legendary "+cardtype
+            subtype = " ".join([word.lower() for word in words[create_word_index+1:token_word_index] if (("/" not in word) and 
+                                                                                                        (word.lower().replace(',','').replace('.','') != "legendary") and
+                                                                                                        (word.lower().replace(',','').replace('.','') != "colorless") and
+                                                                                                        (word.lower().replace(',','').replace('.','') != name.lower()) and
+                                                                                                        (word.lower().replace(',','').replace('.','') not in Card.cardtypes) and
+                                                                                                        (word.lower().replace(',','').replace('.','') not in [num2words(n) for n in range(101)]) and
+                                                                                                        (word.lower().replace(',','').replace('.','') not in ["a", "an", "and"]) and
+                                                                                                        (word.lower().replace(',','').replace('.','') not in colors_dict.keys()))]).title()
+            if name_default_to_subtype:
+                name = subtype
+            # Extract power and toughness
+            for i, word in enumerate(words):
+                if "/" in word:
+                    power, toughness = word.split("/")
+                    found_power_toughness = True
+                    break
+            # Extract rules # TODO -- fix
+            rules = ""
+            rules = rules.strip(",.")
+            # Extract colors:
+            colors = [colors_dict[color] for color in colors_dict.keys() if (color in [w.lower().replace(',','').replace('.','') for w in words[create_word_index:token_word_index]])]
+            colors = Mana.colors_to_wubrg_order(colors)
+            dummy_card = Card(name=name,
+                              mana="".join(["{"+c+"}" for c in colors]),
+                              cardtype=cardtype,
+                              subtype=subtype,
+                              power=power if found_power_toughness else None,
+                              toughness=toughness if found_power_toughness else None,
+                              rules=rules,
+                              colors=colors)
+            frame_filename = dummy_card.get_frame_filename()
+            # Create and return the dictionary
+            this_token = {
+                "name": name,
+                "cardtype": cardtype,
+                "subtype": subtype,
+                "rules": rules
+            }
+            if found_power_toughness:
+                this_token["power"] = power
+                this_token["toughness"] = toughness
+            if frame_filename is not None and len(frame_filename)>0:
+                this_token["frame"] = frame_filename
+            if this_token["name"] not in exclude_list:
+                tokens.append(this_token)
+        return tokens
 
 class Deck:
     def from_json(deck_json_filepath, setname="UNK", deck_name=None):
@@ -753,10 +865,27 @@ class Deck:
                 card["related"]=None
             elif (("mdfc" in card["special"].lower()) or ("transform" in card["special"].lower())) and (card["related_indicator"] is None):
                 related_name, related_mana = "", ""
+                # TODO -- this land stuff isn't super accurate, since the back side could have something other than {t}: Add x. Really it should read in the rules text and decide what to show.
                 for card2 in card_dict.values():
                     if card2["name"] == card["related"]:
                         related_name = card2["name"] if "name" in card2.keys() else ""
-                        related_mana = card2["mana"] if "mana" in card2.keys() else ""
+                        if ("mana" not in card2.keys()) or len(card2["mana"])==0:
+                            if "land" in card2["cardtype"].lower():
+                                related_colors = Mana.get_colors_produced_by_land(card2["rules"])
+                                related_mana = "{t}: Add "
+                                for ci, c in enumerate(related_colors):
+                                    related_mana += "{"+c+"}"
+                                    if (ci==0) and len(related_colors)==2:
+                                        related_mana += " or "
+                                    elif len(related_colors)==3 and (ci == 0):
+                                        related_mana += ", "
+                                    elif len(related_colors)==3 and (ci == 1):
+                                        related_mana += ", or "
+                                related_mana += "."
+                            else:
+                                related_mana = ""
+                        else:
+                            related_mana = card2["mana"]
                         break
                 card["related_indicator"]=related_name+" "+related_mana
             if "colors" not in card.keys():

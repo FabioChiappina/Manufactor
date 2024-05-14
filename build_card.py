@@ -724,9 +724,13 @@ class CardDraw(object):
                 newtext += " "
             if text.replace(",","") != newtext.replace("...",""):
                 text = newtext
-        # TODO -- strip any mana symbols that have l or L in them, as they signify lands that make that color, but don't actually have that mana cost. Also need to do this 
         # Paste MDFC indicator:
         colors = game_elements.Mana.get_colors(mana)
+        if len(colors)==0:
+            colors2 = game_elements.Mana.get_colors_in_text(mana)
+            if len(colors2)>0:
+                colors = colors2
+                mana = ""  # TODO -- This is kindof just ignoring the work to make mana be {t}: Add ... (see game_elements, in Deck class)
         indicator_filename = "indicator_"
         if len(colors)==0:
             indicator_filename += "c_"
