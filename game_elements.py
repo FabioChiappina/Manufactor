@@ -731,8 +731,11 @@ class Card:
             toughness = ""
             rules = ""
             found_power_toughness = False
-            words = [w.lower() for w in line.split()]
+            original_words = line.split()
+            words = [w.lower() for w in original_words]
             if not ("create" in words) or not (("token" in [w.replace(',','').replace('.','') for w in words]) or ("tokens" in [w.replace(',','').replace('.','') for w in words])):
+                continue
+            if ("token copy" in line) or ("token that's a copy" in line) or ("tokens that are copies" in line):
                 continue
             create_word_index = words.index("create")
             try:
@@ -752,7 +755,7 @@ class Card:
                 name = " ".join(words_until_next_punctuation).title()
             else:
                 # Check if the word immediately following "create" is not a number word or "a", "an", or "and"
-                if (create_word_index < len(words)-1) and (words[create_word_index + 1].lower() not in ["a", "an"]) and  (words[create_word_index + 1] not in [num2words(n) for n in range(101)]):
+                if (create_word_index < len(words)-2) and (words[create_word_index + 1].lower() not in ["a", "an"]) and (words[create_word_index + 1] not in [num2words(n) for n in range(101)]) and (words[create_word_index+1].lower()!= "x") and (words[create_word_index+1].lower()+ " " +words[create_word_index+2].lower() != "that many"):
                     # The words between "create" and the next comma are the name of the token
                     words_until_next_comma = []
                     for index in range(create_word_index+1, len(words)):
@@ -770,25 +773,100 @@ class Card:
                 cardtype = "Token "+cardtype
             if "legendary" in [w.lower() for w in words[create_word_index:token_word_index]]:
                 cardtype = "Legendary "+cardtype
+            cardtype = cardtype.strip()
             subtype = " ".join([word.lower() for word in words[create_word_index+1:token_word_index] if (("/" not in word) and 
                                                                                                         (word.lower().replace(',','').replace('.','') != "legendary") and
                                                                                                         (word.lower().replace(',','').replace('.','') != "colorless") and
+                                                                                                        (word.lower().replace(',','').replace('.','') != "tapped") and
                                                                                                         (word.lower().replace(',','').replace('.','') != name.lower()) and
+                                                                                                        (word.lower().replace(',','').replace('.','') != "x") and
                                                                                                         (word.lower().replace(',','').replace('.','') not in Card.cardtypes) and
                                                                                                         (word.lower().replace(',','').replace('.','') not in [num2words(n) for n in range(101)]) and
                                                                                                         (word.lower().replace(',','').replace('.','') not in ["a", "an", "and"]) and
                                                                                                         (word.lower().replace(',','').replace('.','') not in colors_dict.keys()))]).title()
+            subtype = subtype.lower().replace("that many","").strip().title()
             if name_default_to_subtype:
                 name = subtype
+            name = name.strip()
             # Extract power and toughness
             for i, word in enumerate(words):
                 if "/" in word:
                     power, toughness = word.split("/")
                     found_power_toughness = True
                     break
-            # Extract rules # TODO -- fix
+            # Extract rules
             rules = ""
-            rules = rules.strip(",.")
+            if "with" in original_words:
+                with_word_index = original_words.index("with")
+                if (with_word_index > create_word_index) and (with_word_index > token_word_index):
+                    words_until_next_period = []
+                    for index in range(with_word_index+1, len(original_words)):
+                        word_to_append = original_words[index]
+                        if (index == with_word_index+1) and len(word_to_append)>1:
+                            word_to_append = word_to_append[0].upper() + word_to_append[1:]
+                        if word_to_append.lower() == "named":
+                            break
+                        words_until_next_period.append(word_to_append)
+                        if '.' in original_words[index]:
+                            break
+                    rules = " ".join(words_until_next_period)
+            # Postprocess rules in search for abilities that can be broken up into new lines:
+            rules_split = rules.split("and \"")
+            if len(rules_split)>1:
+                rules = rules_split[0].strip()+"\n"+rules_split[1].strip().replace("\"","",1)
+            rules = rules.replace(",\n","\n")
+            # Postprocess rules again in search of keyword lists that can be better formatted
+            rules_lines = rules.split("\n")
+            postprocessed_rules = ""
+            for ri, rules_line in enumerate(rules_lines):
+                phrases = [phrase.strip() for phrase in rules_line.split(',')]
+                found_phrase_too_long = False
+                for phrase in phrases:
+                    if len(phrase.split()) > 2:
+                        found_phrase_too_long = True
+                        break
+                if found_phrase_too_long:
+                    if ri > 0:
+                        postprocessed_rules += "\n"
+                    postprocessed_rules += rules_line
+                    continue
+                if len(phrases) > 1 and phrases[-1].startswith('and '):
+                    phrases[-2] += ', ' + phrases[-1][4:]
+                    del phrases[-1] 
+                last_phrase = phrases[-1]
+                if last_phrase.endswith('.'):
+                    phrases[-1] = last_phrase[:-1]
+                fixed_line = ', '.join(phrases)
+                if ri > 0:
+                    postprocessed_rules += "\n"
+                postprocessed_rules += fixed_line
+            rules = postprocessed_rules
+            # One final postprocessed to catch KEYWORD1 and KEYWORD2 lines:
+            rules_lines = rules.split("\n")
+            postprocessed_rules = ""
+            for ri, rules_line in enumerate(rules_lines):
+                phrases = [phrase.strip() for phrase in rules_line.split(' and ')]
+                found_phrase_too_long = False
+                for phrase in phrases:
+                    if len(phrase.split()) > 2:
+                        found_phrase_too_long = True
+                        break
+                if found_phrase_too_long:
+                    if ri > 0:
+                        postprocessed_rules += "\n"
+                    postprocessed_rules += rules_line
+                    continue
+                if len(phrases) > 1 and phrases[-1].startswith('and '):
+                    phrases[-2] += ', ' + phrases[-1][4:]
+                    del phrases[-1] 
+                last_phrase = phrases[-1]
+                if last_phrase.endswith('.'):
+                    phrases[-1] = last_phrase[:-1]
+                fixed_line = ', '.join(phrases)
+                if ri > 0:
+                    postprocessed_rules += "\n"
+                postprocessed_rules += fixed_line
+            rules = postprocessed_rules
             # Extract colors:
             colors = [colors_dict[color] for color in colors_dict.keys() if (color in [w.lower().replace(',','').replace('.','') for w in words[create_word_index:token_word_index]])]
             colors = Mana.colors_to_wubrg_order(colors)
@@ -816,6 +894,7 @@ class Card:
             if this_token["name"] not in exclude_list:
                 tokens.append(this_token)
         return tokens
+    # TODO -- note '"{t}: Add {r}.".' has a trailing period and additional quotes to remove
 
 class Deck:
     def from_json(deck_json_filepath, setname="UNK", deck_name=None):
@@ -1058,9 +1137,18 @@ class Deck:
         print("Average Mana Value (Including Lands):", round(total_deck_mana_value / len(self.cards), 3))
         print("Average Mana Value (Excluding Lands):", round(total_deck_mana_value / self.count_spells(), 3))
         print()
+
+    def build_tokens(self):
+        all_tokens = []
+        for card in self.cards:
+            this_card_tokens = card.get_tokens()
+            all_tokens += this_card_tokens
+        all_tokens = [dict(t) for t in {tuple(sorted(d.items())) for d in all_tokens}]
+        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame"] if k in d} for d in all_tokens]                
+        print(all_tokens)
+    # TODO -- For duplicate names, make json string names (not card names) different according to differences -- can just append _B, _C, etc. (use letters here bc numbers to be reserved for arts (many arts with same name except _number will all map to same dict, just get different arts))
     
 all_symbols = Mana.mana_symbols + ["q", "t"]
 all_symbols_bracketed = ["{"+s+"}" for s in all_symbols] 
 
-# TODO -- eventually edit the MDFC frames to show that there's a backside.
 # TODO -- eventually add indicator for what transform cards transform into

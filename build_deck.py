@@ -155,6 +155,7 @@ def main():
     deck.print_mana_summary()
     deck.print_type_summary()
     deck.print_tag_summary()
+    deck.build_tokens()
     create_images_from_Deck(deck)
     if deck.name != "Test":
         update_cockatrice(deck)
