@@ -717,13 +717,24 @@ class Card:
         t6 = Card.get_tokens_from_rules_text(self.rules6)
         return t0+t1+t2+t3+t4+t5+t6
 
-    def get_tokens_from_rules_text(rules_text, exclude_list=["Treasure", "Clue"]):
+    def get_tokens_from_rules_text(rules_text, exclude_list=["Treasure", "Clue", "Creature", "Noncreature", "Artifact", "Nonartifact", "Enchantment", "Nonenchantment", "Land", "Nonland", "Planeswalker", "Nonplaneswalker", "Battle", "Nonbattle"]):
         if rules_text is None or len(rules_text) == 0:
             return []
         tokens = []
         lines = rules_text.split("\n")
         colors_dict = {"white": "w", "blue": "u", "black": "b", "red": "r", "green": "g"}
-        for line in lines:
+        lines_queue = []
+        first_loop_iteration = True
+        lines_queue_index = 0
+        while len(lines_queue)>0 or first_loop_iteration:
+            first_loop_iteration = False
+            if len(lines_queue)>0:
+                lines_queue.pop(0)  # Remove the previously processed line from the last iteration
+            if lines_queue_index >= len(lines):
+                break
+            lines_queue.append(lines[lines_queue_index])  # Append the next line to the queue
+            lines_queue_index += 1
+            line = lines_queue[0]
             name = ""
             cardtype = ""
             subtype = ""
@@ -733,18 +744,36 @@ class Card:
             found_power_toughness = False
             original_words = line.split()
             words = [w.lower() for w in original_words]
-            if not ("create" in words) or not (("token" in [w.replace(',','').replace('.','') for w in words]) or ("tokens" in [w.replace(',','').replace('.','') for w in words])):
+            if not (("create" in words) or ("creates" in words)) or not (("token" in [w.replace(',','').replace('.','') for w in words]) or ("tokens" in [w.replace(',','').replace('.','') for w in words])):
                 continue
             if ("token copy" in line) or ("token that's a copy" in line) or ("tokens that are copies" in line):
                 continue
-            create_word_index = words.index("create")
+            try:
+                create_word_index = words.index("create")
+            except:
+                create_word_index = words.index("creates")
             try:
                 token_word_index = [w.replace(',','').replace('.','') for w in words].index("token")
             except:
                 token_word_index = [w.replace(',','').replace('.','') for w in words].index("tokens")
+            try:
+                with_word_index = words[token_word_index:].index("with") + token_word_index
+                # If the word "with" is found after "token", we can expect to see rules text after "with".
+                if any(["." in wti for wti in words[token_word_index:]]): # If there is a period after "token" and before "with", then the "with" is not specifying rules text.
+                    period_index_after_token = next((ind for ind, val in enumerate(["." in wti for wti in words[token_word_index:]]) if val), None)
+                    if period_index_after_token is not None and period_index_after_token < words[token_word_index:].index("with"):
+                        with_word_index = None
+            except:
+                with_word_index = None
             if token_word_index < create_word_index:
                 continue
+
+            # If the word after "token"/"tokens" is "or", "and", "a", or "then", the rest of the line of text has nothing to do with the token. Ignore it and add to the lines queue.
+            #   Note that if the word "token"/"tokens" appears AGAIN before the next period, then the word "create" is appended to the rest of the line (after or/and/a/then), as another token is presumed to be created.
+            # TODO
+
             # Extract name
+            words_to_exclude_from_names_and_subtypes = ["Goaded"]
             name_default_to_subtype = False
             if ("named" in words[create_word_index:]): # Check if "named" appears -- if so, the phrase that follows is the name.
                 words_until_next_punctuation = []
@@ -754,7 +783,7 @@ class Card:
                         break
                 name = " ".join(words_until_next_punctuation).title()
             else:
-                # Check if the word immediately following "create" is not a number word or "a", "an", or "and"
+                # Check if the word immediately following "create" is not a number word or "a", "an", or "and" -- if so, the phrase after "create" is the name
                 if (create_word_index < len(words)-2) and (words[create_word_index + 1].lower() not in ["a", "an"]) and (words[create_word_index + 1] not in [num2words(n) for n in range(101)]) and (words[create_word_index+1].lower()!= "x") and (words[create_word_index+1].lower()+ " " +words[create_word_index+2].lower() != "that many"):
                     # The words between "create" and the next comma are the name of the token
                     words_until_next_comma = []
@@ -764,7 +793,7 @@ class Card:
                             break
                     name = " ".join(words_until_next_comma).title()
                 else:
-                    # If neither 1 nor 2 are true, the name is equal to the subtypes
+                    # If neither 1 nor 2 are true, no name is provided -- the name is equal to the subtypes
                     name = ""
                     name_default_to_subtype = True
             # Extract cardtype & subtype
@@ -780,6 +809,7 @@ class Card:
                                                                                                         (word.lower().replace(',','').replace('.','') != "tapped") and
                                                                                                         (word.lower().replace(',','').replace('.','') != name.lower()) and
                                                                                                         (word.lower().replace(',','').replace('.','') != "x") and
+                                                                                                        (word.lower().replace(',','').replace('.','') not in [we.lower() for we in words_to_exclude_from_names_and_subtypes]) and
                                                                                                         (word.lower().replace(',','').replace('.','') not in Card.cardtypes) and
                                                                                                         (word.lower().replace(',','').replace('.','') not in [num2words(n) for n in range(101)]) and
                                                                                                         (word.lower().replace(',','').replace('.','') not in ["a", "an", "and"]) and
@@ -794,22 +824,24 @@ class Card:
                     power, toughness = word.split("/")
                     found_power_toughness = True
                     break
-            # Extract rules
+            # Extract rules if the word "with" is present after the word "token" -- keep parsing rules until "." is found
             rules = ""
-            if "with" in original_words:
-                with_word_index = original_words.index("with")
-                if (with_word_index > create_word_index) and (with_word_index > token_word_index):
-                    words_until_next_period = []
-                    for index in range(with_word_index+1, len(original_words)):
-                        word_to_append = original_words[index]
-                        if (index == with_word_index+1) and len(word_to_append)>1:
-                            word_to_append = word_to_append[0].upper() + word_to_append[1:]
-                        if word_to_append.lower() == "named":
-                            break
-                        words_until_next_period.append(word_to_append)
-                        if '.' in original_words[index]:
-                            break
-                    rules = " ".join(words_until_next_period)
+            if with_word_index is not None:
+                words_until_next_period = []
+                for index in range(with_word_index+1, len(original_words)):
+                    word_to_append = original_words[index]
+                    if (index == with_word_index+1) and len(word_to_append)>1:
+                        word_to_append = word_to_append[0].upper() + word_to_append[1:]
+                    if word_to_append.lower() == "named":
+                        break
+                    words_until_next_period.append(word_to_append)
+                    if '.' in original_words[index]:
+                        break
+                rules = " ".join(words_until_next_period)
+
+            # TODO -- somewhere in this first rules text processing, need to find any of these phrases: "and a", "or a", ", a" -- these signal a new token and should be added to the lines queue
+            #   (first change to "and create a", "or create a", ", create a")
+
             # Postprocess rules in search for abilities that can be broken up into new lines:
             rules_split = rules.split("and \"")
             if len(rules_split)>1:
@@ -841,7 +873,7 @@ class Card:
                     postprocessed_rules += "\n"
                 postprocessed_rules += fixed_line
             rules = postprocessed_rules
-            # One final postprocessed to catch KEYWORD1 and KEYWORD2 lines:
+            # One more postprocessing to catch KEYWORD1 and KEYWORD2 lines:
             rules_lines = rules.split("\n")
             postprocessed_rules = ""
             for ri, rules_line in enumerate(rules_lines):
@@ -867,6 +899,12 @@ class Card:
                     postprocessed_rules += "\n"
                 postprocessed_rules += fixed_line
             rules = postprocessed_rules
+            # One final postprocessing to remove starting/ending quotes:
+            if rules.startswith("\""):
+                if rules.endswith("\""):
+                    rules = rules[1:-1]
+                elif  rules.endswith("\"."):
+                    rules = rules[1:-2]
             # Extract colors:
             colors = [colors_dict[color] for color in colors_dict.keys() if (color in [w.lower().replace(',','').replace('.','') for w in words[create_word_index:token_word_index]])]
             colors = Mana.colors_to_wubrg_order(colors)
@@ -891,10 +929,9 @@ class Card:
                 this_token["toughness"] = toughness
             if frame_filename is not None and len(frame_filename)>0:
                 this_token["frame"] = frame_filename
-            if this_token["name"] not in exclude_list:
+            if this_token["name"].lower() not in [e.lower() for e in exclude_list]:
                 tokens.append(this_token)
         return tokens
-    # TODO -- note '"{t}: Add {r}.".' has a trailing period and additional quotes to remove
 
 class Deck:
     def from_json(deck_json_filepath, setname="UNK", deck_name=None):
@@ -1143,6 +1180,10 @@ class Deck:
         for card in self.cards:
             this_card_tokens = card.get_tokens()
             all_tokens += this_card_tokens
+            if len(this_card_tokens)>0:
+                print("Tokens for: ", card.name)
+                print(this_card_tokens)
+                print()
         all_tokens = [dict(t) for t in {tuple(sorted(d.items())) for d in all_tokens}]
         all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame"] if k in d} for d in all_tokens]                
         print(all_tokens)
