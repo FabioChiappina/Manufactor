@@ -4,7 +4,7 @@ import string
 from functools import cmp_to_key
 from num2words import num2words
 
-from paths import CARD_BORDERS_PATH
+from paths import CARD_BORDERS_PATH, DECK_PATH
 
 class Mana:
     mana_symbols_standard = ['w','u','b','r','g','c','s']
@@ -851,9 +851,7 @@ class Card:
                             break
                     except:
                         pass
-            # Extract rules if the word "with" is present after the word "token" -- keep parsing rules until "." is found
-            # TODO -- ignore periods inside of quotation marks.
-            #   But after a period (in or out of the quotations) and a second quotation mark, only keep adding abilities if the next word is "and". (optionally a comma after the closing quotations)
+            # Extract rules if the word "with" is present after the word "token" -- keep parsing rules until "." is found (outside of quotation marks)
             rules = ""
             if with_word_index is not None:
                 words_until_next_period = []
@@ -1118,7 +1116,7 @@ class Deck:
     def from_deck_folder(deck_folder):
         setname = (deck_folder.lower().replace("the ",""))[0:3].upper()
         setname = Set.adjust_forbidden_custom_setname(setname)
-        deck_folder = deck_folder.title()
+        deck_folder = ' '.join(word[0].upper() + word[1:] for word in deck_folder.split())
         if not os.path.isdir(deck_folder):
             raise ValueError(f"The input deck folder ({deck_folder}) does not exist. Ensure a folder exists of the input name in the path defined by DECK_PATH in paths.py.")
         deck_json_filepath = os.path.join(deck_folder, (os.path.basename(deck_folder).replace(" ", "_") + ".json"))
@@ -1242,20 +1240,25 @@ class Deck:
         print("Average Mana Value (Excluding Lands):", round(total_deck_mana_value / self.count_spells(), 3))
         print()
 
-    def build_tokens(self):
+    # Obtains a list of tokens and writes it to tokens.json in the deck's save path.
+    def get_tokens(self, save_path=None):
         all_tokens = []
         for card in self.cards:
             this_card_tokens = card.get_tokens()
             all_tokens += this_card_tokens
-            if len(this_card_tokens)>0:
-                print("Tokens for: ", card.name)
-                print(this_card_tokens)
-                print()
         all_tokens = [dict(t) for t in {tuple(sorted(d.items())) for d in all_tokens}]
-        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame"] if k in d} for d in all_tokens]                
-        print()
-        print(all_tokens)
-        print(len(all_tokens))
+        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame"] if k in d} for d in all_tokens]       
+        print(f"\nFound {len(all_tokens)} tokens with names:", [token["name"] for token in all_tokens])
+        tokens_dict = {d['name']: d for d in all_tokens}
+        if save_path is None:
+            save_path = os.path.join(DECK_PATH, self.name)
+        if not os.path.isdir(save_path):
+            os.mkdir(save_path)
+        if not os.path.isdir(save_path):
+            os.mkdir(save_path)
+        with open(os.path.join(save_path, self.name+'_Tokens.json'), 'w') as json_file:
+            json.dump(tokens_dict, json_file, indent=4)
+                 
     # TODO -- For duplicate names, make json string names (not card names) different according to differences -- can just append _B, _C, etc. (use letters here bc numbers to be reserved for arts (many arts with same name except _number will all map to same dict, just get different arts))
     
 all_symbols = Mana.mana_symbols + ["q", "t"]

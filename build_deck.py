@@ -9,7 +9,7 @@ import paths
 import game_elements
 import build_card
 
-# Both creates the card images and the printing images.
+# Creates the card images (including tokens) and the printing images.
 def create_images_from_Deck(deck, save_path=None, skip_complete=True):
     if type(deck)!=game_elements.Deck:
         raise TypeError("Input deck must be of type Deck.")
@@ -30,6 +30,8 @@ def create_images_from_Deck(deck, save_path=None, skip_complete=True):
         print("Building image for card", ci+1, "of", len(deck.cards), ":", card.name)
         build_card.create_card_image_from_Card(card, save_path=save_path)
         build_card.create_printing_image_from_Card(card, saved_image_path=save_path, save_path=printing_path)
+    tokens = deck.get_tokens()
+
 
 # Updates the custom.xml file that Cockatrice uses to generate card information
 # xml_filepath -- path to the custom.xml file used within Cockatrice.
@@ -145,7 +147,7 @@ def main():
     parser = argparse.ArgumentParser(description='MTG Custom Card Builder')
     parser.add_argument('-d', '--deck', help='Name of Commander / Deck', type=str, default='Test', dest='deck')
     args = parser.parse_args()
-    deck_folder = os.path.join(paths.DECK_PATH, string.capwords(args.deck))
+    deck_folder = os.path.join(paths.DECK_PATH, ' '.join(word[0].upper() + word[1:] for word in args.deck.split()))
     print("BUILDING DECK: ", deck_folder, "\n")
     for directory in ["Cards", "Artwork", "Printing"]:
         if not os.path.isdir(os.path.join(deck_folder, directory)):
@@ -155,7 +157,6 @@ def main():
     deck.print_mana_summary()
     deck.print_type_summary()
     deck.print_tag_summary()
-    deck.build_tokens()
     create_images_from_Deck(deck)
     if deck.name != "Test":
         update_cockatrice(deck)
