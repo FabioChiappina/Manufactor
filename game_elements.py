@@ -852,17 +852,28 @@ class Card:
                     except:
                         pass
             # Extract rules if the word "with" is present after the word "token" -- keep parsing rules until "." is found
+            # TODO -- ignore periods inside of quotation marks.
+            #   But after a period (in or out of the quotations) and a second quotation mark, only keep adding abilities if the next word is "and". (optionally a comma after the closing quotations)
             rules = ""
             if with_word_index is not None:
                 words_until_next_period = []
+                current_open_quote = False
                 for index in range(with_word_index+1, len(original_words)):
+                    defer_quote_flip = False
                     word_to_append = original_words[index]
+                    if "\"" in word_to_append:
+                        if "." in word_to_append and word_to_append.index(".")<word_to_append.index("\""):
+                            defer_quote_flip = True
+                        else:
+                            current_open_quote = not current_open_quote
                     if (index == with_word_index+1) and len(word_to_append)>1:
                         word_to_append = word_to_append[0].upper() + word_to_append[1:]
                     if word_to_append.lower() == "named":
                         break
                     words_until_next_period.append(word_to_append)
-                    if '.' in original_words[index]:
+                    if '.' in original_words[index] and not current_open_quote:
+                        if defer_quote_flip:
+                            current_open_quote = not current_open_quote
                         break
                 # Postprocess the text after the word with in search of any of these phrases: "and a", "or a", ", a" -- these signal a new token and should be added to the lines queue
                 before, after = None, None
@@ -946,11 +957,18 @@ class Card:
                 postprocessed_rules += fixed_line
             rules = postprocessed_rules
             # One final postprocessing to remove starting/ending quotes:
-            if rules.startswith("\""):
-                if rules.endswith("\""):
-                    rules = rules[1:-1]
-                elif  rules.endswith("\"."):
-                    rules = rules[1:-2]
+            rules_lines = rules.split("\n")
+            postprocessed_rules = ""
+            for ri, rules_line in enumerate(rules_lines):
+                if rules_line.startswith("\""):
+                    if rules_line.endswith("\""):
+                        rules_line = rules_line[1:-1]
+                    elif  rules_line.endswith("\"."):
+                        rules_line = rules_line[1:-2]
+                if ri > 0:
+                    postprocessed_rules += "\n"
+                postprocessed_rules += rules_line
+            rules = postprocessed_rules
             # Extract colors:
             colors = [colors_dict[color] for color in colors_dict.keys() if (color in [w.lower().replace(',','').replace('.','') for w in words[create_word_index:token_word_index]])]
             colors = Mana.colors_to_wubrg_order(colors)
