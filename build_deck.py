@@ -10,7 +10,9 @@ import game_elements
 import build_card
 
 # Creates the card images (including tokens) and the printing images.
-def create_images_from_Deck(deck, save_path=None, skip_complete=True):
+#   skip_complete -- If true, skips over creating the images for any cards with the complete flag set.
+#   automatic_tokens -- If true, re-generates the _Tokens.json before generating images for the tokens. Otherwise, searches for an existing tokens JSON only.
+def create_images_from_Deck(deck, save_path=None, skip_complete=True, automatic_tokens=True):
     if type(deck)!=game_elements.Deck:
         raise TypeError("Input deck must be of type Deck.")
     if save_path is None:
@@ -30,8 +32,24 @@ def create_images_from_Deck(deck, save_path=None, skip_complete=True):
         print("Building image for card", ci+1, "of", len(deck.cards), ":", card.name)
         build_card.create_card_image_from_Card(card, save_path=save_path)
         build_card.create_printing_image_from_Card(card, saved_image_path=save_path, save_path=printing_path)
-    tokens = deck.get_tokens()
-
+    if automatic_tokens:
+        deck.get_tokens()
+    try:
+        setname = (deck.name.lower().replace("the ",""))[0:3].upper()
+        setname = game_elements.Set.adjust_forbidden_custom_setname(setname)
+        tokens_deck = game_elements.Deck.from_json(os.path.join(paths.DECK_PATH, deck.name, deck.name+'_Tokens.json'), setname, deck.name+"_Tokens")
+        tokens_path = os.path.join(paths.DECK_PATH, deck.name, "Tokens")
+        if not os.path.isdir(tokens_path):
+            os.mkdir(tokens_path)
+        for ci, card in enumerate(tokens_deck.cards):
+            if card.complete and skip_complete:
+                pass
+                # continue -- TODO this should be uncommented, just for right now it's easier
+            print("Building image for token", ci+1, "of", len(tokens_deck.cards), ":", card.name)
+            build_card.create_card_image_from_Card(card, save_path=tokens_path)
+            build_card.create_printing_image_from_Card(card, saved_image_path=tokens_path, save_path=printing_path)
+    except:
+        pass
 
 # Updates the custom.xml file that Cockatrice uses to generate card information
 # xml_filepath -- path to the custom.xml file used within Cockatrice.
@@ -146,6 +164,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, image_path=pa
 def main():
     parser = argparse.ArgumentParser(description='MTG Custom Card Builder')
     parser.add_argument('-d', '--deck', help='Name of Commander / Deck', type=str, default='Test', dest='deck')
+    parser.add_argument('-t', '--automatic-tokens', help='1 if _Tokens.json should be generated automatically', type=int, default=True, dest='automatic_tokens')
     args = parser.parse_args()
     deck_folder = os.path.join(paths.DECK_PATH, ' '.join(word[0].upper() + word[1:] for word in args.deck.split()))
     print("BUILDING DECK: ", deck_folder, "\n")
@@ -157,7 +176,7 @@ def main():
     deck.print_mana_summary()
     deck.print_type_summary()
     deck.print_tag_summary()
-    create_images_from_Deck(deck)
+    create_images_from_Deck(deck, automatic_tokens=args.automatic_tokens)
     if deck.name != "Test":
         update_cockatrice(deck)
 

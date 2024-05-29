@@ -25,7 +25,7 @@ MAX_HEIGHT_CARD_NAME  = 44.5
 MAX_HEIGHT_CARD_TYPE  = 37.5
 MAX_FONT_SIZE_RULES_TEXT_LETTERS = 37
 MAX_HEIGHT_RULES_TEXT_BOX = 280 
-MAX_HEIGHT_TOKEN_RULES_TEXT_BOX = 178
+MAX_HEIGHT_TOKEN_RULES_TEXT_BOX = 165
 MAX_HEIGHT_SAGA_RULES_TEXT_BOX = 537
 MAX_WIDTH_RULES_TEXT_BOX = 596
 MAX_WIDTH_SAGA_RULES_TEXT_BOX = 255
@@ -72,7 +72,10 @@ def create_printing_image_from_Card(card, saved_image_path=None, save_path=None)
     if save_path is None:
         save_path = card.name+"_printing.jpg"
     if not save_path.endswith(card.name+".jpg"):
-        save_path = os.path.join(save_path, card.name+".jpg")
+        cardname = card.name+".jpg"
+        if card.is_token():
+            cardname = "_TOKEN_"+cardname
+        save_path = os.path.join(save_path, cardname)
     image_bkg = Image.open(os.path.join(ASSETS_PATH, 'black_card.jpg'))
     image_card = Image.open(saved_image_path)
     shrink_ratio = 0.85
@@ -298,6 +301,8 @@ class CardDraw(object):
             return
         if self.card.is_token():
             max_height = MAX_HEIGHT_TOKEN_RULES_TEXT_BOX
+            if self.card.is_creature():
+                max_height -= 15
             x,y = POSITION_TOKEN_RULES_TEXT
         elif self.card.is_saga():
             max_height = MAX_HEIGHT_SAGA_RULES_TEXT_BOX
@@ -591,6 +596,8 @@ class CardDraw(object):
         max_width = MAX_WIDTH_CARD_NAME - (0 if self.card.mana is None else self.card.mana.count("{")*MANA_SYMBOL_SIZE) - (SPECIAL_SYMBOL_SIZE if mdfc_or_transform else 0)
         if self.card.is_token():
             color = WHITE
+            if (not self.card.is_legendary()) and (self.card.frame is not None) and len(os.path.basename(self.card.frame))>1 and ("w" in os.path.basename(self.card.frame)[0:2].lower()):
+                color = BLACK
         elif self.card.special is not None and "back" in self.card.special:
             color = WHITE
         else:
@@ -604,13 +611,18 @@ class CardDraw(object):
             color = WHITE
         else:
             color = BLACK
+        max_width_adjustment = 0
         if self.card.is_token():
             position = POSITION_TOKEN_CARD_TYPE
+            if self.card.frame is not None and len(os.path.basename(self.card.frame))>=2 and os.path.basename(self.card.frame)[0:2].replace("_","").lower()!="c":
+                pos_adjustment = 32
+                position = (position[0]+pos_adjustment, position[1])
+                max_width_adjustment = pos_adjustment
         elif self.card.is_saga():
             position = POSITION_SAGA_CARD_TYPE
         else:
             position = POSITION_CARD_TYPE
-        self.write_text(position, self.card.get_type_line(), font_filename=FONT_PATHS["name"], font_size='fill', max_height=MAX_HEIGHT_CARD_TYPE, max_width=MAX_WIDTH_CARD_TYPE, adjust_for_below_letters=1, color=color)
+        self.write_text(position, self.card.get_type_line(), font_filename=FONT_PATHS["name"], font_size='fill', max_height=MAX_HEIGHT_CARD_TYPE, max_width=MAX_WIDTH_CARD_TYPE - max_width_adjustment, adjust_for_below_letters=1, color=color)
 
     def write_power_toughness(self):
         if self.card.is_vehicle():

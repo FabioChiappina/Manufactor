@@ -577,7 +577,7 @@ class Card:
             type_line += self.supertype.title() + " "
         if type(self.cardtype)==str:
             type_line += self.cardtype.title()
-        if type(self.subtype)==str:
+        if type(self.subtype)==str and len(self.subtype)>0:
             type_line += " — " + self.subtype.title()
         return type_line
 
@@ -708,16 +708,17 @@ class Card:
         return filename
     
     def get_tokens(self):
-        t0 = Card.get_tokens_from_rules_text(self.rules)
-        t1 = Card.get_tokens_from_rules_text(self.rules1)
-        t2 = Card.get_tokens_from_rules_text(self.rules2)
-        t3 = Card.get_tokens_from_rules_text(self.rules3)
-        t4 = Card.get_tokens_from_rules_text(self.rules4)
-        t5 = Card.get_tokens_from_rules_text(self.rules5)
-        t6 = Card.get_tokens_from_rules_text(self.rules6)
+        t0 = Card.get_tokens_from_rules_text(self.rules, complete=self.complete)
+        t1 = Card.get_tokens_from_rules_text(self.rules1, complete=self.complete)
+        t2 = Card.get_tokens_from_rules_text(self.rules2, complete=self.complete)
+        t3 = Card.get_tokens_from_rules_text(self.rules3, complete=self.complete)
+        t4 = Card.get_tokens_from_rules_text(self.rules4, complete=self.complete)
+        t5 = Card.get_tokens_from_rules_text(self.rules5, complete=self.complete)
+        t6 = Card.get_tokens_from_rules_text(self.rules6, complete=self.complete)
         return t0+t1+t2+t3+t4+t5+t6
 
-    def get_tokens_from_rules_text(rules_text, exclude_list=["Treasure", "Clue", "Creature", "Noncreature", "Artifact", "Nonartifact", "Enchantment", "Nonenchantment", "Land", "Nonland", "Planeswalker", "Nonplaneswalker", "Battle", "Nonbattle"]):
+    # complete - 1 if the token is already complete and shouldn't have its image recreated, 0 otherwise
+    def get_tokens_from_rules_text(rules_text, exclude_list=["Treasure", "Clue", "Creature", "Noncreature", "Artifact", "Nonartifact", "Enchantment", "Nonenchantment", "Land", "Nonland", "Planeswalker", "Nonplaneswalker", "Battle", "Nonbattle"], complete=0):
         if rules_text is None or len(rules_text) == 0:
             return []
         tokens = []
@@ -860,7 +861,7 @@ class Card:
                     defer_quote_flip = False
                     word_to_append = original_words[index]
                     if "\"" in word_to_append:
-                        if "." in word_to_append and word_to_append.index(".")<word_to_append.index("\""):
+                        if "." in word_to_append and word_to_append.rfind(".")<word_to_append.index("\""):
                             defer_quote_flip = True
                         else:
                             current_open_quote = not current_open_quote
@@ -935,7 +936,7 @@ class Card:
                 phrases = [phrase.strip() for phrase in rules_line.split(' and ')]
                 found_phrase_too_long = False
                 for phrase in phrases:
-                    if len(phrase.split()) > 2 and not (len(phrase.split())==3 and phrase.split()[0].lower()=="protection" and phrase.split()[1].lower()=="from"):
+                    if len(phrase.split()) > 2 and not (phrase.split()[0].lower()=="protection" and phrase.split()[1].lower()=="from"):
                         found_phrase_too_long = True
                         break
                 if found_phrase_too_long:
@@ -984,7 +985,8 @@ class Card:
                 "name": name,
                 "cardtype": cardtype,
                 "subtype": subtype,
-                "rules": rules
+                "rules": rules,
+                "complete": complete
             }
             if found_power_toughness:
                 this_token["power"] = power
@@ -1247,9 +1249,11 @@ class Deck:
             this_card_tokens = card.get_tokens()
             all_tokens += this_card_tokens
         all_tokens = [dict(t) for t in {tuple(sorted(d.items())) for d in all_tokens}]
-        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame"] if k in d} for d in all_tokens]       
+        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete"] if k in d} for d in all_tokens]       
         print(f"\nFound {len(all_tokens)} tokens with names:", [token["name"] for token in all_tokens])
-        tokens_dict = {d['name']: d for d in all_tokens}
+        print()
+        # TODO -- postprocessing step where lines that end in a certain keyword/phrase get reminder text appended
+        tokens_dict = {"_TOKEN_"+d['name']: d for d in all_tokens}
         if save_path is None:
             save_path = os.path.join(DECK_PATH, self.name)
         if not os.path.isdir(save_path):
@@ -1259,7 +1263,7 @@ class Deck:
         with open(os.path.join(save_path, self.name+'_Tokens.json'), 'w') as json_file:
             json.dump(tokens_dict, json_file, indent=4)
                  
-    # TODO -- For duplicate names, make json string names (not card names) different according to differences -- can just append _B, _C, etc. (use letters here bc numbers to be reserved for arts (many arts with same name except _number will all map to same dict, just get different arts))
+    # TODO -- For tokens with duplicate names, make json string names (not card names) different according to differences -- can just append _B, _C, etc. (use letters here bc numbers to be reserved for arts (many arts with same name except _number will all map to same dict, just get different arts))
     
 all_symbols = Mana.mana_symbols + ["q", "t"]
 all_symbols_bracketed = ["{"+s+"}" for s in all_symbols] 
