@@ -43,8 +43,7 @@ def create_images_from_Deck(deck, save_path=None, skip_complete=True, automatic_
             os.mkdir(tokens_path)
         for ci, card in enumerate(tokens_deck.cards):
             if card.complete and skip_complete:
-                pass
-                # continue -- TODO this should be uncommented, just for right now it's easier
+                continue
             print("Building image for token", ci+1, "of", len(tokens_deck.cards), ":", card.name)
             build_card.create_card_image_from_Card(card, save_path=tokens_path)
             build_card.create_printing_image_from_Card(card, saved_image_path=tokens_path, save_path=printing_path)

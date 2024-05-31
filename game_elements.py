@@ -236,6 +236,22 @@ class Set:
             return Set.forbidden_custom_set_names[setname]
         return setname
 
+class Ability:
+    def __init__(self, name, isTriggered=None, isActivated=None, selfDescription=None, generalDescription=None):
+        self.name = name
+        self.isTriggered = isTriggered
+        self.isActivated = isActivated
+        self.selfDescription = selfDescription
+        self.generalDescription = generalDescription
+
+class AbilityElements:
+    decayed = Ability("Decayed", selfDescription="This creature can't block. When it attacks, sacrifice it at end of combat.", generalDescription="A creature with decayed can't block. When it attacks, sacrifice it at end of combat.")
+    protectionFromEverything = Ability("Protection from everything", selfDescription="This creature can't be blocked, targeted, dealt damage, enchanted, or equipped by anything.", generalDescription="A creature with protection from everything can't be blocked, targeted, dealt damage, enchanted, or equipped by anything.") # TODO -- some abilities apply to any type of source, so really should just give the description and then the self/general descriptions add the "This {x}" or "A {x} with". And dynamically find the type of the thing with the ability.
+    shadow = Ability("Shadow", selfDescription="This creature can block or be blocked by only creatures with shadow.", generalDescription="A creature with shadow can block or be blocked by only creatures with shadow.")
+    anarky = Ability("Anarky", selfDescription="This creature attacks a randomly selected opponent each combat if able.", generalDescription="A creature with anarky attacks a randomly selected opponent each combat if able.")
+    all_abilities = [decayed, protectionFromEverything, shadow, anarky]
+    all_abilities_dict = {ab.name.lower().replace(" ",""):ab for ab in all_abilities}
+
 class Card:
     supertypes = ["token", "legendary", "basic", "snow"]
     cardtypes  = ["artifact", "enchantment", "land", "creature", "planeswalker", "instant", "sorcery", "battle"]
@@ -967,7 +983,11 @@ class Card:
                 if ri > 0:
                     postprocessed_rules += "\n"
                 postprocessed_rules += rules_line
-            rules = postprocessed_rules
+            rules = postprocessed_rules.replace("..",".")
+            # If there's only a few words, and the final word in the line of text is an ability that needs elaborating, automatically provide the description
+            if len(rules.split()) <= 6:
+                if any([ability.name.lower().replace(" ","").replace(".","") == rules.split(",")[-1].lower().replace(" ","").replace(".","") for ability in AbilityElements.all_abilities]):
+                    rules += " (" + AbilityElements.all_abilities_dict[rules.split(",")[-1].lower().replace(" ","").replace(".","")].selfDescription + ")"
             # Extract colors:
             colors = [colors_dict[color] for color in colors_dict.keys() if (color in [w.lower().replace(',','').replace('.','') for w in words[create_word_index:token_word_index]])]
             colors = Mana.colors_to_wubrg_order(colors)
@@ -1264,7 +1284,8 @@ class Deck:
             json.dump(tokens_dict, json_file, indent=4)
                  
     # TODO -- For tokens with duplicate names, make json string names (not card names) different according to differences -- can just append _B, _C, etc. (use letters here bc numbers to be reserved for arts (many arts with same name except _number will all map to same dict, just get different arts))
-    
+
+
 all_symbols = Mana.mana_symbols + ["q", "t"]
 all_symbols_bracketed = ["{"+s+"}" for s in all_symbols] 
 

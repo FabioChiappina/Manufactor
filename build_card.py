@@ -48,7 +48,7 @@ WHITE = (255,255,255)
 ################################################################################
 ################################################################################
 
-def create_card_image_from_Card(card, save_path=None):
+def create_card_image_from_Card(card, save_path=None, black_token_cover=True):
     if type(card)!=game_elements.Card:
         raise TypeError("Input card must be of type Card.")
     card_draw = CardDraw(card, save_path=save_path)
@@ -57,6 +57,7 @@ def create_card_image_from_Card(card, save_path=None):
     card_draw.write_rules_text()
     card_draw.paste_mana_symbols()
     card_draw.paste_set_symbol()
+    card_draw.adjust_token_frame(black_token_cover)
     card_draw.paste_artwork(artwork_path=os.path.join(os.path.dirname(save_path), "Artwork"))
     card_draw.paste_mdfc_indicator()
     card_draw.write_power_toughness()
@@ -780,7 +781,13 @@ class CardDraw(object):
         font_filename = FONT_PATHS["name"]
         self.write_text(text_position, text, font_filename=font_filename, font_size='fill', max_height=max_height_mdfc_indicator, max_width=max_width_mdfc_indicator, adjust_for_below_letters=1, x_centered=False, color=color)
 
-        
+    def adjust_token_frame(self, black_token_cover=True):
+        if not black_token_cover:
+            return
+        black_image_name = ("legendary_" if self.card.is_legendary() else "") + "token_black_frame_cover.png"
+        black_image = Image.open(os.path.join(ASSETS_PATH, black_image_name))
+        self.image.paste(black_image, (0,0), black_image)
+
 
             
         
