@@ -26,10 +26,13 @@ def create_images_from_Deck(deck, save_path=None, skip_complete=True, automatic_
     printing_path = os.path.join(paths.DECK_PATH, deck.name, "Printing")
     if not os.path.isdir(printing_path):
         os.mkdir(printing_path)
-    for ci, card in enumerate(deck.cards):
+    num_to_create = len([c for c in deck.cards if (not c.complete)]) if skip_complete else len(deck.cards)
+    num_created_so_far = 0
+    for card in deck.cards:
         if card.complete and skip_complete:
             continue
-        print("Building image for card", ci+1, "of", len(deck.cards), ":", card.name)
+        num_created_so_far += 1
+        print("Building image for card", num_created_so_far, "of", num_to_create, ":", card.name)
         build_card.create_card_image_from_Card(card, save_path=save_path)
         build_card.create_printing_image_from_Card(card, saved_image_path=save_path, save_path=printing_path)
     if automatic_tokens:
@@ -41,10 +44,13 @@ def create_images_from_Deck(deck, save_path=None, skip_complete=True, automatic_
         tokens_path = os.path.join(paths.DECK_PATH, deck.name, "Tokens")
         if not os.path.isdir(tokens_path):
             os.mkdir(tokens_path)
-        for ci, card in enumerate(tokens_deck.cards):
+        num_to_create = len([c for c in tokens_deck.cards if (not c.complete)]) if skip_complete else len(tokens_deck.cards)
+        num_created_so_far = 0
+        for card in tokens_deck.cards:
             if card.complete and skip_complete:
                 continue
-            print("Building image for token", ci+1, "of", len(tokens_deck.cards), ":", card.name)
+            num_created_so_far += 1
+            print("Building image for token", num_created_so_far, "of", num_to_create, ":", card.name)
             build_card.create_card_image_from_Card(card, save_path=tokens_path)
             build_card.create_printing_image_from_Card(card, saved_image_path=tokens_path, save_path=printing_path)
     except:

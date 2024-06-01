@@ -1268,8 +1268,26 @@ class Deck:
         for card in self.cards:
             this_card_tokens = card.get_tokens()
             all_tokens += this_card_tokens
-        all_tokens = [dict(t) for t in {tuple(sorted(d.items())) for d in all_tokens}]
-        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete"] if k in d} for d in all_tokens]       
+        # Sub-function to get unique tokens only -- if ANY card that makes a certain type of token is not complete, then the token is considered not complete
+        def unique_tokens(all_tokens):
+            unique_tokens = {}
+            for token in all_tokens:
+                # Create a key without the "complete" field
+                key = tuple((k, v) for k, v in token.items() if k != 'complete')
+                complete_value = token['complete'] if 'complete' in token.keys() else 0
+                if key in unique_tokens:
+                    unique_tokens[key] &= complete_value
+                else:
+                    unique_tokens[key] = complete_value
+            # Reconstruct the list of dictionaries
+            unique_all_tokens = []
+            for key, complete_value in unique_tokens.items():
+                new_dict = dict(key)
+                new_dict['complete'] = complete_value
+                unique_all_tokens.append(new_dict)
+            return unique_all_tokens
+        all_tokens = unique_tokens(all_tokens)
+        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete"] if k in d} for d in all_tokens]  
         print(f"\nFound {len(all_tokens)} tokens with names:", [token["name"] for token in all_tokens])
         print()
         # TODO -- postprocessing step where lines that end in a certain keyword/phrase get reminder text appended

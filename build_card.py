@@ -1,4 +1,5 @@
 ﻿import os
+import re
 from PIL import Image, ImageDraw, ImageFont
 import game_elements
 from paths import ASSETS_PATH, SYMBOL_PATH, SET_SYMBOL_PATH, SAGA_SYMBOL_PATH, MDFC_INDICATOR_PATH, FONT_PATHS
@@ -48,62 +49,84 @@ WHITE = (255,255,255)
 ################################################################################
 ################################################################################
 
+# Returns a list of all card names in the input search_path directory with the names <cardname>.jpg or <cardname>_<number>.jpg (used to search for Artworks or Cards)
+def find_cards_with_card_name(cardname, search_path):
+    matching_files = []
+    pattern1 = re.compile(rf"^{re.escape(cardname)}\.jpg$")
+    pattern2 = re.compile(rf"^{re.escape(cardname)}_\d+\.jpg$")
+    for file in os.listdir(search_path):
+        if pattern1.match(file) or pattern2.match(file):
+            matching_files.append(file)
+    return matching_files
+
 def create_card_image_from_Card(card, save_path=None, black_token_cover=True):
     if type(card)!=game_elements.Card:
         raise TypeError("Input card must be of type Card.")
-    card_draw = CardDraw(card, save_path=save_path)
-    card_draw.write_name()
-    card_draw.write_type_line()
-    card_draw.write_rules_text()
-    card_draw.paste_mana_symbols()
-    card_draw.paste_set_symbol()
-    card_draw.adjust_token_frame(black_token_cover)
-    card_draw.paste_artwork(artwork_path=os.path.join(os.path.dirname(save_path), "Artwork"))
-    card_draw.paste_mdfc_indicator()
-    card_draw.write_power_toughness()
-    card_draw.save()
-
+    card_artworks = find_cards_with_card_name(card.name, search_path=os.path.join(os.path.dirname(save_path), "Artwork"))
+    for card_artwork in card_artworks:
+        this_save_path = save_path if save_path.endswith(card_artwork) else os.path.join(save_path, card_artwork)
+        card_draw = CardDraw(card, save_path=this_save_path)
+        card_draw.write_name()
+        card_draw.write_type_line()
+        card_draw.write_rules_text()
+        card_draw.paste_mana_symbols()
+        card_draw.paste_set_symbol()
+        card_draw.adjust_token_frame(black_token_cover)
+        card_draw.paste_artwork(artwork_path=os.path.join(os.path.dirname(save_path), "Artwork", card_artwork))
+        card_draw.paste_mdfc_indicator()
+        card_draw.write_power_toughness()
+        card_draw.save()
+    
 def create_printing_image_from_Card(card, saved_image_path=None, save_path=None):
-    if type(card)!=game_elements.Card:
+    if type(card) != game_elements.Card:
         raise TypeError("Input card must be of type Card.")
+    card_or_token = "Tokens" if card.is_token() else "Cards"
     if saved_image_path is None:
-        saved_image_path = card.name+".jpg"
-    if not saved_image_path.endswith(card.name+".jpg"):
-        saved_image_path = os.path.join(saved_image_path, card.name+".jpg")
+        saved_image_path = card_or_token
+    if not saved_image_path.endswith(card_or_token):
+        if saved_image_path.endswith(card.name+".jpg"):
+            saved_image_path = os.path.dirname(saved_image_path)
+        else:
+            saved_image_path = os.path.join(saved_image_path, card_or_token)
     if save_path is None:
-        save_path = card.name+"_printing.jpg"
-    if not save_path.endswith(card.name+".jpg"):
-        cardname = card.name+".jpg"
+        save_path = "Printing"
+    if not save_path.endswith("Printing"):
+        if save_path.endswith(card.name+".jpg"):
+            save_path = os.path.dirname(save_path)
+        else:
+            save_path = os.path.join(save_path, "Printing")
+    # Find all cards with the card name
+    card_names = find_cards_with_card_name(card.name, saved_image_path)
+    for card_name in card_names:
+        # Set the paths to retrieve the card image and write the printing image
+        current_saved_image_path = os.path.join(saved_image_path, card_name)
+        current_save_path = f"{os.path.splitext(save_path)[0]}/{card_name}"
         if card.is_token():
-            cardname = "_TOKEN_"+cardname
-        save_path = os.path.join(save_path, cardname)
-    image_bkg = Image.open(os.path.join(ASSETS_PATH, 'black_card.jpg'))
-    image_card = Image.open(saved_image_path)
-    shrink_ratio = 0.85
-    image_card = image_card.resize((round(744*shrink_ratio),round(1039*shrink_ratio)))
-    new_image = image_bkg.copy()
-    new_image.paste(image_card, (round((1-shrink_ratio)/2 * 744), round((1-shrink_ratio)/2 * 1039)))
-    xy = [(55,78),(55,106),(82,78)]
-    draw = ImageDraw.Draw(new_image)
-    draw.polygon(xy, fill ="black", outline ="black")
-    xy = [(660,78),(690,106),(690,78)]
-    draw = ImageDraw.Draw(new_image)
-    draw.polygon(xy, fill ="black", outline ="black")
-    xy = [(55,934),(55,962),(82,962)]
-    draw = ImageDraw.Draw(new_image)
-    draw.polygon(xy, fill ="black", outline ="black")
-    xy = [(660,962),(690,934),(690,962)]
-    draw = ImageDraw.Draw(new_image)
-    draw.polygon(xy, fill ="black", outline ="black")
-    if card.is_creature() or card.is_vehicle():
-        xy = [(428,913),(428,947),(650,947),(650,913)]
+            current_save_path = os.path.join(os.path.dirname(current_save_path), "_TOKEN_"+os.path.basename(current_save_path))
+        # Load and process image
+        image_bkg = Image.open(os.path.join(ASSETS_PATH, 'black_card.jpg'))
+        image_card = Image.open(current_saved_image_path)
+        shrink_ratio = 0.85
+        image_card = image_card.resize((round(744 * shrink_ratio), round(1039 * shrink_ratio)))
+        new_image = image_bkg.copy()
+        new_image.paste(image_card, (round((1 - shrink_ratio) / 2 * 744), round((1 - shrink_ratio) / 2 * 1039)))
         draw = ImageDraw.Draw(new_image)
-        draw.polygon(xy, fill ="black", outline ="black")
-    else:
-        xy = [(428,900),(428,947),(650,947),(650,900)]
-        draw = ImageDraw.Draw(new_image)
-        draw.polygon(xy, fill ="black", outline ="black")
-    new_image.save(save_path)
+        xy = [(55, 78), (55, 106), (82, 78)]
+        draw.polygon(xy, fill="black", outline="black")
+        xy = [(660, 78), (690, 106), (690, 78)]
+        draw.polygon(xy, fill="black", outline="black")
+        xy = [(55, 934), (55, 962), (82, 962)]
+        draw.polygon(xy, fill="black", outline="black")
+        xy = [(660, 962), (690, 934), (690, 962)]
+        draw.polygon(xy, fill="black", outline="black")
+        if card.is_creature() or card.is_vehicle():
+            xy = [(428, 913), (428, 947), (650, 947), (650, 913)]
+            draw.polygon(xy, fill="black", outline="black")
+        else:
+            xy = [(428, 900), (428, 947), (650, 947), (650, 900)]
+            draw.polygon(xy, fill="black", outline="black")
+        # Save the new image
+        new_image.save(current_save_path)
 
 ################################################################################
 ################################################################################
@@ -693,7 +716,9 @@ class CardDraw(object):
     def paste_artwork(self, artwork_path=None):
         if artwork_path is None:
             artwork_path = os.path.join(".", "Artwork")
-        if not artwork_path.endswith(self.card.name+".jpg"):
+        pattern1 = re.compile(rf"^{re.escape(self.card.name)}\.jpg$")
+        pattern2 = re.compile(rf"^{re.escape(self.card.name)}_\d+\.jpg$")
+        if not (pattern1.match(os.path.basename(artwork_path)) or pattern2.match(os.path.basename(artwork_path))):
             artwork_path = os.path.join(artwork_path, self.card.name+".jpg")
         try:
             artwork_image = Image.open(artwork_path)
@@ -782,6 +807,8 @@ class CardDraw(object):
         self.write_text(text_position, text, font_filename=font_filename, font_size='fill', max_height=max_height_mdfc_indicator, max_width=max_width_mdfc_indicator, adjust_for_below_letters=1, x_centered=False, color=color)
 
     def adjust_token_frame(self, black_token_cover=True):
+        if not self.card.is_token():
+            return
         if not black_token_cover:
             return
         black_image_name = ("legendary_" if self.card.is_legendary() else "") + "token_black_frame_cover.png"
