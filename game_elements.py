@@ -1069,7 +1069,7 @@ class Deck:
                 card["related_indicator"]=None
             if "related" not in card.keys():
                 card["related"]=None
-            elif (("mdfc" in card["special"].lower()) or ("transform" in card["special"].lower())) and (card["related_indicator"] is None):
+            elif (card["special"] is not None) and (("mdfc" in card["special"].lower()) or ("transform" in card["special"].lower())) and (card["related_indicator"] is None):
                 related_name, related_mana = "", ""
                 # TODO -- this land stuff isn't super accurate, since the back side could have something other than {t}: Add x. Really it should read in the rules text and decide what to show.
                 for card2 in card_dict.values():
@@ -1296,8 +1296,6 @@ class Deck:
         all_tokens = unique_tokens(all_tokens)
         all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete","related"] if k in d} for d in all_tokens]  
         print(f"\nFound {len(all_tokens)} tokens with names:", [token["name"] for token in all_tokens])
-        print()
-        print(all_tokens)
         # TODO -- postprocessing step where lines that end in a certain keyword/phrase get reminder text appended
         tokens_dict = {"_TOKEN_"+d['name']: d for d in all_tokens}
         if save_path is None:
