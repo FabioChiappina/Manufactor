@@ -332,7 +332,7 @@ class Card:
             raise TypeError("flavor input must be of type str.")
         if special is not None and type(special)!=str:
             raise TypeError("special input must be of type str.")
-        if related is not None and type(related)!=str:
+        if related is not None and type(related)!=str and type(related)!=list:
             raise TypeError("related input must be of type str.")
         if related_indicator is not None and type(related_indicator)!=str:
             raise TypeError("related_indicator input must be of type str.")
@@ -724,17 +724,18 @@ class Card:
         return filename
     
     def get_tokens(self):
-        t0 = Card.get_tokens_from_rules_text(self.rules, complete=self.complete)
-        t1 = Card.get_tokens_from_rules_text(self.rules1, complete=self.complete)
-        t2 = Card.get_tokens_from_rules_text(self.rules2, complete=self.complete)
-        t3 = Card.get_tokens_from_rules_text(self.rules3, complete=self.complete)
-        t4 = Card.get_tokens_from_rules_text(self.rules4, complete=self.complete)
-        t5 = Card.get_tokens_from_rules_text(self.rules5, complete=self.complete)
-        t6 = Card.get_tokens_from_rules_text(self.rules6, complete=self.complete)
+        t0 = Card.get_tokens_from_rules_text(self.rules,  card_name=self.name, complete=self.complete)
+        t1 = Card.get_tokens_from_rules_text(self.rules1, card_name=self.name, complete=self.complete)
+        t2 = Card.get_tokens_from_rules_text(self.rules2, card_name=self.name, complete=self.complete)
+        t3 = Card.get_tokens_from_rules_text(self.rules3, card_name=self.name, complete=self.complete)
+        t4 = Card.get_tokens_from_rules_text(self.rules4, card_name=self.name, complete=self.complete)
+        t5 = Card.get_tokens_from_rules_text(self.rules5, card_name=self.name, complete=self.complete)
+        t6 = Card.get_tokens_from_rules_text(self.rules6, card_name=self.name, complete=self.complete)
         return t0+t1+t2+t3+t4+t5+t6
 
     # complete - 1 if the token is already complete and shouldn't have its image recreated, 0 otherwise
-    def get_tokens_from_rules_text(rules_text, exclude_list=["Treasure", "Clue", "Creature", "Noncreature", "Artifact", "Nonartifact", "Enchantment", "Nonenchantment", "Land", "Nonland", "Planeswalker", "Nonplaneswalker", "Battle", "Nonbattle"], complete=0):
+    # card_name - If not None and not empty, will be set as related to all tokens found
+    def get_tokens_from_rules_text(rules_text, card_name="", exclude_list=["Treasure", "Clue", "Creature", "Noncreature", "Artifact", "Nonartifact", "Enchantment", "Nonenchantment", "Land", "Nonland", "Planeswalker", "Nonplaneswalker", "Battle", "Nonbattle"], complete=0):
         if rules_text is None or len(rules_text) == 0:
             return []
         tokens = []
@@ -1008,6 +1009,8 @@ class Card:
                 "rules": rules,
                 "complete": complete
             }
+            if (card_name is not None) and len(card_name)>0:
+                this_token["related"] = card_name
             if found_power_toughness:
                 this_token["power"] = power
                 this_token["toughness"] = toughness
@@ -1273,23 +1276,28 @@ class Deck:
             unique_tokens = {}
             for token in all_tokens:
                 # Create a key without the "complete" field
-                key = tuple((k, v) for k, v in token.items() if k != 'complete')
+                key = tuple((k, v) for k, v in token.items() if k not in ['complete', 'related'])
                 complete_value = token['complete'] if 'complete' in token.keys() else 0
+                related_value = token['related'] if 'related' in token.keys() else []
+                related_value = [related_value] if isinstance(related_value, str) else related_value
                 if key in unique_tokens:
-                    unique_tokens[key] &= complete_value
+                    unique_tokens[key] = (unique_tokens[key][0] & complete_value, unique_tokens[key][1] + related_value)
                 else:
-                    unique_tokens[key] = complete_value
+                    unique_tokens[key] = (complete_value, related_value)
             # Reconstruct the list of dictionaries
             unique_all_tokens = []
-            for key, complete_value in unique_tokens.items():
+            for key, derived_attributes in unique_tokens.items():
+                complete, related_list = derived_attributes
                 new_dict = dict(key)
-                new_dict['complete'] = complete_value
+                new_dict['complete'] = complete
+                new_dict['related'] = related_list
                 unique_all_tokens.append(new_dict)
             return unique_all_tokens
         all_tokens = unique_tokens(all_tokens)
-        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete"] if k in d} for d in all_tokens]  
+        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete","related"] if k in d} for d in all_tokens]  
         print(f"\nFound {len(all_tokens)} tokens with names:", [token["name"] for token in all_tokens])
         print()
+        print(all_tokens)
         # TODO -- postprocessing step where lines that end in a certain keyword/phrase get reminder text appended
         tokens_dict = {"_TOKEN_"+d['name']: d for d in all_tokens}
         if save_path is None:

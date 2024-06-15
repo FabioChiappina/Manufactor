@@ -58,7 +58,7 @@ def create_images_from_Deck(deck, save_path=None, skip_complete=True, automatic_
 
 # Updates the custom.xml file that Cockatrice uses to generate card information
 # xml_filepath -- path to the custom.xml file used within Cockatrice.
-# json_filepath -- path to the custom.json file used only to keep track of each different custom card. Since this is used to build custom.xml, if a card needs to be removed, it should be deleted from custom.json (possibly also from custom.json).
+# json_filepath -- path to the custom.json file used only to keep track of each different custom card. Since this is used to build custom.xml, if a card needs to be removed, it should be deleted from custom.json.
 def update_cockatrice(deck, xml_filepath=None, json_filepath=None, image_path=paths.COCKATRICE_IMAGE_PATH):
     if xml_filepath is None:
         xml_filepath = os.path.dirname(paths.DECK_PATH)
@@ -70,14 +70,25 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, image_path=pa
     if not json_filepath.endswith(".json"):
         json_filepath = os.path.join(json_filepath, "custom.json")
     setname = game_elements.Set.adjust_forbidden_custom_setname((deck.name.lower().replace("the ",""))[0:3].upper())
+    try:
+        tokens_deck = game_elements.Deck.from_json(os.path.join(paths.DECK_PATH, deck.name, deck.name+'_Tokens.json'), setname, deck.name+"_Tokens")
+        tokens_cards = tokens_deck.cards
+    except:
+        tokens_cards = []
     cdict = {}
-    for ci, card in enumerate(deck.cards):
-        current_image_path = os.path.join(paths.DECK_PATH, deck.name, "Cards", card.name+".jpg")
+    for ci, card in enumerate(deck.cards + tokens_cards):
+        if card.is_token():
+            this_card_name = setname+"_"+card.name
+            current_image_path = os.path.join(paths.DECK_PATH, deck.name, "Tokens", card.name+".jpg")
+        else:
+            this_card_name = card.name
+            current_image_path = os.path.join(paths.DECK_PATH, deck.name, "Cards", card.name+".jpg")
+        modified_this_card_name = this_card_name.replace('"', '').replace("."," ")
         try:
-            shutil.copy(current_image_path, os.path.join(paths.COCKATRICE_IMAGE_PATH, (card.name.replace('"', '').replace("."," "))+".full.jpeg"))
+            shutil.copy(current_image_path, os.path.join(paths.COCKATRICE_IMAGE_PATH, modified_this_card_name+".full.jpeg"))
         except:
-            print("\nWARNING -- could not copy the image from the path " + os.path.join(paths.DECK_PATH, deck.name, "Cards", card.name+".jpg") + " to the Cockatrice path -- check to make sure the image exists.")
-        name = (card.name).replace('"','&quot;').replace("."," ")
+            print("\nWARNING -- could not copy the image from the path " + current_image_path + " to the Cockatrice path -- check to make sure the image exists.")
+        name = (this_card_name).replace('"','&quot;').replace("."," ")
         if card.rules is None:
             text = ""
         else:
@@ -89,10 +100,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, image_path=pa
         fulltype = card.get_type_line()
         maintype = card.cardtype if type(card.supertype) is not str else card.supertype.title() + " " + card.cardtype.title()
         cmc = str(card.get_mana_value())
-        if card.mana is None:
-            manacost = ""
-        else:
-            manacost = ((card.mana.replace("{","")).replace("}","")).upper()
+        manacost = "" if card.mana is None else ((card.mana.replace("{","")).replace("}","")).upper()
         colors = coloridentity
         layout = "normal"
         if card.special == "transform-front" or card.special == "transform-back":
@@ -101,7 +109,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, image_path=pa
             layout = "modal_dfc"
         muid = str(randint(900000, 999999))
         uuid = "d41b07c8-f0c8-4654-" + str(randint(1000, 9999)) + "-" + str(randint(100000000000, 999999999999))
-        rarity = card.rarity
+        rarity = "Common" if card.rarity is None else card.rarity
         # Format the .xml file using the appropriate attributes for each card.
         cdict[card.name] =  '' 
         cdict[card.name] += '        <card>\n'
