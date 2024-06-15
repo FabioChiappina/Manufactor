@@ -15,5 +15,6 @@ FONT_PATHS = {"name":   os.path.join(ASSETS_PATH, "Fonts", "Beleren-Bold.ttf"),
 DECK_PATH = os.path.join("..", "Decks")
 
 COCKATRICE_PATH = os.path.join("/", "Users", "fabiochiappina", "Library", "Application Support", "Cockatrice", "Cockatrice")
+COCKATRICE_MANUFACTOR_PATH = os.path.join(COCKATRICE_PATH, "manufactor")
 COCKATRICE_IMAGE_PATH = os.path.join(COCKATRICE_PATH, "pics", "CUSTOM")
 COCKATRICE_CUSTOMSETS_PATH = os.path.join(COCKATRICE_PATH, "customsets")
