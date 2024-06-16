@@ -776,8 +776,6 @@ class Card:
             words = [w.lower() for w in original_words]
             if not (("create" in words) or ("creates" in words)) or not (("token" in [w.replace(',','').replace('.','') for w in words]) or ("tokens" in [w.replace(',','').replace('.','') for w in words])):
                 continue
-            if ("token copy" in line) or ("token that's a copy" in line) or ("tokens that are copies" in line):
-                continue
             try:
                 create_word_index = words.index("create")
             except:
@@ -800,6 +798,15 @@ class Card:
                 with_word_index = None
             if token_word_index < create_word_index:
                 continue
+            # If there's a period after the word "token", and the word "create" appears AFTER that period, separate those two parts of the line and process them as separate tokens.
+            if any(['.' in wt for wt in words[token_word_index:]]):
+                period_index_after_token = next((ind for ind, val in enumerate(["." in wti for wti in words[token_word_index:]]) if val), None)
+                if (period_index_after_token is not None) and ("create" in words[token_word_index:]) and (period_index_after_token < words[token_word_index:].index("create")):
+                    rest_of_line = original_words[token_word_index+period_index_after_token+1:]
+                    rest_of_line = " ".join(rest_of_line)
+                    lines_queue.append(rest_of_line)
+                    words = words[0:token_word_index+period_index_after_token]
+                    original_words = original_words[0:token_word_index+period_index_after_token]
             # If the word after "token"/"tokens" is "or", "and", "a", or "then", the rest of the line of text has nothing to do with this token. Ignore it and add to the lines queue.
             if (token_word_index+1 < len(words)) and ("." not in words[token_word_index]) and (words[token_word_index+1].lower() in ["and","or","a","then"]):
                 if token_word_index+2 < len(words):
@@ -816,8 +823,10 @@ class Card:
                     lines_queue.append(rest_of_line)
                 words = words[0:token_word_index+1]
                 original_words = original_words[0:token_word_index+1]
+            if ("token copy" in " ".join(original_words)) or ("token that's a copy" in " ".join(original_words)) or ("tokens that are copies" in " ".join(original_words)):
+                continue
             # Extract name
-            words_to_exclude_from_names_and_subtypes = ["Goaded"]
+            words_to_exclude_from_names_and_subtypes = ["Goaded", "Attach", "To", "That"]
             name_default_to_subtype = False
             if ("named" in words[create_word_index:]): # Check if "named" appears -- if so, the phrase that follows is the name.
                 words_until_next_punctuation = []
@@ -1027,6 +1036,8 @@ class Card:
                 this_token["toughness"] = toughness
             if frame_filename is not None and len(frame_filename)>0:
                 this_token["frame"] = frame_filename
+            print("Found token: ", this_token)
+            print() # TODO -- accidentally introduced many human anarchist as a type of token, which obviously is wrong. Also, need to ignore type words before a numeric phrase (a, that many, X, two, ...) for black mask. Can make a helper function is_numeric_phrase()
             if this_token["name"].lower() in [e.lower() for e in exclude_list]: # Explicitly excluded token
                 continue
             if (this_token["cardtype"] == "Token"): # Invalid token -- no cardtype specified

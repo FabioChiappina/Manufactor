@@ -815,9 +815,3 @@ class CardDraw(object):
         black_image_name = ("legendary_" if self.card.is_legendary() else "") + "token_black_frame_cover.png"
         black_image = Image.open(os.path.join(ASSETS_PATH, black_image_name))
         self.image.paste(black_image, (0,0), black_image)
-
-
-            
-        
-
-        
