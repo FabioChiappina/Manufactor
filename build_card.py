@@ -44,8 +44,6 @@ SPECIAL_SYMBOL_SIZE = 60
 BLACK = (0, 0, 0)
 WHITE = (255,255,255)
 
-# TODO -- there may be some issue with the deck stats counting how many of each mana value
-
 ################################################################################
 ################################################################################
 
@@ -63,6 +61,9 @@ def create_card_image_from_Card(card, save_path=None, black_token_cover=True):
     if type(card)!=game_elements.Card:
         raise TypeError("Input card must be of type Card.")
     card_artworks = find_cards_with_card_name(card.name, search_path=os.path.join(os.path.dirname(save_path), "Artwork"))
+    if len(card_artworks)==0:
+        print(f"  WARNING: No artworks found for card {card.name} in Artworks folder.")
+        card_artworks = [card.name+".jpg"]
     for card_artwork in card_artworks:
         this_save_path = save_path if save_path.endswith(card_artwork) else os.path.join(save_path, card_artwork)
         card_draw = CardDraw(card, save_path=this_save_path)

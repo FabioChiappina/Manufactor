@@ -10,10 +10,10 @@ class Mana:
     mana_symbols_standard = ['w','u','b','r','g','c','s']
     mana_symbols_variable = ['x','y','z']
     mana_symbols_numeric = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20']
-    mana_symbols_dual_hybrid = ['w/u', 'w/b', 'r/w', 'g/w', 'u/b', 'u/r', 'g/u', 'b/r', 'b/g', 'r/g']
+    mana_symbols_dual_hybrid = ['w/u', 'w/b', 'r/w', 'g/w', 'u/b', 'u/r', 'g/u', 'b/r', 'b/g', 'r/g', 'c/w', 'c/u', 'c/b', 'c/r', 'c/g']
     mana_symbols_mono_hybrid = ['2/w', '2/u', '2/b', '2/r', '2/g']
     mana_symbols_phyrexian = ['w/p', 'u/p', 'b/p', 'r/p', 'g/p']
-    mana_symbols_phyrexian_hybrid = [] # TODO -- unsupported. Need images for: ['w/u/p', 'u/w/p', 'w/b/p', 'b/w/p', 'w/r/p', 'r/w/p', 'w/g/p', 'g/w/p', 'u/b/p', 'b/u/p', 'u/r/p', 'r/u/p', 'u/g/p', 'g/u/p', 'b/r/p', 'r/b/p', 'b/g/p', 'g/b/p', 'r/g/p', 'g/r/p']
+    mana_symbols_phyrexian_hybrid = ['w/u/p', 'w/b/p', 'r/w/p', 'g/w/p', 'u/b/p', 'u/r/p', 'g/u/p', 'b/r/p', 'b/g/p', 'r/g/p']
     mana_symbols = mana_symbols_standard + mana_symbols_variable + mana_symbols_numeric + mana_symbols_dual_hybrid + mana_symbols_mono_hybrid + mana_symbols_phyrexian + mana_symbols_phyrexian_hybrid
     mana_symbols_bracketed = ["{"+s+"}" for s in mana_symbols] 
 
@@ -175,6 +175,16 @@ class Mana:
         mana_cost = mana_cost.replace("p/b", "b/p")
         mana_cost = mana_cost.replace("p/r", "r/p")
         mana_cost = mana_cost.replace("p/g", "g/p")
+        mana_cost = mana_cost.replace("w/c", "c/w")
+        mana_cost = mana_cost.replace("u/c", "c/u")
+        mana_cost = mana_cost.replace("b/c", "c/b")
+        mana_cost = mana_cost.replace("r/c", "c/r")
+        mana_cost = mana_cost.replace("g/c", "c/g")
+        mana_cost = mana_cost.replace("w/2", "2/w")
+        mana_cost = mana_cost.replace("u/2", "2/u")
+        mana_cost = mana_cost.replace("b/2", "2/b")
+        mana_cost = mana_cost.replace("r/2", "2/r")
+        mana_cost = mana_cost.replace("g/2", "2/g")
         return mana_cost
     
     # Sorts the input mana cost so that wrap-around WUBRG order is reinforced. (e.g, WG --> GW)
@@ -199,7 +209,8 @@ class Mana:
         mana_symbol_2 = mana_symbol_2.replace("{","").replace("}","")
         if mana_symbol_1 == mana_symbol_2:
             return 0
-        sorted_order = ["x","y","z","20","19","18","17","16","15","14","13","12","11","10","9","8","7","6","5","4","3","2","1","0","s","c","w","2/w","w/p","w/u","w/u/p","w/b","w/b/p","u","2/u","u/p","u/b","u/b/p","u/r","u/r/p","b","2/b","b/p","b/r","b/r/p","b/g","b/g/p","r","2/r","r/p","r/g","r/g/p","r/w","r/w/p","g","2/g","g/p","g/w","g/w/p","g/u","g/u/p","w","2/w","w/p","w/u","w/u/p","w/b","w/b/p","u","2/u","u/p","u/b","u/b/p","u/r","u/r/p","b","2/b","b/p","b/r","b/r/p","b/g","b/g/p","r","2/r","r/p","r/g","r/g/p","r/w","r/w/p","g"]
+        # NOTE: when adding new mana symbols to sorted_order, make sure to add them twice for proper wrap-around ordering
+        sorted_order = ["x","y","z","20","19","18","17","16","15","14","13","12","11","10","9","8","7","6","5","4","3","2","1","0","s","c","w","2/w","c/w","w/p","w/u","w/u/p","w/b","w/b/p","u","2/u","c/u","u/p","u/b","u/b/p","u/r","u/r/p","b","2/b","c/b","b/p","b/r","b/r/p","b/g","b/g/p","r","2/r","c/r","r/p","r/g","r/g/p","r/w","r/w/p","g","2/g","c/g","g/p","g/w","g/w/p","g/u","g/u/p","w","2/w","c/w","w/p","w/u","w/u/p","w/b","w/b/p","u","2/u","c/u","u/p","u/b","u/b/p","u/r","u/r/p","b","2/b","c/b","b/p","b/r","b/r/p","b/g","b/g/p","r","2/r","c/r","r/p","r/g","r/g/p","r/w","r/w/p","g","2/g","c/g","g/p"]
         distance_1_to_2, distance_2_to_1 = len(sorted_order), len(sorted_order)
         found_first_index = None
         for mi, mana_symbol in enumerate(sorted_order):
@@ -1296,7 +1307,6 @@ class Deck:
         all_tokens = unique_tokens(all_tokens)
         all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete","related"] if k in d} for d in all_tokens]  
         print(f"\nFound {len(all_tokens)} tokens with names:", [token["name"] for token in all_tokens])
-        # TODO -- postprocessing step where lines that end in a certain keyword/phrase get reminder text appended
         tokens_dict = {"_TOKEN_"+d['name']: d for d in all_tokens}
         if save_path is None:
             save_path = os.path.join(DECK_PATH, self.name)
