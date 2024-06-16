@@ -747,6 +747,11 @@ class Card:
     # complete - 1 if the token is already complete and shouldn't have its image recreated, 0 otherwise
     # card_name - If not None and not empty, will be set as related to all tokens found
     def get_tokens_from_rules_text(rules_text, card_name="", exclude_list=["Treasure", "Clue", "Creature", "Noncreature", "Artifact", "Nonartifact", "Enchantment", "Nonenchantment", "Land", "Nonland", "Planeswalker", "Nonplaneswalker", "Battle", "Nonbattle"], complete=0):
+        # Helper function. Returns True if the input word (or pair of words) represents a numeric quantity -- e.g., "a", "an", "x", "one", "two", "three", "that many"
+        # The second word is ignored except to compare the combination of word1 and word2 against "that many".
+        def is_number_word(word1, word2=""):
+            number_words = ["a", "an", "x"] + [num2words(n) for n in range(101)]
+            return (word1.lower() in number_words) or ((word1.strip() + " " + word2.strip()).strip() == "that many")
         if rules_text is None or len(rules_text) == 0:
             return []
         tokens = []
@@ -826,7 +831,7 @@ class Card:
             if ("token copy" in " ".join(original_words)) or ("token that's a copy" in " ".join(original_words)) or ("tokens that are copies" in " ".join(original_words)):
                 continue
             # Extract name
-            words_to_exclude_from_names_and_subtypes = ["Goaded", "Attach", "To", "That"]
+            words_to_exclude_from_names_and_subtypes = ["Goaded", "Attach", "To", "That", "Many"]
             name_default_to_subtype = False
             if ("named" in words[create_word_index:]): # Check if "named" appears -- if so, the phrase that follows is the name.
                 words_until_next_punctuation = []
@@ -839,7 +844,7 @@ class Card:
                 name = " ".join(words_until_next_punctuation).title()
             else:
                 # Check if the word immediately following "create" is not a number word or "a", "an", or "and" -- if so, the phrase after "create" is the name
-                if (create_word_index < len(words)-2) and (words[create_word_index + 1].lower() not in ["a", "an"]) and (words[create_word_index + 1] not in [num2words(n) for n in range(101)]) and (words[create_word_index+1].lower()!= "x") and (words[create_word_index+1].lower()+ " " +words[create_word_index+2].lower() != "that many"):
+                if (create_word_index < len(words)-2) and not is_number_word(words[create_word_index + 1], words[create_word_index + 2]):
                     # The words between "create" and the next comma are the name of the token
                     words_until_next_comma = []
                     for index in range(create_word_index+1, len(words)):
@@ -851,23 +856,26 @@ class Card:
                     # If neither 1 nor 2 are true, no name is provided -- the name is equal to the subtypes
                     name = ""
                     name_default_to_subtype = True
+            # Find a "number word" index -- the index of a word after create indicating a number of tokens to be made ("a", "an", "that many", "one", "two", ...)
+            number_word_index = None
+            for nwi in range(create_word_index + 1, token_word_index):
+                if ((nwi<token_word_index-1) and is_number_word(words[nwi], words[nwi+1])) or ((nwi==token_word_index-1) and is_number_word(words[nwi])):
+                    number_word_index = nwi
+                    break
+            number_word_index = create_word_index if (number_word_index is None) else number_word_index
             # Extract cardtype & subtype
-            cardtype = " ".join([cardtype for cardtype in Card.cardtypes if (cardtype in [w.lower() for w in words[create_word_index:token_word_index]])]).title()
+            cardtype = " ".join([cardtype for cardtype in Card.cardtypes if (cardtype in [w.lower() for w in words[number_word_index:token_word_index]])]).title()
             if "token" not in cardtype.lower():
                 cardtype = "Token "+cardtype
-            if "legendary" in [w.lower() for w in words[create_word_index:token_word_index]]:
+            if "legendary" in [w.lower() for w in words[number_word_index:token_word_index]]:
                 cardtype = "Legendary "+cardtype
             cardtype = cardtype.strip()
-            subtype = " ".join([word.lower().replace(",","").replace(".","") for word in words[create_word_index+1:token_word_index] if (("/" not in word) and 
-                                                                                            (word.lower().replace(',','').replace('.','') != "legendary") and
-                                                                                            (word.lower().replace(',','').replace('.','') != "colorless") and
-                                                                                            (word.lower().replace(',','').replace('.','') != "tapped") and
+            subtype = " ".join([word.lower().replace(",","").replace(".","") for word in words[number_word_index+1:token_word_index] if (("/" not in word) and 
                                                                                             (word.lower().replace(',','').replace('.','') != name.lower()) and
-                                                                                            (word.lower().replace(',','').replace('.','') != "x") and
                                                                                             (word.lower().replace(',','').replace('.','') not in [we.lower() for we in words_to_exclude_from_names_and_subtypes]) and
                                                                                             (word.lower().replace(',','').replace('.','') not in Card.cardtypes) and
                                                                                             (word.lower().replace(',','').replace('.','') not in [num2words(n) for n in range(101)]) and
-                                                                                            (word.lower().replace(',','').replace('.','') not in ["a", "an", "and"]) and
+                                                                                            (word.lower().replace(',','').replace('.','') not in ["legendary", "colorless", "tapped", "x", "a", "an", "and"]) and
                                                                                             (word.lower().replace(',','').replace('.','') not in colors_dict.keys()))]).title()
             subtype = subtype.lower().replace("that many","").strip().title()
             subtype = subtype.replace("'S", "'s")
@@ -1010,7 +1018,7 @@ class Card:
                 if any([ability.name.lower().replace(" ","").replace(".","") == rules.split(",")[-1].lower().replace(" ","").replace(".","") for ability in AbilityElements.all_abilities]):
                     rules += " (" + AbilityElements.all_abilities_dict[rules.split(",")[-1].lower().replace(" ","").replace(".","")].selfDescription + ")"
             # Extract colors:
-            colors = [colors_dict[color] for color in colors_dict.keys() if (color in [w.lower().replace(',','').replace('.','') for w in words[create_word_index:token_word_index]])]
+            colors = [colors_dict[color] for color in colors_dict.keys() if (color in [w.lower().replace(',','').replace('.','') for w in words[number_word_index:token_word_index]])]
             colors = Mana.colors_to_wubrg_order(colors)
             dummy_card = Card(name=name,
                               mana="".join(["{"+c+"}" for c in colors]),
@@ -1036,8 +1044,6 @@ class Card:
                 this_token["toughness"] = toughness
             if frame_filename is not None and len(frame_filename)>0:
                 this_token["frame"] = frame_filename
-            print("Found token: ", this_token)
-            print() # TODO -- accidentally introduced many human anarchist as a type of token, which obviously is wrong. Also, need to ignore type words before a numeric phrase (a, that many, X, two, ...) for black mask. Can make a helper function is_numeric_phrase()
             if this_token["name"].lower() in [e.lower() for e in exclude_list]: # Explicitly excluded token
                 continue
             if (this_token["cardtype"] == "Token"): # Invalid token -- no cardtype specified
@@ -1319,6 +1325,7 @@ class Deck:
         all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete","related"] if k in d} for d in all_tokens]  
         print(f"\nFound {len(all_tokens)} tokens with names:", [token["name"] for token in all_tokens])
         tokens_dict = {"_TOKEN_"+d['name']: d for d in all_tokens}
+        print(tokens_dict)
         if save_path is None:
             save_path = os.path.join(DECK_PATH, self.name)
         if not os.path.isdir(save_path):
