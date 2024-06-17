@@ -1,6 +1,6 @@
 ﻿import os
 import json
-import string
+import re
 from functools import cmp_to_key
 from num2words import num2words
 
@@ -266,6 +266,7 @@ class AbilityElements:
 class Card:
     supertypes = ["token", "legendary", "basic", "snow"]
     cardtypes  = ["artifact", "enchantment", "land", "creature", "planeswalker", "instant", "sorcery", "battle"]
+    basic_lands = ["plains", "island", "swamp", "mountain", "forest"]
 
     rarities = ["common", "uncommon", "rare", "mythic"]
 
@@ -828,6 +829,7 @@ class Card:
                     lines_queue.append(rest_of_line)
                 words = words[0:token_word_index+1]
                 original_words = original_words[0:token_word_index+1]
+            # Filter out token copies -- don't need their own files
             if ("token copy" in " ".join(original_words)) or ("token that's a copy" in " ".join(original_words)) or ("tokens that are copies" in " ".join(original_words)):
                 continue
             # Extract name
@@ -1017,6 +1019,18 @@ class Card:
             if len(rules.split()) <= 6:
                 if any([ability.name.lower().replace(" ","").replace(".","") == rules.split(",")[-1].lower().replace(" ","").replace(".","") for ability in AbilityElements.all_abilities]):
                     rules += " (" + AbilityElements.all_abilities_dict[rules.split(",")[-1].lower().replace(" ","").replace(".","")].selfDescription + ")"
+            # Handle the special case of Roles
+            if "Role" in subtype.split():
+                subtype = "Aura Role"
+                cardtype = "Token Enchantment"
+                name = name.replace("Role", "").strip()
+                rules = ""
+                parentheses_re_match = re.search(r'\((.*?)\)', " ".join(original_words))
+                if parentheses_re_match:
+                    rules = parentheses_re_match.group(1)  # Extract the text within parentheses
+                    rules = re.sub(re.escape("If you control another Role on it, put that one into the graveyard."), "", rules, flags=re.IGNORECASE).strip() # Remove Role rules text.
+                    rules = re.sub(re.escape("that Role"), "this Role", rules, flags=re.IGNORECASE).strip() # Replace text referencing that Role with this Role.
+                    rules = "Enchant creature\n" + rules
             # Extract colors:
             colors = [colors_dict[color] for color in colors_dict.keys() if (color in [w.lower().replace(',','').replace('.','') for w in words[number_word_index:token_word_index]])]
             colors = Mana.colors_to_wubrg_order(colors)
@@ -1055,8 +1069,12 @@ class Deck:
     def from_json(deck_json_filepath, setname="UNK", deck_name=None):
         f = open(deck_json_filepath)
         card_dict = json.load(f)
+        basics_dict = {}
         tags = []
-        for card in card_dict.values():
+        for keyname, card in card_dict.items():
+            if keyname.lower() == "_basics":
+                basics_dict = card
+                continue
             if "artist" not in card.keys():
                 card["artist"]=None
             if "artwork" not in card.keys():
@@ -1100,7 +1118,9 @@ class Deck:
             elif (card["special"] is not None) and (("mdfc" in card["special"].lower()) or ("transform" in card["special"].lower())) and (card["related_indicator"] is None):
                 related_name, related_mana = "", ""
                 # TODO -- this land stuff isn't super accurate, since the back side could have something other than {t}: Add x. Really it should read in the rules text and decide what to show.
-                for card2 in card_dict.values():
+                for keyname2, card2 in card_dict.items():
+                    if keyname2.lower() == "_basics":
+                        continue
                     if card2["name"] == card["related"]:
                         related_name = card2["name"] if "name" in card2.keys() else ""
                         if ("mana" not in card2.keys()) or len(card2["mana"])==0:
@@ -1162,9 +1182,9 @@ class Deck:
                       complete=card["complete"],
                       real=card["real"],
                       frame=card["frame"])
-                  for card in card_dict.values()]
+                  for keyname, card in card_dict.items() if (keyname.lower() != "_basics")]
         deck_name = os.path.basename(deck_json_filepath).replace(".json","") if deck_name is None else deck_name
-        return Deck(cards=cards, name=deck_name, tags=tags)
+        return Deck(cards=cards, name=deck_name, tags=tags, basics_dict=basics_dict)
 
     def from_deck_folder(deck_folder):
         setname = (deck_folder.lower().replace("the ",""))[0:3].upper()
@@ -1175,7 +1195,7 @@ class Deck:
         deck_json_filepath = os.path.join(deck_folder, (os.path.basename(deck_folder).replace(" ", "_") + ".json"))
         return Deck.from_json(deck_json_filepath, setname=setname) # , deck_name=deck_folder
 
-    def __init__(self, cards=[], name="Unknown", tags=[]):
+    def __init__(self, cards=[], name="Unknown", tags=[], basics_dict={}):
         if any([type(c)!=Card for c in cards]):
             raise TypeError("All inputs must be of type Card.")
         if type(name)!=str:
@@ -1183,6 +1203,7 @@ class Deck:
         self.cards = cards
         self.name = name
         self.tags = tags
+        self.basics_dict=basics_dict
 
     def count_spells(self):
         return sum([card.is_spell() for card in self.cards])
@@ -1325,7 +1346,6 @@ class Deck:
         all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete","related"] if k in d} for d in all_tokens]  
         print(f"\nFound {len(all_tokens)} tokens with names:", [token["name"] for token in all_tokens])
         tokens_dict = {"_TOKEN_"+d['name']: d for d in all_tokens}
-        print(tokens_dict)
         if save_path is None:
             save_path = os.path.join(DECK_PATH, self.name)
         if not os.path.isdir(save_path):

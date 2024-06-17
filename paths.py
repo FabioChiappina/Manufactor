@@ -18,3 +18,4 @@ COCKATRICE_PATH = os.path.join("/", "Users", "fabiochiappina", "Library", "Appli
 COCKATRICE_MANUFACTOR_PATH = os.path.join(COCKATRICE_PATH, "manufactor")
 COCKATRICE_IMAGE_PATH = os.path.join(COCKATRICE_PATH, "pics", "CUSTOM")
 COCKATRICE_CUSTOMSETS_PATH = os.path.join(COCKATRICE_PATH, "customsets")
+COCKATRICE_DECKS_PATH = os.path.join(COCKATRICE_PATH, "decks")

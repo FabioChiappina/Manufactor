@@ -59,7 +59,8 @@ def create_images_from_Deck(deck, save_path=None, skip_complete=True, automatic_
 # xml_filepath -- path to the custom.xml file used within Cockatrice.
 # json_filepath -- path to the custom.json file used only to keep track of each different custom card. Since this is used to build custom.xml, if a card needs to be removed, it should be deleted from custom.json.
 # replace_existing_custom_set -- If true and a file is found in Cockatrice/customsets/ named 01.custom.xml, that file is replaced, removing any existing custom cards. Otherwise, increments the last number found and saves a new file.
-def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_tokens=None, json_filepath_tokens=None, replace_existing_custom_set=True):
+# replace_deck_files -- If true, replaces deck.cod files in Cockatrice/decks
+def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_tokens=None, json_filepath_tokens=None, replace_existing_custom_set=True, replace_deck_files=True):
     if not os.path.isdir(paths.COCKATRICE_MANUFACTOR_PATH):
         os.mkdir(paths.COCKATRICE_MANUFACTOR_PATH)
     if xml_filepath is None:
@@ -99,6 +100,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
         tokens_cards = []
     cdict = {} # Cards
     tdict = {} # Tokens
+    all_token_names_this_deck = []
     for ci, card in enumerate(deck.cards + tokens_cards):
         duplicate_token_names = []
         if card.is_token():
@@ -124,12 +126,14 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 else:
                     break
             if not found_this_token:
-                print(f"\nWARNING: Could not find any tokens with the name {card.name} in the tokens path:", os.path.join(paths.DECK_PATH, deck.name, "Tokens"))
+                print(f"\nWARNING: Could not find any tokens with the name {card.name} in the tokens path:", os.path.join(paths.DECK_PATH, deck.name, "Tokens"), "  This token's artwork was not added to Cockatrice.")
             for saved_token_path, target_cockatrice_token_path in zip(tokens_with_this_name_paths, tokens_cockatrice_target_paths):
                 try:
                     shutil.copy(saved_token_path, target_cockatrice_token_path)
                 except:
-                    print("\nWARNING: Could not copy the image from the path " + saved_token_path + " to the Cockatrice path -- check to make sure the image exists.")
+                    print("\nWARNING: Could not copy the image from the path " + saved_token_path + " to the Cockatrice path. This token's artwork was not added to Cockatrice. Check to make sure the image exists.")
+            if len(duplicate_token_names)>0:
+                all_token_names_this_deck += duplicate_token_names
         else:
             this_card_name = card.name
             current_image_path = os.path.join(paths.DECK_PATH, deck.name, "Cards", card.name+".jpg")
@@ -137,7 +141,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             try:
                 shutil.copy(current_image_path, os.path.join(paths.COCKATRICE_IMAGE_PATH, modified_this_card_name+".full.jpeg"))
             except:
-                print("\nWARNING: Could not copy the image from the path " + current_image_path + " to the Cockatrice path -- check to make sure the image exists.")
+                print("\nWARNING: Could not copy the image from the path " + current_image_path + " to the Cockatrice path. This card's artwork was not added to Cockatrice. Check to make sure the image exists.")
         name = (this_card_name).replace('"','&quot;').replace("."," ")
         if card.rules is None:
             text = ""
@@ -219,6 +223,8 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             cdict[card.name] += '            </prop>\n'
             cdict[card.name] += '            <set muid="' +muid+ '" uuid="' +uuid+ '" num="' +str(ci+1)+ '" rarity="' +rarity+ '">' +setname+ '</set>\n'
             if (card.related is not None) and (card.related != ""):
+                if isinstance(card.related, list):
+                    print("Werid stuff....", card.related)
                 cdict[card.name] += '            <related attach="attach">' +card.related+ '</related>\n'
             cdict[card.name] += '            <tablerow>1</tablerow>\n'
             cdict[card.name] += '        </card>\n'
@@ -296,6 +302,28 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             file_new.close()
         file_orig.close()
         os.replace(xml_temp_filepath_tokens, xml_filepath_tokens)
+    # Create deck files:
+    if replace_deck_files:
+        cockatrice_deck_filename = os.path.join(paths.COCKATRICE_DECKS_PATH, deck.name+".cod")
+        with open(cockatrice_deck_filename, 'w') as cdeck:
+            cdeck.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+            cdeck.write('<cockatrice_deck version="1">\n')
+            cdeck.write('    <deckname></deckname>\n')
+            cdeck.write('    <comments></comments>\n')
+            cdeck.write('    <zone name="main">\n')
+            for cdeck_cardname in sorted([c.name.replace('"','&quot;').replace("."," ") for c in deck.cards if not ((c.special is not None) and ("back" in c.special.lower()))]):
+                cdeck.write('        <card number="1" name="'+cdeck_cardname+'"/>\n')
+            for basic_name, basic_count in deck.basics_dict.items():
+                if basic_name.lower() not in game_elements.Card.basic_lands:
+                    continue
+                cdeck.write('        <card number="'+str(basic_count)+'" name="'+basic_name.title().strip()+'"/>\n')
+            cdeck.write('    </zone>\n')
+            cdeck.write('    <zone name="tokens">\n')
+            for cdeck_tokenname in sorted(all_token_names_this_deck):
+                cdeck.write('        <card number="1" name="'+cdeck_tokenname+'"/>\n')
+            cdeck.write('    </zone>\n')
+            cdeck.write('</cockatrice_deck>\n')
+        cdeck.close()
 
 def main():
     parser = argparse.ArgumentParser(description='MTG Custom Card Builder')
