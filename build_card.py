@@ -1,5 +1,6 @@
 ﻿import os
 import re
+import unicodedata
 from PIL import Image, ImageDraw, ImageFont
 import game_elements
 from paths import ASSETS_PATH, SYMBOL_PATH, SET_SYMBOL_PATH, SAGA_SYMBOL_PATH, MDFC_INDICATOR_PATH, FONT_PATHS
@@ -50,11 +51,11 @@ WHITE = (255,255,255)
 # Returns a list of all card names in the input search_path directory with the names <cardname>.jpg or <cardname>_<number>.jpg (used to search for Artworks or Cards)
 def find_cards_with_card_name(cardname, search_path):
     matching_files = []
-    pattern1 = re.compile(rf"^{re.escape(cardname)}\.jpg$")
-    pattern2 = re.compile(rf"^{re.escape(cardname)}_\d+\.jpg$")
+    pattern1 = re.compile(rf"^{re.escape(unicodedata.normalize('NFC', cardname))}\.jpg$")
+    pattern2 = re.compile(rf"^{re.escape(unicodedata.normalize('NFC', cardname))}_\d+\.jpg$")
     for file in os.listdir(search_path):
-        if pattern1.match(file) or pattern2.match(file):
-            matching_files.append(file)
+        if pattern1.match(unicodedata.normalize('NFC', file)) or pattern2.match(unicodedata.normalize('NFC', file)):
+            matching_files.append(unicodedata.normalize('NFC', file))
     return matching_files
 
 def create_card_image_from_Card(card, save_path=None, black_token_cover=True):

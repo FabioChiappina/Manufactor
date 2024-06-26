@@ -5,6 +5,8 @@ import shutil
 
 from paths import DECK_PATH
 
+# NOTE: To make reprints recognize which card fronts pair with which card backs, separate the name of the card front and the card back using ' / '.
+
 # Check if command-line argument for output directory name is provided
 if len(sys.argv) < 2:
     print("No output directory provided. Using 'Reprints'.")
