@@ -736,26 +736,29 @@ class Card:
         return filename
     
     def get_tokens(self):
-        t0 = Card.get_tokens_from_rules_text(self.rules,  card_name=self.name, complete=self.complete)
-        t1 = Card.get_tokens_from_rules_text(self.rules1, card_name=self.name, complete=self.complete)
-        t2 = Card.get_tokens_from_rules_text(self.rules2, card_name=self.name, complete=self.complete)
-        t3 = Card.get_tokens_from_rules_text(self.rules3, card_name=self.name, complete=self.complete)
-        t4 = Card.get_tokens_from_rules_text(self.rules4, card_name=self.name, complete=self.complete)
-        t5 = Card.get_tokens_from_rules_text(self.rules5, card_name=self.name, complete=self.complete)
-        t6 = Card.get_tokens_from_rules_text(self.rules6, card_name=self.name, complete=self.complete)
-        return t0+t1+t2+t3+t4+t5+t6
+        st0, ct0 = Card.get_tokens_from_rules_text(self.rules,  card_name=self.name, complete=self.complete)
+        st1, ct1 = Card.get_tokens_from_rules_text(self.rules1, card_name=self.name, complete=self.complete)
+        st2, ct2 = Card.get_tokens_from_rules_text(self.rules2, card_name=self.name, complete=self.complete)
+        st3, ct3 = Card.get_tokens_from_rules_text(self.rules3, card_name=self.name, complete=self.complete)
+        st4, ct4 = Card.get_tokens_from_rules_text(self.rules4, card_name=self.name, complete=self.complete)
+        st5, ct5 = Card.get_tokens_from_rules_text(self.rules5, card_name=self.name, complete=self.complete)
+        st6, ct6 = Card.get_tokens_from_rules_text(self.rules6, card_name=self.name, complete=self.complete)
+        return (st0+st1+st2+st3+st4+st5+st6), (ct0+ct1+ct2+ct3+ct4+ct5+ct6)
 
     # complete - 1 if the token is already complete and shouldn't have its image recreated, 0 otherwise
     # card_name - If not None and not empty, will be set as related to all tokens found
-    def get_tokens_from_rules_text(rules_text, card_name="", exclude_list=["Treasure", "Clue", "Creature", "Noncreature", "Artifact", "Nonartifact", "Enchantment", "Nonenchantment", "Land", "Nonland", "Planeswalker", "Nonplaneswalker", "Battle", "Nonbattle"], complete=0):
+    # Outputs:
+    #           specialized_tokens -- A list of tokens in the rules text, excluding a small set of commonly made tokens with shorthand names. This is a list of dictionaries, where each dictionary gives the properties of a single token.
+    #           common_tokens      -- A list of common tokens with shorthand names listed in the rules text. This is a list of strings, where each string is a name of a common token.
+    def get_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=["Treasure", "Clue", "Food", "Blood", "Map", "Powerstone"], exclude_list=["Creature", "Noncreature", "Artifact", "Nonartifact", "Enchantment", "Nonenchantment", "Land", "Nonland", "Planeswalker", "Nonplaneswalker", "Battle", "Nonbattle"], complete=0):
         # Helper function. Returns True if the input word (or pair of words) represents a numeric quantity -- e.g., "a", "an", "x", "one", "two", "three", "that many"
         # The second word is ignored except to compare the combination of word1 and word2 against "that many".
         def is_number_word(word1, word2=""):
             number_words = ["a", "an", "x"] + [num2words(n) for n in range(101)]
             return (word1.lower() in number_words) or ((word1.strip() + " " + word2.strip()).strip() == "that many")
         if rules_text is None or len(rules_text) == 0:
-            return []
-        tokens = []
+            return [], []
+        specialized_tokens, common_tokens = [], []
         lines = rules_text.split("\n")
         colors_dict = {"white": "w", "blue": "u", "black": "b", "red": "r", "green": "g"}
         lines_queue = []
@@ -1060,20 +1063,27 @@ class Card:
                 this_token["frame"] = frame_filename
             if this_token["name"].lower() in [e.lower() for e in exclude_list]: # Explicitly excluded token
                 continue
+            if this_token["name"].lower() in [e.lower() for e in common_tokens_list]:
+                common_tokens.append(name)
+                continue
             if (this_token["cardtype"] == "Token"): # Invalid token -- no cardtype specified
                 continue
-            tokens.append(this_token)
-        return tokens
+            specialized_tokens.append(this_token)
+        return specialized_tokens, common_tokens
 
 class Deck:
     def from_json(deck_json_filepath, setname="UNK", deck_name=None):
         f = open(deck_json_filepath)
         card_dict = json.load(f)
         basics_dict = {}
+        common_tokens = []
         tags = []
         for keyname, card in card_dict.items():
             if keyname.lower() == "_basics":
                 basics_dict = card
+                continue
+            if keyname.lower() == "_common_tokens":
+                common_tokens = card
                 continue
             if "artist" not in card.keys():
                 card["artist"]=None
@@ -1182,9 +1192,9 @@ class Deck:
                       complete=card["complete"],
                       real=card["real"],
                       frame=card["frame"])
-                  for keyname, card in card_dict.items() if (keyname.lower() != "_basics")]
+                  for keyname, card in card_dict.items() if (keyname.lower() != "_basics") and (keyname.lower() != "_common_tokens")]
         deck_name = os.path.basename(deck_json_filepath).replace(".json","") if deck_name is None else deck_name
-        return Deck(cards=cards, name=deck_name, tags=tags, basics_dict=basics_dict)
+        return Deck(cards=cards, name=deck_name, tags=tags, basics_dict=basics_dict, common_tokens=common_tokens)
 
     def from_deck_folder(deck_folder):
         setname = (deck_folder.lower().replace("the ",""))[0:3].upper()
@@ -1195,7 +1205,7 @@ class Deck:
         deck_json_filepath = os.path.join(deck_folder, (os.path.basename(deck_folder).replace(" ", "_") + ".json"))
         return Deck.from_json(deck_json_filepath, setname=setname) # , deck_name=deck_folder
 
-    def __init__(self, cards=[], name="Unknown", tags=[], basics_dict={}):
+    def __init__(self, cards=[], name="Unknown", tags=[], basics_dict={}, common_tokens=[]):
         if any([type(c)!=Card for c in cards]):
             raise TypeError("All inputs must be of type Card.")
         if type(name)!=str:
@@ -1203,7 +1213,8 @@ class Deck:
         self.cards = cards
         self.name = name
         self.tags = tags
-        self.basics_dict=basics_dict
+        self.basics_dict = basics_dict
+        self.common_tokens = common_tokens
 
     def count_spells(self):
         return sum([card.is_spell() for card in self.cards])
@@ -1316,10 +1327,11 @@ class Deck:
 
     # Obtains a list of tokens and writes it to tokens.json in the deck's save path.
     def get_tokens(self, save_path=None):
-        all_tokens = []
+        all_tokens, all_common_tokens = [], []
         for card in self.cards:
-            this_card_tokens = card.get_tokens()
-            all_tokens += this_card_tokens
+            this_card_specialized_tokens, this_card_common_tokens = card.get_tokens()
+            all_tokens += this_card_specialized_tokens
+            all_common_tokens += this_card_common_tokens
         # Sub-function to get unique tokens only -- if ANY card that makes a certain type of token is not complete, then the token is considered not complete
         def unique_tokens(all_tokens):
             unique_tokens = {}
@@ -1343,9 +1355,14 @@ class Deck:
                 unique_all_tokens.append(new_dict)
             return unique_all_tokens
         all_tokens = unique_tokens(all_tokens)
-        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete","related"] if k in d} for d in all_tokens]  
-        print(f"\nFound {len(all_tokens)} tokens with names:", [token["name"] for token in all_tokens])
+        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete","related"] if k in d} for d in all_tokens] 
+        all_common_tokens = list(set(all_common_tokens)) 
+        print(f"\nFound {len(all_tokens)} token with names:", [token["name"] for token in all_tokens])
+        if len(all_common_tokens)>0:
+            print(f"Found {len(all_common_tokens)} common tokens: {all_common_tokens}")
         tokens_dict = {"_TOKEN_"+d['name']: d for d in all_tokens}
+        if len(all_common_tokens)>0:
+            tokens_dict["_COMMON_TOKENS"] = all_common_tokens
         if save_path is None:
             save_path = os.path.join(DECK_PATH, self.name)
         if not os.path.isdir(save_path):

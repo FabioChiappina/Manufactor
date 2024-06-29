@@ -93,7 +93,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
     # Get any tokens that must be updated in Cockatrice
     try:
         tokens_deck = game_elements.Deck.from_json(os.path.join(paths.DECK_PATH, deck.name, deck.name+'_Tokens.json'), setname, deck.name+"_Tokens")
-        tokens_cards = tokens_deck.cards        
+        tokens_cards = tokens_deck.cards   
     except Exception as e:
         tokens_cards = []
     if error_archiving_original_tokens:
@@ -223,8 +223,6 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             cdict[card.name] += '            </prop>\n'
             cdict[card.name] += '            <set muid="' +muid+ '" uuid="' +uuid+ '" num="' +str(ci+1)+ '" rarity="' +rarity+ '">' +setname+ '</set>\n'
             if (card.related is not None) and (card.related != ""):
-                if isinstance(card.related, list):
-                    print("Werid stuff....", card.related)
                 cdict[card.name] += '            <related attach="attach">' +card.related+ '</related>\n'
             cdict[card.name] += '            <tablerow>1</tablerow>\n'
             cdict[card.name] += '        </card>\n'
@@ -321,6 +319,8 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             cdeck.write('    <zone name="tokens">\n')
             for cdeck_tokenname in sorted(all_token_names_this_deck):
                 cdeck.write('        <card number="1" name="'+cdeck_tokenname+'"/>\n')
+            for cdeck_common_tokenname in sorted(tokens_deck.common_tokens):
+                cdeck.write('        <card number="1" name="'+cdeck_common_tokenname+' Token"/>\n')
             cdeck.write('    </zone>\n')
             cdeck.write('</cockatrice_deck>\n')
         cdeck.close()
