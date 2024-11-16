@@ -14,7 +14,8 @@ class Mana:
     mana_symbols_mono_hybrid = ['2/w', '2/u', '2/b', '2/r', '2/g']
     mana_symbols_phyrexian = ['w/p', 'u/p', 'b/p', 'r/p', 'g/p']
     mana_symbols_phyrexian_hybrid = ['w/u/p', 'w/b/p', 'r/w/p', 'g/w/p', 'u/b/p', 'u/r/p', 'g/u/p', 'b/r/p', 'b/g/p', 'r/g/p']
-    mana_symbols = mana_symbols_standard + mana_symbols_variable + mana_symbols_numeric + mana_symbols_dual_hybrid + mana_symbols_mono_hybrid + mana_symbols_phyrexian + mana_symbols_phyrexian_hybrid
+    mana_symbols_custom = ['e']
+    mana_symbols = mana_symbols_standard + mana_symbols_variable + mana_symbols_numeric + mana_symbols_dual_hybrid + mana_symbols_mono_hybrid + mana_symbols_phyrexian + mana_symbols_phyrexian_hybrid + mana_symbols_custom
     mana_symbols_bracketed = ["{"+s+"}" for s in mana_symbols] 
 
     # Returns a dictionary where keys are mana symbols present in the card's mana cost, and values are counts for each of those mana symbols.
@@ -210,7 +211,7 @@ class Mana:
         if mana_symbol_1 == mana_symbol_2:
             return 0
         # NOTE: when adding new mana symbols to sorted_order, make sure to add them twice for proper wrap-around ordering
-        sorted_order = ["x","y","z","20","19","18","17","16","15","14","13","12","11","10","9","8","7","6","5","4","3","2","1","0","s","c","w","2/w","c/w","w/p","w/u","w/u/p","w/b","w/b/p","u","2/u","c/u","u/p","u/b","u/b/p","u/r","u/r/p","b","2/b","c/b","b/p","b/r","b/r/p","b/g","b/g/p","r","2/r","c/r","r/p","r/g","r/g/p","r/w","r/w/p","g","2/g","c/g","g/p","g/w","g/w/p","g/u","g/u/p","w","2/w","c/w","w/p","w/u","w/u/p","w/b","w/b/p","u","2/u","c/u","u/p","u/b","u/b/p","u/r","u/r/p","b","2/b","c/b","b/p","b/r","b/r/p","b/g","b/g/p","r","2/r","c/r","r/p","r/g","r/g/p","r/w","r/w/p","g","2/g","c/g","g/p"]
+        sorted_order = ["x","y","z","20","19","18","17","16","15","14","13","12","11","10","9","8","7","6","5","4","3","2","1","0","s","c","e","w","2/w","c/w","w/p","w/u","w/u/p","w/b","w/b/p","u","2/u","c/u","u/p","u/b","u/b/p","u/r","u/r/p","b","2/b","c/b","b/p","b/r","b/r/p","b/g","b/g/p","r","2/r","c/r","r/p","r/g","r/g/p","r/w","r/w/p","g","2/g","c/g","g/p","g/w","g/w/p","g/u","g/u/p","w","2/w","c/w","w/p","w/u","w/u/p","w/b","w/b/p","u","2/u","c/u","u/p","u/b","u/b/p","u/r","u/r/p","b","2/b","c/b","b/p","b/r","b/r/p","b/g","b/g/p","r","2/r","c/r","r/p","r/g","r/g/p","r/w","r/w/p","g","2/g","c/g","g/p"]
         distance_1_to_2, distance_2_to_1 = len(sorted_order), len(sorted_order)
         found_first_index = None
         for mi, mana_symbol in enumerate(sorted_order):
