@@ -267,7 +267,7 @@ class AbilityElements:
 class Card:
     supertypes = ["token", "legendary", "basic", "snow"]
     cardtypes  = ["artifact", "enchantment", "land", "creature", "planeswalker", "instant", "sorcery", "battle"]
-    basic_lands = ["plains", "island", "swamp", "mountain", "forest"]
+    basic_lands = ["plains", "island", "swamp", "mountain", "forest", "wastes"]
 
     rarities = ["common", "uncommon", "rare", "mythic"]
 

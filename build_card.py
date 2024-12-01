@@ -490,12 +490,16 @@ class CardDraw(object):
                     # One more pass through the adjusted words, combining any symbols with following punctuation:
                     words_readjusted = []
                     previous_word_is_symbol = False
+                    previous_word_is_quote = False
                     for word in words_adjusted_for_symbols:
-                        if previous_word_is_symbol and word in [".",",",":"]:
+                        if previous_word_is_symbol and word in [".",",",":",".\""]:
                             words_readjusted[-1] = words_readjusted[-1] + " " + word
+                        elif previous_word_is_quote and "○" in word:
+                            words_readjusted[-1] = words_readjusted[-1] + word
                         else:
                             words_readjusted.append(word)
                         previous_word_is_symbol = "○" in word
+                        previous_word_is_quote = "\"" in word
                     words = words_readjusted.copy()
                     # Compute the size of this text block and divide it into separate lines:
                     current_italics_index_offset = 0
