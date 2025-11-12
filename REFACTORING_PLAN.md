@@ -39,7 +39,7 @@ Manufactor/
 
 ---
 
-### ✅ Phase 2 (Part A): Core Class Extraction
+### ✅ Phase 2a: Core Class Extraction
 **Status**: Complete
 **Commit**: `fda1203`
 
@@ -70,105 +70,116 @@ Ability classes for:
 
 ---
 
-## Planned Phases
+### ✅ Phase 2b: Documentation
+**Status**: Complete
+**Commit**: `e6df63b`
 
-### 🔄 Phase 2 (Part B): Large Class Extraction
-**Status**: Planned
-**Target**: Next phase
+Created comprehensive documentation:
+- `REFACTORING_PLAN.md` - Detailed refactoring roadmap
+- Updated main `README.md` with refactoring references
+- Documented all completed and planned phases
+- Migration strategy and design decisions
 
-Extract remaining complex classes:
+---
 
-#### 1. **src/core/card.py** (~470 lines)
-- Card class with all properties and validation
+### ✅ Phase 2c: Complex Class Extraction
+**Status**: Complete
+**Commit**: `345c325`
+
+Extracted remaining complex classes from `game_elements.py`:
+
+#### 1. **src/core/card.py** (~487 lines)
+- Complete Card class with all properties and validation
 - Type checking methods (is_creature, is_artifact, etc.)
 - Frame filename generation
 - JSON serialization
-- ⚠️ Dependencies: Mana, CardSet, Ability
-- ⚠️ Excludes: `get_tokens_from_rules_text()` (move to token_parser)
+- Dependencies: Mana, CardSet, paths
 
 #### 2. **src/token_generation/token_parser.py** (~320 lines)
-- Extract `Card.get_tokens_from_rules_text()` static method
+- Extracted `Card.get_tokens_from_rules_text()` static method
 - Token parsing from rules text
 - Common token detection
-- ⚠️ Dependencies: Card, Mana, Ability
+- Lazy Card import to avoid circular dependencies
 
-#### 3. **src/core/deck.py** (~305 lines)
+#### 3. **src/core/deck.py** (~304 lines)
 - Deck class with card collection management
 - Statistics calculation (curve, colors, etc.)
 - JSON import/export
 - `from_deck_folder()` factory method
-- ⚠️ Dependencies: Card, CardSet, Mana
+- Dependencies: Card, CardSet, Mana, paths
 
-**Challenges**:
-- Circular dependencies between Card and token parsing
-- Card depends on Mana for frame generation
-- Deck depends on Card
-- All need JSON serialization
-
-**Approach**:
-1. Extract Card without token parsing method
-2. Extract token_parser as standalone module that imports Card
-3. Extract Deck
-4. Update imports throughout codebase
-5. Add token parsing method back to Card as a call to token_parser
+**Challenges Resolved**:
+- Circular dependency between Card and token parsing resolved with lazy import
+- All modules tested independently
+- Full backward compatibility maintained
 
 ---
 
-### 📋 Phase 3: Rendering Split
-**Status**: Planned
+### ✅ Phase 3: Rendering Split
+**Status**: Complete
+**Commit**: `7652e07`
 
 Split `build_card.py` (~827 lines) into rendering modules:
 
-#### 1. **src/rendering/layout_constants.py**
-- POSITION_* constants
-- MAX_HEIGHT_* constants
-- SIZE constants
-- Color constants
+#### 1. **src/rendering/layout_constants.py** (~50 lines)
+- POSITION_* constants (card name, type line, rules text, etc.)
+- MAX_HEIGHT_* and MAX_WIDTH_* constraints
+- SIZE constants (card dimensions, symbols)
+- Color constants (BLACK, WHITE)
 
-#### 2. **src/utils/file_utils.py**
-- `find_cards_with_card_name()`
-- File system utilities
+#### 2. **src/utils/file_utils.py** (~30 lines)
+- `find_cards_with_card_name()` - Artwork file matching
+- Unicode normalization for file system compatibility
 
-#### 3. **src/rendering/card_renderer.py**
-- CardDraw class initialization
-- Image composition
-- `create_card_image_from_Card()`
-- `create_printing_image_from_Card()`
+#### 3. **src/rendering/card_renderer.py** (~767 lines)
+- Complete CardDraw class
+- Image composition and layering
+- `create_card_image_from_Card()` - Full card rendering
+- `create_printing_image_from_Card()` - Print-ready images
+- All text and symbol rendering methods
 
-#### 4. **src/rendering/text_renderer.py**
-- `write_text()` and text sizing methods
-- `write_name()`, `write_type_line()`, `write_rules_text()`
-- `write_power_toughness()`
-- Italics handling
-
-#### 5. **src/rendering/symbol_renderer.py**
-- `paste_mana_symbols()`
-- `paste_set_symbol()`
-- `paste_mdfc_indicator()`
-- `paste_in_text_symbols()`
-- `paste_artwork()`
+**Testing**: All rendering imports verified
+**Exports**: Updated `__init__.py` files for clean imports
 
 ---
 
-### 📋 Phase 4: CLI and Integration
-**Status**: Planned
+### ✅ Phase 4: CLI and Integration
+**Status**: Complete
+**Commit**: `cece7a4`
 
-Organize command-line tools and external integrations:
+Organized command-line tools and external integrations:
 
-#### 1. **src/cli/build_deck.py**
-- Move `build_deck.py` from root
-- Keep CLI argument parsing
-- Orchestrates deck building
+#### 1. **src/integration/cockatrice.py** (~287 lines)
+- Extracted `update_cockatrice()` from build_deck.py
+- XML generation for custom cards and tokens
+- Deck file (.cod) export for Cockatrice
+- Image copying to Cockatrice directories
+- Token management with duplicate handling
 
-#### 2. **src/integration/cockatrice.py**
-- Extract `update_cockatrice()` from build_deck.py
-- XML generation for cards and tokens
-- Deck file export
-- Path validation
+#### 2. **src/cli/build_deck.py** (~77 lines)
+- Moved from root with updated imports
+- CLI argument parsing (--deck, --automatic-tokens)
+- `create_images_from_Deck()` function
+- Orchestrates deck building pipeline
+- Usage: `python3 -m src.cli.build_deck --deck "DeckName"`
 
-#### 3. **src/cli/prepare_reprints.py**
-- Move `prepare_reprints.py` from root
+#### 3. **src/cli/prepare_reprints.py** (~57 lines)
+- Moved from root with updated imports
 - Reprint preparation utilities
+- Front/back card pairing support
+- Usage: `python3 -m src.cli.prepare_reprints "OutputDir"`
+
+**Import Updates**:
+- All imports migrated to new module structure
+- `game_elements.Deck` → `from src.core.deck import Deck`
+- `paths.DECK_PATH` → `from src.utils.paths import DECK_PATH`
+- `build_card.create_card_image_from_Card` → `from src.rendering.card_renderer import create_card_image_from_Card`
+
+**Testing**: CLI functionality verified with `--help` flag
+
+---
+
+## Planned Phases
 
 ---
 
@@ -267,13 +278,28 @@ During transition:
 
 ## Success Metrics
 
-- [ ] All tests passing
-- [ ] No circular dependencies
-- [ ] Clear module boundaries
-- [ ] Services layer implemented
-- [ ] GUI prototype working
-- [ ] Documentation complete
-- [ ] Original CLI still functional
+- [ ] All tests passing (Phase 6)
+- [x] No circular dependencies (Resolved with lazy imports)
+- [x] Clear module boundaries (Phases 1-4 complete)
+- [ ] Services layer implemented (Phase 5)
+- [ ] GUI prototype working (Phase 7)
+- [x] Documentation complete (README and REFACTORING_PLAN updated)
+- [x] Original CLI still functional (Legacy scripts maintained)
+- [x] New modular CLI working (`python3 -m src.cli.build_deck`)
+
+### Progress Summary
+
+**Completed: Phases 1-4** ✅
+- Project structure established
+- All core classes extracted and modular
+- Rendering code organized
+- CLI and integration code separated
+- Full backward compatibility maintained
+
+**Remaining: Phases 5-7** 📋
+- Services layer (business logic bridge)
+- Unit tests
+- GUI development
 
 ---
 

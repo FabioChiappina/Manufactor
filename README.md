@@ -62,36 +62,80 @@ All dependencies are listed in `requirements.txt`.
 
 ## Project Structure
 
-This project is currently undergoing refactoring to prepare for GUI development. See [REFACTORING_PLAN.md](REFACTORING_PLAN.md) for detailed progress.
+This project has been refactored into a modular structure to prepare for GUI development. See [REFACTORING_PLAN.md](REFACTORING_PLAN.md) for detailed progress.
 
-### Current Structure
+### New Modular Structure (`src/`)
 
-**Root Level (Legacy CLI)**:
-- `build_deck.py` - Main script for building deck images and updating Cockatrice
-- `build_card.py` - Card image generation functionality
-- `game_elements.py` - Core classes for Cards, Decks, Mana, and game elements
-- `paths.py` - Path configurations (imports from `src/utils/paths.py`)
-- `prepare_reprints.py` - Utility for preparing reprint card images
+The project is organized into clear, focused modules:
 
-**New Modular Structure** (`src/`):
-- `src/core/` - Refactored game logic classes (Mana, CardSet, Ability) with Card and Deck coming soon
-- `src/services/` - Business logic layer (future)
-- `src/rendering/` - Image generation (planned)
-- `src/token_generation/` - Token parsing (planned)
-- `src/integration/` - Cockatrice integration (planned)
-- `src/utils/` - Shared utilities and paths
-- `src/ui/` - Future GUI components
-- `src/cli/` - Command-line tools (planned migration)
+- **`src/core/`** - Game logic and data models
+  - `mana.py` - Mana cost parsing and color identity
+  - `card.py` - Card class with properties and validation
+  - `deck.py` - Deck management and statistics
+  - `card_set.py` - Set name handling
+  - `ability.py` - Keyword abilities
+
+- **`src/rendering/`** - Card image generation
+  - `card_renderer.py` - CardDraw class and image creation
+  - `layout_constants.py` - Position and sizing constants
+
+- **`src/token_generation/`** - Token parsing from rules text
+  - `token_parser.py` - Automatic token detection
+
+- **`src/integration/`** - External software integration
+  - `cockatrice.py` - Cockatrice XML and deck export
+
+- **`src/cli/`** - Command-line interface tools
+  - `build_deck.py` - Main deck building script
+  - `prepare_reprints.py` - Reprint preparation utility
+
+- **`src/utils/`** - Shared utilities
+  - `paths.py` - Path configurations
+  - `file_utils.py` - File system utilities
+
+- **`src/services/`** - Business logic layer (future)
+- **`src/ui/`** - GUI components (future)
+
+### Legacy Files (Root Level)
+
+For backward compatibility, the original scripts remain at the root:
+- `build_deck.py` - Legacy CLI (kept for compatibility)
+- `build_card.py` - Legacy rendering code
+- `game_elements.py` - Legacy core classes
+- `paths.py` - Legacy path configuration
 
 See [src/README.md](src/README.md) for detailed module documentation.
 
 ## Usage
 
-1. Activate the virtual environment (see above)
-2. Run the main build script:
-   ```bash
-   python build_deck.py -d "YourDeckName"
-   ```
+### Using the New Modular CLI
+
+The recommended way to use Manufactor is with the new modular structure:
+
+```bash
+# Build a deck (from project root)
+python3 -m src.cli.build_deck --deck "YourDeckName"
+
+# With automatic token generation
+python3 -m src.cli.build_deck --deck "YourDeckName" --automatic-tokens 1
+
+# Prepare reprints
+python3 -m src.cli.prepare_reprints "OutputDirectoryName"
+```
+
+### Using Legacy Scripts (Deprecated)
+
+For backward compatibility, the old scripts still work:
+
+```bash
+# Activate virtual environment first
+source venv/bin/activate
+
+# Build a deck
+python build_deck.py -d "YourDeckName"
+```
+
+**Note**: Legacy scripts will be deprecated in a future version. Please migrate to the new CLI.
 
 ## Troubleshooting
 
