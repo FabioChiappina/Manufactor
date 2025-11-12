@@ -93,18 +93,16 @@ The project is organized into clear, focused modules:
   - `paths.py` - Path configurations
   - `file_utils.py` - File system utilities
 
-- **`src/services/`** - Business logic layer (future)
+- **`src/services/`** - Business logic layer
+  - `image_generator.py` - Card image generation service
+  - `deck_manager.py` - Deck loading and statistics
+  - `cockatrice_exporter.py` - Cockatrice export service
+
 - **`src/ui/`** - GUI components (future)
 
-### Legacy Files (Root Level)
-
-For backward compatibility, the original scripts remain at the root:
-- `build_deck.py` - Legacy CLI (kept for compatibility)
-- `build_card.py` - Legacy rendering code
-- `game_elements.py` - Legacy core classes
-- `paths.py` - Legacy path configuration
-
 See [src/README.md](src/README.md) for detailed module documentation.
+
+**Note**: Legacy files (build_deck.py, build_card.py, game_elements.py, paths.py) have been removed. All functionality is now in the modular `src/` structure.
 
 ## Usage
 
@@ -130,20 +128,6 @@ deactivate
 ```
 
 **Important**: The new CLI requires the virtual environment to be activated to access dependencies (Pillow, num2words).
-
-### Using Legacy Scripts (Deprecated)
-
-For backward compatibility, the old scripts still work:
-
-```bash
-# Activate virtual environment first
-source venv/bin/activate
-
-# Build a deck
-python build_deck.py -d "YourDeckName"
-```
-
-**Note**: Legacy scripts will be deprecated in a future version. Please migrate to the new CLI.
 
 ## Troubleshooting
 
