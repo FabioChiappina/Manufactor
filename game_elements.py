@@ -1,4 +1,4 @@
-﻿import os
+import os
 import json
 import re
 from functools import cmp_to_key
