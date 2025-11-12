@@ -113,6 +113,9 @@ See [src/README.md](src/README.md) for detailed module documentation.
 The recommended way to use Manufactor is with the new modular structure:
 
 ```bash
+# IMPORTANT: Activate virtual environment first
+source venv/bin/activate
+
 # Build a deck (from project root)
 python3 -m src.cli.build_deck --deck "YourDeckName"
 
@@ -121,7 +124,12 @@ python3 -m src.cli.build_deck --deck "YourDeckName" --automatic-tokens 1
 
 # Prepare reprints
 python3 -m src.cli.prepare_reprints "OutputDirectoryName"
+
+# When done, deactivate the virtual environment
+deactivate
 ```
+
+**Important**: The new CLI requires the virtual environment to be activated to access dependencies (Pillow, num2words).
 
 ### Using Legacy Scripts (Deprecated)
 
