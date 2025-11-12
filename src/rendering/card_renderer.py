@@ -9,7 +9,7 @@ Handles all aspects of generating MTG card images including:
 
 import os
 import re
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont # type: ignore
 from src.core.card import Card
 from src.core.mana import Mana
 from src.utils.paths import ASSETS_PATH, SYMBOL_PATH, SET_SYMBOL_PATH, SAGA_SYMBOL_PATH, MDFC_INDICATOR_PATH, FONT_PATHS
