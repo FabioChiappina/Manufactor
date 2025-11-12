@@ -38,7 +38,7 @@ def create_images_from_Deck(deck, save_path=None, skip_complete=True, automatic_
         deck.get_tokens()
     try:
         setname = (deck.name.lower().replace("the ",""))[0:3].upper()
-        setname = game_elements.Set.adjust_forbidden_custom_setname(setname)
+        setname = game_elements.CardSet.adjust_forbidden_custom_setname(setname)
         tokens_deck = game_elements.Deck.from_json(os.path.join(paths.DECK_PATH, deck.name, deck.name+'_Tokens.json'), setname, deck.name+"_Tokens")
         tokens_path = os.path.join(paths.DECK_PATH, deck.name, "Tokens")
         if not os.path.isdir(tokens_path):
@@ -89,7 +89,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
         json_filepath_tokens = paths.COCKATRICE_MANUFACTOR_PATH
     if not json_filepath_tokens.endswith(".json"):
         json_filepath_tokens = os.path.join(json_filepath_tokens, "custom_tokens.json")
-    setname = game_elements.Set.adjust_forbidden_custom_setname((deck.name.lower().replace("the ",""))[0:3].upper())
+    setname = game_elements.CardSet.adjust_forbidden_custom_setname((deck.name.lower().replace("the ",""))[0:3].upper())
     # Get any tokens that must be updated in Cockatrice
     try:
         tokens_deck = game_elements.Deck.from_json(os.path.join(paths.DECK_PATH, deck.name, deck.name+'_Tokens.json'), setname, deck.name+"_Tokens")

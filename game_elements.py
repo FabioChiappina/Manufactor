@@ -238,14 +238,14 @@ class Mana:
         else: # 2 comes before 1
             return distance_2_to_1
 
-class Set:
-    # Whenever a new custom set is created with a default setname conflicting with an existing setname, add that original and replacement setname as a key-value pair to the dictionary below. 
+class CardSet:
+    # Whenever a new custom set is created with a default setname conflicting with an existing setname, add that original and replacement setname as a key-value pair to the dictionary below.
     forbidden_custom_set_names = {"ANA":"ANK"}
 
-    # Adjusts the input setname if the name is reserved for an existing MTG set.    
+    # Adjusts the input setname if the name is reserved for an existing MTG set.
     def adjust_forbidden_custom_setname(setname):
-        if setname is not None and setname.upper() in Set.forbidden_custom_set_names.keys():
-            return Set.forbidden_custom_set_names[setname]
+        if setname is not None and setname.upper() in CardSet.forbidden_custom_set_names.keys():
+            return CardSet.forbidden_custom_set_names[setname]
         return setname
 
 class Ability:
@@ -379,7 +379,7 @@ class Card:
         self.name=name
         self.artist=artist
         self.artwork=artwork
-        self.setname = setname if real else Set.adjust_forbidden_custom_setname(setname)
+        self.setname = setname if real else CardSet.adjust_forbidden_custom_setname(setname)
         self.mana = Mana.sort(mana)
         self.subtype=subtype
         self.power=power
@@ -1199,7 +1199,7 @@ class Deck:
 
     def from_deck_folder(deck_folder):
         setname = (deck_folder.lower().replace("the ",""))[0:3].upper()
-        setname = Set.adjust_forbidden_custom_setname(setname)
+        setname = CardSet.adjust_forbidden_custom_setname(setname)
         deck_folder = ' '.join(word[0].upper() + word[1:] for word in deck_folder.split())
         if not os.path.isdir(deck_folder):
             raise ValueError(f"The input deck folder ({deck_folder}) does not exist. Ensure a folder exists of the input name in the path defined by DECK_PATH in paths.py.")
