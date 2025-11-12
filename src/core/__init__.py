@@ -12,5 +12,7 @@ This module contains the fundamental data structures representing MTG concepts:
 from src.core.mana import Mana
 from src.core.card_set import CardSet
 from src.core.ability import Ability, AbilityElements
+from src.core.card import Card
+from src.core.deck import Deck
 
-__all__ = ['Mana', 'CardSet', 'Ability', 'AbilityElements']
+__all__ = ['Mana', 'CardSet', 'Ability', 'AbilityElements', 'Card', 'Deck']
