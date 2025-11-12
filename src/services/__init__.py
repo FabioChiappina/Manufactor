@@ -1,7 +1,21 @@
 """
-Business logic layer providing high-level APIs for card and deck operations.
+Business logic services layer.
 
-Services act as an intermediary between the UI/CLI and the core logic,
-providing clean interfaces for common operations like card building,
-image generation, and external software integration.
+Provides high-level APIs that bridge UI components and core functionality.
+Services handle complex operations, validation, and orchestration.
+
+Available services:
+- ImageGenerator: Card and token image generation
+- DeckManager: Deck loading, statistics, and management
+- CockatriceExporter: Export decks to Cockatrice format
 """
+
+from src.services.image_generator import ImageGenerator
+from src.services.deck_manager import DeckManager
+from src.services.cockatrice_exporter import CockatriceExporter
+
+__all__ = [
+    'ImageGenerator',
+    'DeckManager',
+    'CockatriceExporter'
+]
