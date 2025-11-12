@@ -89,7 +89,12 @@ def create_printing_image_from_Card(card, saved_image_path=None, save_path=None)
         if saved_image_path.endswith(card.name+".jpg"):
             saved_image_path = os.path.dirname(saved_image_path)
         else:
-            saved_image_path = os.path.join(saved_image_path, card_or_token)
+            if saved_image_path.endswith("Cards") and card.is_token():
+                saved_image_path = saved_image_path[:-len("Cards")]+"Tokens"
+            elif saved_image_path.endswith("Tokens") and not card.is_token():
+                saved_image_path = saved_image_path[:-len("Tokens")]+"Cards"
+            else:
+                saved_image_path = os.path.join(saved_image_path, card_or_token)
     if save_path is None:
         save_path = "Printing"
     if not save_path.endswith("Printing"):
