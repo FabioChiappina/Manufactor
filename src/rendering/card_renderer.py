@@ -11,9 +11,14 @@ import os
 import re
 from PIL import Image, ImageDraw, ImageFont
 from src.core.card import Card
+from src.core.mana import Mana
 from src.utils.paths import ASSETS_PATH, SYMBOL_PATH, SET_SYMBOL_PATH, SAGA_SYMBOL_PATH, MDFC_INDICATOR_PATH, FONT_PATHS
 from src.utils.file_utils import find_cards_with_card_name
 from src.rendering.layout_constants import *
+
+# All symbols including tap/untap
+all_symbols = Mana.mana_symbols + ["q", "t"]
+all_symbols_bracketed = ["{"+s+"}" for s in all_symbols]
 
 def create_card_image_from_Card(card, save_path=None, black_token_cover=True):
     if type(card)!=Card:
@@ -332,7 +337,7 @@ class CardDraw(object):
                         token_replaced += c # Handles non-symbol characters (e.g., periods, commas, colons...)
                     if prev_bracket is not None and index > 0 and index < len(token) and c=="}":
                         found_symbol = token[prev_bracket:index+1]
-                        if found_symbol in game_elements.all_symbols_bracketed:
+                        if found_symbol in all_symbols_bracketed:
                             list_of_symbols.append(found_symbol.replace("{", "").replace("}", ""))
                             token_replaced += " ○ "
                             prev_bracket = None
@@ -731,12 +736,12 @@ class CardDraw(object):
             if text.replace(",","") != newtext.replace("...",""):
                 text = newtext
         # Paste MDFC indicator:
-        colors = game_elements.Mana.get_colors(mana)
+        colors = Mana.get_colors(mana)
         if len(colors)==0:
-            colors2 = game_elements.Mana.get_colors_in_text(mana)
+            colors2 = Mana.get_colors_in_text(mana)
             if len(colors2)>0:
                 colors = colors2
-                mana = ""  # TODO -- This is kindof just ignoring the work to make mana be {t}: Add ... (see game_elements, in Deck class)
+                mana = ""  # TODO -- This is kindof just ignoring the work to make mana be {t}: Add ... (see Mana class in src/core/mana.py, and Deck class)
         indicator_filename = "indicator_"
         if len(colors)==0:
             indicator_filename += "c_"

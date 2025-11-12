@@ -485,13 +485,14 @@ class Card:
         return filename
     
     def get_tokens(self):
-        st0, ct0 = Card.get_tokens_from_rules_text(self.rules,  card_name=self.name, complete=self.complete)
-        st1, ct1 = Card.get_tokens_from_rules_text(self.rules1, card_name=self.name, complete=self.complete)
-        st2, ct2 = Card.get_tokens_from_rules_text(self.rules2, card_name=self.name, complete=self.complete)
-        st3, ct3 = Card.get_tokens_from_rules_text(self.rules3, card_name=self.name, complete=self.complete)
-        st4, ct4 = Card.get_tokens_from_rules_text(self.rules4, card_name=self.name, complete=self.complete)
-        st5, ct5 = Card.get_tokens_from_rules_text(self.rules5, card_name=self.name, complete=self.complete)
-        st6, ct6 = Card.get_tokens_from_rules_text(self.rules6, card_name=self.name, complete=self.complete)
+        from src.token_generation.token_parser import parse_tokens_from_rules_text
+        st0, ct0 = parse_tokens_from_rules_text(self.rules, card_name=self.name, complete=self.complete, Card=Card)
+        st1, ct1 = parse_tokens_from_rules_text(self.rules1, card_name=self.name, complete=self.complete, Card=Card)
+        st2, ct2 = parse_tokens_from_rules_text(self.rules2, card_name=self.name, complete=self.complete, Card=Card)
+        st3, ct3 = parse_tokens_from_rules_text(self.rules3, card_name=self.name, complete=self.complete, Card=Card)
+        st4, ct4 = parse_tokens_from_rules_text(self.rules4, card_name=self.name, complete=self.complete, Card=Card)
+        st5, ct5 = parse_tokens_from_rules_text(self.rules5, card_name=self.name, complete=self.complete, Card=Card)
+        st6, ct6 = parse_tokens_from_rules_text(self.rules6, card_name=self.name, complete=self.complete, Card=Card)
         return (st0+st1+st2+st3+st4+st5+st6), (ct0+ct1+ct2+ct3+ct4+ct5+ct6)
 
     # complete - 1 if the token is already complete and shouldn't have its image recreated, 0 otherwise
