@@ -64,3 +64,6 @@ venv.bak/
 
 # Thumbnails
 ._*
+
+# User-specific configuration
+config.json

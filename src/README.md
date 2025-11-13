@@ -16,10 +16,10 @@ Core game logic and data models representing Magic: The Gathering concepts.
 Business logic layer providing high-level APIs for operations.
 
 Acts as an intermediary between the UI/CLI and the core logic, providing clean interfaces for:
-- Card building and validation
-- Image generation with progress tracking
-- Deck building operations
-- Export operations
+- `image_generator.py` - Card image generation service with progress tracking
+- `deck_manager.py` - Deck loading, management, and statistics
+- `cockatrice_exporter.py` - Cockatrice export service with validation
+- `settings_manager.py` - Application settings and configuration management
 
 ### `rendering/`
 Image generation and visual rendering of cards.
@@ -39,7 +39,8 @@ External software integration.
 
 ### `utils/`
 Shared utilities and helper functions.
-- `paths.py` - Path configurations for assets and output directories
+- `paths.py` - Path configurations for assets and output directories (loads from config.json)
+- `config.py` - Configuration management for user-specific settings
 - `file_utils.py` - File operations and utilities
 
 ### `ui/`
@@ -53,6 +54,7 @@ Graphical user interface (future).
 Command-line interface for power users and scripting.
 - `build_deck.py` - Main deck building tool
 - `prepare_reprints.py` - Reprint preparation utility
+- `configure.py` - Configuration management tool for setting up paths
 
 ## Import Guidelines
 

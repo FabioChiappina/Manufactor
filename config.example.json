@@ -1,0 +1,6 @@
+{
+    "paths": {
+        "deck_path": "/path/to/your/Decks",
+        "cockatrice_path": "/path/to/Cockatrice/folder"
+    }
+}

@@ -104,6 +104,83 @@ See [src/README.md](src/README.md) for detailed module documentation.
 
 **Note**: Legacy files (build_deck.py, build_card.py, game_elements.py, paths.py) have been removed. All functionality is now in the modular `src/` structure.
 
+## Configuration
+
+### First-Time Setup
+
+When you first run Manufactor, a `config.json` file will be automatically created in the project root with default paths. You should update these paths to match your local system.
+
+### Configuration File (`config.json`)
+
+The configuration file stores local system paths:
+
+```json
+{
+    "paths": {
+        "deck_path": "/path/to/your/Decks",
+        "cockatrice_path": "/path/to/Cockatrice/folder"
+    }
+}
+```
+
+**Important Notes:**
+- The `config.json` file is user-specific and is not tracked by git (it's in `.gitignore`)
+- A `config.example.json` file is provided as a template
+- The `deck_path` is where all your deck folders and card files will be saved
+- The `cockatrice_path` should point to your Cockatrice installation folder
+
+### Managing Configuration
+
+#### Using the CLI Tool
+
+The easiest way to manage configuration is with the built-in CLI tool:
+
+```bash
+# Show current configuration
+python -m src.cli.configure --show
+
+# Validate configured paths
+python -m src.cli.configure --validate
+
+# Set deck path
+python -m src.cli.configure --set-deck-path ~/Documents/Magic/Decks
+
+# Set Cockatrice path (macOS example)
+python -m src.cli.configure --set-cockatrice-path "~/Library/Application Support/Cockatrice/Cockatrice"
+
+# Reset to defaults
+python -m src.cli.configure --reset
+```
+
+#### Programmatically (for GUI/scripts)
+
+You can also manage settings programmatically:
+
+```python
+from src.services.settings_manager import SettingsManager
+
+settings = SettingsManager()
+
+# Get current paths
+deck_path = settings.get_deck_path()
+cockatrice_path = settings.get_cockatrice_path()
+
+# Set new paths
+settings.set_deck_path("/new/path/to/Decks")
+settings.set_cockatrice_path("/new/path/to/Cockatrice")
+
+# Validate paths
+validation = settings.validate_paths()
+errors = settings.get_validation_errors()
+```
+
+### Default Paths
+
+- **Deck Path**: `<project_parent>/Decks` (e.g., if Manufactor is at `/Desktop/Magic/Manufactor`, decks will be at `/Desktop/Magic/Decks`)
+- **Cockatrice Path** (macOS): `~/Library/Application Support/Cockatrice/Cockatrice`
+- **Cockatrice Path** (Windows): `%APPDATA%/Cockatrice/Cockatrice`
+- **Cockatrice Path** (Linux): `~/.local/share/Cockatrice/Cockatrice`
+
 ## Usage
 
 ### Using the New Modular CLI
