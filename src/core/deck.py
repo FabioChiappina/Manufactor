@@ -7,6 +7,7 @@ calculates deck statistics, and handles JSON import/export.
 
 import os
 import json
+from typing import List, Dict, Optional, Any, Tuple
 from src.core.card import Card
 from src.core.card_set import CardSet
 from src.core.mana import Mana
@@ -14,7 +15,34 @@ from src.utils.paths import DECK_PATH
 
 
 class Deck:
-    def from_json(deck_json_filepath, setname="UNK", deck_name=None):
+    """
+    Manages a collection of MTG cards with deck statistics and analysis.
+
+    Handles deck loading from JSON, statistics calculation, color distribution,
+    mana curve analysis, and token generation.
+    """
+
+    @staticmethod
+    def from_json(
+        deck_json_filepath: str,
+        setname: str = "UNK",
+        deck_name: Optional[str] = None
+    ) -> 'Deck':
+        """
+        Load a deck from a JSON file.
+
+        Args:
+            deck_json_filepath: Path to the JSON file containing deck data
+            setname: Set code for cards (default: "UNK")
+            deck_name: Name for the deck (default: derived from filepath)
+
+        Returns:
+            Deck object loaded from the JSON file
+
+        Raises:
+            FileNotFoundError: If deck_json_filepath doesn't exist
+            json.JSONDecodeError: If file contains invalid JSON
+        """
         f = open(deck_json_filepath)
         card_dict = json.load(f)
         basics_dict = {}
@@ -138,7 +166,22 @@ class Deck:
         deck_name = os.path.basename(deck_json_filepath).replace(".json","") if deck_name is None else deck_name
         return Deck(cards=cards, name=deck_name, tags=tags, basics_dict=basics_dict, common_tokens=common_tokens)
 
-    def from_deck_folder(deck_folder):
+    @staticmethod
+    def from_deck_folder(
+        deck_folder: str
+    ) -> 'Deck':
+        """
+        Load a deck from a folder containing a deck JSON file.
+
+        Args:
+            deck_folder: Path to the deck folder
+
+        Returns:
+            Deck object loaded from the folder's JSON file
+
+        Raises:
+            ValueError: If deck folder doesn't exist
+        """
         setname = (deck_folder.lower().replace("the ",""))[0:3].upper()
         setname = CardSet.adjust_forbidden_custom_setname(setname)
         deck_folder = ' '.join(word[0].upper() + word[1:] for word in deck_folder.split())
@@ -147,7 +190,27 @@ class Deck:
         deck_json_filepath = os.path.join(deck_folder, (os.path.basename(deck_folder).replace(" ", "_") + ".json"))
         return Deck.from_json(deck_json_filepath, setname=setname) # , deck_name=deck_folder
 
-    def __init__(self, cards=[], name="Unknown", tags=[], basics_dict={}, common_tokens=[]):
+    def __init__(
+        self,
+        cards: List[Card] = [],
+        name: str = "Unknown",
+        tags: List[str] = [],
+        basics_dict: Dict[str, Any] = {},
+        common_tokens: List[str] = []
+    ) -> None:
+        """
+        Initialize a Deck.
+
+        Args:
+            cards: List of Card objects in the deck
+            name: Name of the deck
+            tags: List of tags for categorization
+            basics_dict: Dictionary of basic land information
+            common_tokens: List of common token names created by cards
+
+        Raises:
+            TypeError: If cards contains non-Card objects or name is not a string
+        """
         if any([type(c)!=Card for c in cards]):
             raise TypeError("All inputs must be of type Card.")
         if type(name)!=str:
@@ -158,13 +221,43 @@ class Deck:
         self.basics_dict = basics_dict
         self.common_tokens = common_tokens
 
-    def count_spells(self):
+    def count_spells(
+        self
+    ) -> int:
+        """
+        Count the number of spells (non-land cards) in the deck.
+
+        Returns:
+            Number of spell cards
+        """
         return sum([card.is_spell() for card in self.cards])
-    
-    def count_lands(self):
+
+    def count_lands(
+        self
+    ) -> int:
+        """
+        Count the number of lands in the deck.
+
+        Returns:
+            Number of land cards
+        """
         return sum([not card.is_spell() for card in self.cards])
 
-    def get_cardtypes(self, count_backs=False, count_tokens=False):
+    def get_cardtypes(
+        self,
+        count_backs: bool = False,
+        count_tokens: bool = False
+    ) -> Dict[str, int]:
+        """
+        Get counts of each card type in the deck.
+
+        Args:
+            count_backs: Whether to count back faces of double-faced cards
+            count_tokens: Whether to count token cards
+
+        Returns:
+            Dictionary mapping card types to their counts
+        """
         cardtypes_dict = {c.capitalize():0 for c in Card.cardtypes}
         for card in self.cards:
             if not count_tokens and card.is_token():
@@ -175,7 +268,14 @@ class Deck:
                 cardtypes_dict[thistype.capitalize()] += 1
         return cardtypes_dict
 
-    def print_type_summary(self):
+    def print_type_summary(
+        self
+    ) -> None:
+        """
+        Print a summary of card types in the deck to console.
+
+        Displays count of each card type (Creature, Instant, Sorcery, etc.).
+        """
         print()
         print("TYPE SUMMARY FOR: ", self.name, ".....................")
         type_dict = {typ:0 for typ in ["Creature", "Artifact", "Enchantment", "Instant", "Sorcery", "Land", "Planeswalker", "Battle"]}
@@ -193,7 +293,14 @@ class Deck:
                 print(type_dict[typ], "\t"+typ+"s\t", round(100*type_dict[typ]/num_spells, 1), "%")
         print()
 
-    def print_tag_summary(self):
+    def print_tag_summary(
+        self
+    ) -> None:
+        """
+        Print a summary of card tags in the deck to console.
+
+        Displays count of cards for each tag category.
+        """
         print()
         print("TAG SUMMARY FOR: ", self.name, ".....................")
         tag_dict = {}
@@ -219,7 +326,15 @@ class Deck:
                     print("  ", subtag_dict_of_dicts[tag][subtag], "\t", subtag)
         print()
     
-    def print_color_summary(self):
+    def print_color_summary(
+        self
+    ) -> None:
+        """
+        Print a summary of color distribution in the deck to console.
+
+        Displays counts for colorless, monocolor, and multicolor cards,
+        as well as specific color combinations.
+        """
         print()
         print("COLOR SUMMARY FOR: ", self.name, ".....................")
         deck_colors = []
@@ -244,7 +359,14 @@ class Deck:
         print()
         # TODO -- scan lands and print mana symbols on lands summary
 
-    def print_mana_summary(self):
+    def print_mana_summary(
+        self
+    ) -> None:
+        """
+        Print a summary of mana curve and distribution in the deck to console.
+
+        Displays average mana value and mana curve distribution.
+        """
         print()
         print("MANA SUMMARY FOR: ", self.name, ".....................")
         mana_value_dict = {}
@@ -267,15 +389,42 @@ class Deck:
         print("Average Mana Value (Excluding Lands):", round(total_deck_mana_value / self.count_spells(), 3))
         print()
 
-    # Obtains a list of tokens and writes it to tokens.json in the deck's save path.
-    def get_tokens(self, save_path=None):
+    def get_tokens(
+        self,
+        save_path: Optional[str] = None
+    ) -> Tuple[List[Dict[str, Any]], List[str]]:
+        """
+        Extract all tokens created by cards in the deck.
+
+        Parses rules text of all cards to identify tokens and saves them to JSON.
+
+        Args:
+            save_path: Optional path to save token JSON file (default: DECK_PATH/deck_name)
+
+        Returns:
+            Tuple of (specialized_tokens, common_tokens) where:
+            - specialized_tokens: List of dicts with unique token properties
+            - common_tokens: List of common token names
+        """
         all_tokens, all_common_tokens = [], []
         for card in self.cards:
             this_card_specialized_tokens, this_card_common_tokens = card.get_tokens()
             all_tokens += this_card_specialized_tokens
             all_common_tokens += this_card_common_tokens
-        # Sub-function to get unique tokens only -- if ANY card that makes a certain type of token is not complete, then the token is considered not complete
-        def unique_tokens(all_tokens):
+        def unique_tokens(
+            all_tokens: List[Dict[str, Any]]
+        ) -> List[Dict[str, Any]]:
+            """
+            Deduplicate tokens and aggregate their properties.
+
+            If any card creating a token type is incomplete, the token is marked incomplete.
+
+            Args:
+                all_tokens: List of all token dictionaries from all cards
+
+            Returns:
+                List of unique token dictionaries with aggregated properties
+            """
             unique_tokens = {}
             for token in all_tokens:
                 # Create a key without the "complete" field

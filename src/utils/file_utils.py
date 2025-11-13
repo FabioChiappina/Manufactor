@@ -5,11 +5,15 @@ File system utilities for finding and managing card image files.
 import os
 import re
 import unicodedata
+from typing import List
 
 
-def find_cards_with_card_name(cardname, search_path):
+def find_cards_with_card_name(
+    cardname: str,
+    search_path: str
+) -> List[str]:
     """
-    Returns a list of all card image files matching the given card name.
+    Find all card image files matching the given card name.
 
     Finds files with names like:
     - <cardname>.jpg

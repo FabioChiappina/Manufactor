@@ -4,15 +4,27 @@ MTG Set information and management.
 Handles set name validation and conflicts with existing Magic: The Gathering sets.
 """
 
+from typing import Optional, Dict
+
 
 class CardSet:
     """Manages MTG set names and prevents conflicts with official set codes."""
 
-    # Whenever a new custom set is created with a default setname conflicting with an existing setname, add that original and replacement setname as a key-value pair to the dictionary below.
-    forbidden_custom_set_names = {"ANA":"ANK"}
+    forbidden_custom_set_names: Dict[str, str] = {"ANA":"ANK"}
 
-    # Adjusts the input setname if the name is reserved for an existing MTG set.
-    def adjust_forbidden_custom_setname(setname):
+    @staticmethod
+    def adjust_forbidden_custom_setname(
+        setname: Optional[str]
+    ) -> Optional[str]:
+        """
+        Adjust set name if it conflicts with an existing MTG set.
+
+        Args:
+            setname: The proposed set name
+
+        Returns:
+            Adjusted set name if conflict exists, otherwise original name
+        """
         if setname is not None and setname.upper() in CardSet.forbidden_custom_set_names.keys():
             return CardSet.forbidden_custom_set_names[setname]
         return setname

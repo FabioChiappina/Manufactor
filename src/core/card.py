@@ -6,7 +6,7 @@ with all their properties, validation, frame selection, and JSON serialization.
 """
 
 import os
-import json
+from typing import Optional, List, Union, Dict, Any
 from src.core.mana import Mana
 from src.core.card_set import CardSet
 from src.utils.paths import CARD_BORDERS_PATH
@@ -21,18 +21,55 @@ class Card:
 
     symbols = Mana.mana_symbols + ['t', 'q']
 
-    # TODO -- return a Card object for the input real MTG card name
-    def from_existing_cardname(cardname):
+    @staticmethod
+    def from_existing_cardname(
+        cardname: str
+    ) -> 'Card':
+        """
+        Return a Card object for the input real MTG card name.
+
+        Args:
+            cardname: Name of the existing MTG card
+
+        Returns:
+            Card object representing the existing card
+
+        Note:
+            TODO - Not yet implemented
+        """
         pass
 
-    # From the input cardtype string, removes any types that are super types, not card types.
-    def filter_supertypes_from_cardtype(cardtype):
+    @staticmethod
+    def filter_supertypes_from_cardtype(
+        cardtype: str
+    ) -> str:
+        """
+        Remove supertypes from a cardtype string, leaving only card types.
+
+        Args:
+            cardtype: The cardtype string potentially containing supertypes
+
+        Returns:
+            The cardtype string with supertypes removed
+        """
         cardtype = cardtype.title()
         for supertype in Card.supertypes:
             cardtype = cardtype.replace(supertype.capitalize()+" ", "")
         return cardtype
-    # From the input cardtype string, returns any types that are super types, not card types.
-    def get_supertype_from_cardtype(cardtype):
+
+    @staticmethod
+    def get_supertype_from_cardtype(
+        cardtype: str
+    ) -> Optional[str]:
+        """
+        Extract supertypes from a cardtype string.
+
+        Args:
+            cardtype: The cardtype string potentially containing supertypes
+
+        Returns:
+            Space-separated string of supertypes, or None if no supertypes found
+        """
         supertype_string = ""
         for supertype in Card.supertypes:
             if supertype.lower() in cardtype.lower():
@@ -43,10 +80,71 @@ class Card:
             supertype_string = supertype_string[0:-1]
         return supertype_string
 
-    # special: front or transform-front, back or transform-back, mdfc-front, mdfc-back (later add adventure, ...)
-    # related_indicator: Text/mana cost to be written on an indicator of the opposite side of the card. If omitted, default text/mana value is computed from the card's "related" field if present and if special is mdfc/transform. Otherwise, indicator is omitted.
-    # real: 1 if a real mtg card, 0 if custom
-    def __init__(self, name=None, artist=None, artwork=None, setname=None, mana=None, cardtype=None, subtype=None, power=None, toughness=None, rarity=None, rules=None, rules1=None, rules2=None, rules3=None, rules4=None, rules5=None, rules6=None, flavor=None, special=None, related=None, related_indicator=None, colors=None, tags=None, complete=0, real=0, frame=None):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        artist: Optional[str] = None,
+        artwork: Optional[str] = None,
+        setname: Optional[str] = None,
+        mana: Optional[str] = None,
+        cardtype: Optional[str] = None,
+        subtype: Optional[str] = None,
+        power: Optional[Union[str, int]] = None,
+        toughness: Optional[Union[str, int]] = None,
+        rarity: Optional[Union[str, int]] = None,
+        rules: Optional[str] = None,
+        rules1: Optional[str] = None,
+        rules2: Optional[str] = None,
+        rules3: Optional[str] = None,
+        rules4: Optional[str] = None,
+        rules5: Optional[str] = None,
+        rules6: Optional[str] = None,
+        flavor: Optional[str] = None,
+        special: Optional[str] = None,
+        related: Optional[Union[str, List[str]]] = None,
+        related_indicator: Optional[str] = None,
+        colors: Optional[List[str]] = None,
+        tags: Optional[Union[str, List[str]]] = None,
+        complete: Union[int, bool, str] = 0,
+        real: Union[int, bool, str] = 0,
+        frame: Optional[str] = None
+    ) -> None:
+        """
+        Initialize a Magic: The Gathering Card.
+
+        Args:
+            name: Card name
+            artist: Artist name
+            artwork: Path to artwork file
+            setname: Set code/name
+            mana: Mana cost string (e.g., "{2}{U}{R}")
+            cardtype: Card type(s) (e.g., "Creature", "Instant")
+            subtype: Card subtype(s) (e.g., "Human Wizard")
+            power: Creature power (string or int)
+            toughness: Creature toughness (string or int)
+            rarity: Card rarity ("common", "uncommon", "rare", "mythic" or 0-3)
+            rules: Main rules text
+            rules1: First line of rules (for multi-line layouts)
+            rules2: Second line of rules
+            rules3: Third line of rules
+            rules4: Fourth line of rules
+            rules5: Fifth line of rules
+            rules6: Sixth line of rules
+            flavor: Flavor text
+            special: Special card type ("front", "back", "transform-front", "transform-back",
+                    "mdfc-front", "mdfc-back")
+            related: Related card name(s) for double-faced cards
+            related_indicator: Text/mana cost for opposite side indicator
+            colors: List of color identities (['w', 'u', 'b', 'r', 'g'])
+            tags: Tag(s) for categorization
+            complete: 1 if card is complete (has image), 0 otherwise
+            real: 1 if real MTG card, 0 if custom
+            frame: Path to custom frame image
+
+        Raises:
+            TypeError: If any argument is not of the expected type
+            ValueError: If any argument has an invalid value
+        """
         if name is not None and type(name)!=str:
             raise TypeError("name input must be of type str.")
         if artist is not None and type(artist)!=str:
@@ -159,7 +257,15 @@ class Card:
         else:
             self.frame = self.get_frame_filename(CARD_BORDERS_PATH)
 
-    def get_colors(self):
+    def get_colors(
+        self
+    ) -> List[str]:
+        """
+        Get the color identity of this card.
+
+        Returns:
+            List of color codes (e.g., ['w', 'u', 'b', 'r', 'g'])
+        """
         if self.is_token():
             try:
                 return self.colors
@@ -167,99 +273,204 @@ class Card:
                 return []
         else:
             return Mana.get_colors(self.mana)
-    def is_monocolored(self):
+
+    def is_monocolored(
+        self
+    ) -> bool:
+        """Check if this card is exactly one color."""
         return Mana.is_monocolored(self.mana)
-    def is_colorless(self):
+
+    def is_colorless(
+        self
+    ) -> bool:
+        """Check if this card is colorless."""
         return Mana.is_colorless(self.mana)
-    def is_multicolored(self):
+
+    def is_multicolored(
+        self
+    ) -> bool:
+        """Check if this card is multicolored (2+ colors)."""
         return Mana.is_multicolored(self.mana)
-    def is_bicolored(self):
+
+    def is_bicolored(
+        self
+    ) -> bool:
+        """Check if this card is exactly two colors."""
         return Mana.is_bicolored(self.mana)
-    def is_tricolored(self):
+
+    def is_tricolored(
+        self
+    ) -> bool:
+        """Check if this card is exactly three colors."""
         return Mana.is_tricolored(self.mana)
-    def is_quadcolored(self):
+
+    def is_quadcolored(
+        self
+    ) -> bool:
+        """Check if this card is exactly four colors."""
         return Mana.is_quadcolored(self.mana)
-    def is_pentacolored(self):
+
+    def is_pentacolored(
+        self
+    ) -> bool:
+        """Check if this card is all five colors."""
         return Mana.is_pentacolored(self.mana)
-    def is_white(self):
+    def is_white(
+        self
+    ) -> bool:
+        """Check if this card contains white."""
         if self.is_token():
             return 'w' in self.colors
         else:
             return Mana.is_white(self.mana)
-    def is_blue(self):
+
+    def is_blue(
+        self
+    ) -> bool:
+        """Check if this card contains blue."""
         if self.is_token():
             return 'u' in self.colors
         else:
             return Mana.is_blue(self.mana)
-    def is_black(self):
+
+    def is_black(
+        self
+    ) -> bool:
+        """Check if this card contains black."""
         if self.is_token():
             return 'b' in self.colors
         else:
             return Mana.is_black(self.mana)
-    def is_red(self):
+
+    def is_red(
+        self
+    ) -> bool:
+        """Check if this card contains red."""
         if self.is_token():
             return 'r' in self.colors
         else:
             return Mana.is_red(self.mana)
-    def is_green(self):
+
+    def is_green(
+        self
+    ) -> bool:
+        """Check if this card contains green."""
         if self.is_token():
             return 'g' in self.colors
         else:
             return Mana.is_green(self.mana)
-    def is_azorius(self):
+
+    def is_azorius(self) -> bool:
+        """Check if this card is Azorius colors (white/blue)."""
         return Mana.is_azorius(self.mana)
-    def is_orzhov(self):
+
+    def is_orzhov(self) -> bool:
+        """Check if this card is Orzhov colors (white/black)."""
         return Mana.is_orzhov(self.mana)
-    def is_boros(self):
+
+    def is_boros(self) -> bool:
+        """Check if this card is Boros colors (red/white)."""
         return Mana.is_boros(self.mana)
-    def is_selesnya(self):
+
+    def is_selesnya(self) -> bool:
+        """Check if this card is Selesnya colors (green/white)."""
         return Mana.is_selesnya(self.mana)
-    def is_dimir(self):
+
+    def is_dimir(self) -> bool:
+        """Check if this card is Dimir colors (blue/black)."""
         return Mana.is_dimir(self.mana)
-    def is_izzet(self):
+
+    def is_izzet(self) -> bool:
+        """Check if this card is Izzet colors (blue/red)."""
         return Mana.is_izzet(self.mana)
-    def is_simic(self):
+
+    def is_simic(self) -> bool:
+        """Check if this card is Simic colors (green/blue)."""
         return Mana.is_simic(self.mana)
-    def is_rakdos(self):
+
+    def is_rakdos(self) -> bool:
+        """Check if this card is Rakdos colors (black/red)."""
         return Mana.is_rakdos(self.mana)
-    def is_golgari(self):
+
+    def is_golgari(self) -> bool:
+        """Check if this card is Golgari colors (black/green)."""
         return Mana.is_golgari(self.mana)
-    def is_gruul(self):
+
+    def is_gruul(self) -> bool:
+        """Check if this card is Gruul colors (red/green)."""
         return Mana.is_gruul(self.mana)
-    def is_abzan(self):
+
+    def is_abzan(self) -> bool:
+        """Check if this card is Abzan colors (white/black/green)."""
         return Mana.is_abzan(self.mana)
-    def is_bant(self):
+
+    def is_bant(self) -> bool:
+        """Check if this card is Bant colors (green/white/blue)."""
         return Mana.is_bant(self.mana)
-    def is_esper(self):
+
+    def is_esper(self) -> bool:
+        """Check if this card is Esper colors (white/blue/black)."""
         return Mana.is_esper(self.mana)
-    def is_grixis(self):
+
+    def is_grixis(self) -> bool:
+        """Check if this card is Grixis colors (blue/black/red)."""
         return Mana.is_grixis(self.mana)
-    def is_jeskai(self):
+
+    def is_jeskai(self) -> bool:
+        """Check if this card is Jeskai colors (blue/red/white)."""
         return Mana.is_jeskai(self.mana)
-    def is_jund(self):
+
+    def is_jund(self) -> bool:
+        """Check if this card is Jund colors (black/red/green)."""
         return Mana.is_jund(self.mana)
-    def is_mardu(self):
+
+    def is_mardu(self) -> bool:
+        """Check if this card is Mardu colors (red/white/black)."""
         return Mana.is_mardu(self.mana)
-    def is_naya(self):
+
+    def is_naya(self) -> bool:
+        """Check if this card is Naya colors (red/green/white)."""
         return Mana.is_naya(self.mana)
-    def is_sultai(self):
+
+    def is_sultai(self) -> bool:
+        """Check if this card is Sultai colors (black/green/blue)."""
         return Mana.is_sultai(self.mana)
-    def is_temur(self):
+
+    def is_temur(self) -> bool:
+        """Check if this card is Temur colors (green/blue/red)."""
         return Mana.is_temur(self.mana)
-    def is_glint(self):
+
+    def is_glint(self) -> bool:
+        """Check if this card is Glint colors (blue/black/red/green)."""
         return Mana.is_glint(self.mana)
-    def is_dune(self):
+
+    def is_dune(self) -> bool:
+        """Check if this card is Dune colors (white/black/red/green)."""
         return Mana.is_dune(self.mana)
-    def is_ink(self):
+
+    def is_ink(self) -> bool:
+        """Check if this card is Ink colors (white/blue/red/green)."""
         return Mana.is_ink(self.mana)
-    def is_witch(self):
+
+    def is_witch(self) -> bool:
+        """Check if this card is Witch colors (white/blue/black/green)."""
         return Mana.is_witch(self.mana)
-    def is_yore(self):
+
+    def is_yore(self) -> bool:
+        """Check if this card is Yore colors (white/blue/black/red)."""
         return Mana.is_yore(self.mana)
-    
-    # Returns a list with each color of mana (among WUBRG) that the card produces, if this card is a land.
-    # Colors of mana in the costs of abilities are not considered -- only colors that the land itself produces.
-    def get_colors_produced_by_land(self):
+
+    def get_colors_produced_by_land(
+        self
+    ) -> List[str]:
+        """
+        Get colors of mana produced by this land.
+
+        Only considers colors the land itself produces, not colors in ability costs.
+
+        Returns:
+            List of color codes produced by this land
+        """
         if not self.is_land():
             return []
         if self.rules is None and self.rules1 is not None:
@@ -273,9 +484,16 @@ class Card:
         else:
             return []
         return Mana.get_colors_produced_by_land(rules)
-    
-    # Returns a list with each color of mana (among WUBRG) in the rules text of the card.
-    def get_colors_in_rules(self):
+
+    def get_colors_in_rules(
+        self
+    ) -> List[str]:
+        """
+        Get colors of mana that appear in this card's rules text.
+
+        Returns:
+            List of color codes found in the rules text
+        """
         if self.rules is None and self.rules1 is not None:
             rules = self.rules1
             for this_rules in [self.rules2, self.rules3, self.rules4, self.rules5, self.rules6]:
@@ -287,50 +505,90 @@ class Card:
         else:
             return []
         return Mana.get_colors_in_text(rules)
-    
-    def is_land(self):
+
+    def is_land(self) -> bool:
+        """Check if this card is a land."""
         return "land" in self.cardtype.lower()
-    def is_creature(self):
+
+    def is_creature(self) -> bool:
+        """Check if this card is a creature."""
         return "creature" in self.cardtype.lower()
-    def is_artifact(self):
+
+    def is_artifact(self) -> bool:
+        """Check if this card is an artifact."""
         return "artifact" in self.cardtype.lower()
-    def is_enchantment(self):
+
+    def is_enchantment(self) -> bool:
+        """Check if this card is an enchantment."""
         return "enchantment" in self.cardtype.lower()
-    def is_planeswalker(self):
+
+    def is_planeswalker(self) -> bool:
+        """Check if this card is a planeswalker."""
         return "planeswalker" in self.cardtype.lower()
-    def is_instant(self):
+
+    def is_instant(self) -> bool:
+        """Check if this card is an instant."""
         return "instant" in self.cardtype.lower()
-    def is_sorcery(self):
+
+    def is_sorcery(self) -> bool:
+        """Check if this card is a sorcery."""
         return "sorcery" in self.cardtype.lower()
-    def is_battle(self):
+
+    def is_battle(self) -> bool:
+        """Check if this card is a battle."""
         return "battle" in self.cardtype.lower()
 
-    def is_saga(self):
+    def is_saga(self) -> bool:
+        """Check if this card is a Saga."""
         return False if self.subtype is None else (self.is_enchantment() and "saga" in self.subtype.lower())
-    def is_vehicle(self):
+
+    def is_vehicle(self) -> bool:
+        """Check if this card is a Vehicle."""
         return False if self.subtype is None else (self.is_artifact() and "vehicle" in self.subtype.lower())
 
-    def is_token(self):
+    def is_token(self) -> bool:
+        """Check if this card is a token."""
         return False if self.supertype is None else ("token" in self.supertype.lower())
-    def is_legendary(self):
+
+    def is_legendary(self) -> bool:
+        """Check if this card is legendary."""
         return False if self.supertype is None else ("legendary" in self.supertype.lower())
-    def is_snow(self):
+
+    def is_snow(self) -> bool:
+        """Check if this card is a snow permanent."""
         return False if self.supertype is None else ("snow" in self.supertype.lower())
-    def is_basic(self):
+
+    def is_basic(self) -> bool:
+        """Check if this card is a basic land."""
         return False if self.supertype is None else ("basic" in self.supertype.lower())
 
-    def is_transform(self):
+    def is_transform(self) -> bool:
+        """Check if this card is a transform double-faced card."""
         special = self.special.lower() if type(self.special)==str else None
         return special=="front" or special=="back" or special=="transform-front" or special=="transform-back"
-    def is_mdfc(self):
+
+    def is_mdfc(self) -> bool:
+        """Check if this card is a modal double-faced card."""
         special = self.special.lower() if type(self.special)==str else ""
         return "mdfc" in special
-    
-    def is_spell(self):
+
+    def is_spell(self) -> bool:
+        """Check if this card is a spell (non-land)."""
         return (not self.is_land()) and (self.is_creature() or self.is_artifact() or self.is_enchantment() or self.is_planeswalker() or self.is_instant() or self.is_sorcery() or self.is_battle())
 
-    # Sorts any groups of mana symbols by wrap-around WUBRG order.
-    def sort_rules_text_mana_symbols(rules):
+    @staticmethod
+    def sort_rules_text_mana_symbols(
+        rules: Optional[str]
+    ) -> Optional[str]:
+        """
+        Sort mana symbol groups in rules text by WUBRG order.
+
+        Args:
+            rules: Rules text containing mana symbols
+
+        Returns:
+            Rules text with sorted mana symbols, or None if input is None
+        """
         if rules is None or type(rules)!=str:
             return None
         rebuilt_rules_text = ""
@@ -347,8 +605,17 @@ class Card:
             rebuilt_rules_text += Mana.sort(rules[found_open_bracket:])
         return rebuilt_rules_text
 
-    # Returns the complete line (string) giving a card's supertype(s), card type(s), and subtype(s).
-    def get_type_line(self):
+    def get_type_line(
+        self
+    ) -> str:
+        """
+        Get the complete type line for this card.
+
+        Combines supertype(s), card type(s), and subtype(s) into a single string.
+
+        Returns:
+            Complete type line (e.g., "Legendary Creature — Human Wizard")
+        """
         type_line = ""
         if type(self.supertype)==str:
             type_line += self.supertype.title() + " "
@@ -358,17 +625,51 @@ class Card:
             type_line += " — " + self.subtype.title()
         return type_line
 
-    # Returns a dictionary where keys are mana symbols present in the card's mana cost, and values are counts for each of those mana symbols.
-    # Note that generic mana symbols are supported only up until {20}. 
-    def get_mana_symbols(self):
+    def get_mana_symbols(
+        self
+    ) -> Dict[str, int]:
+        """
+        Get mana symbols in this card's mana cost with their counts.
+
+        Returns:
+            Dictionary mapping mana symbols to their counts
+            (e.g., {'u': 2, 'r': 1} for {U}{U}{R})
+
+        Note:
+            Generic mana symbols supported up to {20}
+        """
         return Mana.get_mana_symbols(self.mana)
 
-    # Returns the integer mana value (converted mana cost) of the input card.
-    def get_mana_value(self):
+    def get_mana_value(
+        self
+    ) -> int:
+        """
+        Get the mana value (converted mana cost) of this card.
+
+        Returns:
+            Integer mana value of the card
+        """
         return Mana.get_mana_value(self.mana)
 
-    # Returns the name of the file containing the appropriate frame for this card
-    def get_frame_filename(self, card_borders_folder=None):
+    def get_frame_filename(
+        self,
+        card_borders_folder: Optional[str] = None
+    ) -> str:
+        """
+        Get the filename of the appropriate card frame for this card.
+
+        Determines the correct frame based on card colors, types, and special properties.
+
+        Args:
+            card_borders_folder: Optional path to card borders folder
+
+        Returns:
+            Frame filename (or full path if card_borders_folder provided)
+
+        Raises:
+            ValueError: If card type is not supported (planeswalkers, battles)
+            Exception: If no matching frame is found
+        """
         if self.mana is None or len(self.mana)==0:
             if self.is_land():
                 colors = self.get_colors_produced_by_land()
@@ -446,7 +747,7 @@ class Card:
             raise ValueError("Planeswalkers are not currently supported.")
         elif self.is_battle(): # TODO -- add support for battles
             raise ValueError("Battles are not currently supported.")
-        # TODO -- add support for adventures
+        # TODO -- add support for adventures/omens (subspells)
         else:
             frame = ""
             if self.is_enchantment() and any([f.startswith("enchantment") for f in available_frames]):
@@ -483,8 +784,22 @@ class Card:
         if card_borders_folder is not None:
             filename = os.path.join(card_borders_folder, filename)
         return filename
-    
-    def get_tokens(self):
+
+    def get_tokens(
+        self
+    ) -> tuple[List[Dict[str, Any]], List[str]]:
+        """
+        Extract token definitions from this card's rules text.
+
+        Parses all rules text fields (rules, rules1-6) to identify tokens created
+        by this card.
+
+        Returns:
+            Tuple of (specialized_tokens, common_tokens) where:
+            - specialized_tokens: List of dicts with token properties (name, cardtype,
+              subtype, power, toughness, rules, frame, complete, related)
+            - common_tokens: List of common token names (Treasure, Clue, Food, etc.)
+        """
         from src.token_generation.token_parser import parse_tokens_from_rules_text
         st0, ct0 = parse_tokens_from_rules_text(self.rules, card_name=self.name, complete=self.complete, Card=Card)
         st1, ct1 = parse_tokens_from_rules_text(self.rules1, card_name=self.name, complete=self.complete, Card=Card)
@@ -494,9 +809,3 @@ class Card:
         st5, ct5 = parse_tokens_from_rules_text(self.rules5, card_name=self.name, complete=self.complete, Card=Card)
         st6, ct6 = parse_tokens_from_rules_text(self.rules6, card_name=self.name, complete=self.complete, Card=Card)
         return (st0+st1+st2+st3+st4+st5+st6), (ct0+ct1+ct2+ct3+ct4+ct5+ct6)
-
-    # complete - 1 if the token is already complete and shouldn't have its image recreated, 0 otherwise
-    # card_name - If not None and not empty, will be set as related to all tokens found
-    # Outputs:
-    #           specialized_tokens -- A list of tokens in the rules text, excluding a small set of commonly made tokens with shorthand names. This is a list of dictionaries, where each dictionary gives the properties of a single token.
-    #           common_tokens      -- A list of common tokens with shorthand names listed in the rules text. This is a list of strings, where each string is a name of a common token.

@@ -9,6 +9,7 @@ Handles all aspects of generating MTG card images including:
 
 import os
 import re
+from typing import Optional, List, Tuple, Union
 from PIL import Image, ImageDraw, ImageFont # type: ignore
 from src.core.card import Card
 from src.core.mana import Mana
@@ -20,7 +21,25 @@ from src.rendering.layout_constants import *
 all_symbols = Mana.mana_symbols + ["q", "t"]
 all_symbols_bracketed = ["{"+s+"}" for s in all_symbols]
 
-def create_card_image_from_Card(card, save_path=None, black_token_cover=True):
+
+def create_card_image_from_Card(
+    card: Card,
+    save_path: Optional[str] = None,
+    black_token_cover: bool = True
+) -> None:
+    """
+    Generate a complete card image from a Card object.
+
+    Creates the full card image with frame, text, symbols, artwork, and saves it.
+
+    Args:
+        card: Card object to render
+        save_path: Path to save the rendered card image
+        black_token_cover: Whether to apply black cover to token frames
+
+    Raises:
+        TypeError: If card is not a Card instance
+    """
     if type(card)!=Card:
         raise TypeError("Input card must be of type Card.")
     card_artworks = find_cards_with_card_name(card.name, search_path=os.path.join(os.path.dirname(save_path), "Artwork"))
@@ -40,8 +59,26 @@ def create_card_image_from_Card(card, save_path=None, black_token_cover=True):
         card_draw.paste_mdfc_indicator()
         card_draw.write_power_toughness()
         card_draw.save()
-    
-def create_printing_image_from_Card(card, saved_image_path=None, save_path=None):
+
+
+def create_printing_image_from_Card(
+    card: Card,
+    saved_image_path: Optional[str] = None,
+    save_path: Optional[str] = None
+) -> None:
+    """
+    Generate a printing-ready image from a Card object.
+
+    Creates an image suitable for printing by cropping and adjusting the card image.
+
+    Args:
+        card: Card object to create printing image for
+        saved_image_path: Path to the saved card image (default: Cards or Tokens folder)
+        save_path: Path to save the printing image
+
+    Raises:
+        TypeError: If card is not a Card instance
+    """
     if type(card) != Card:
         raise TypeError("Input card must be of type Card.")
     card_or_token = "Tokens" if card.is_token() else "Cards"
@@ -104,8 +141,31 @@ def create_printing_image_from_Card(card, saved_image_path=None, save_path=None)
 # License: GPL <http://www.gnu.org/copyleft/gpl.html>
 # # https://gist.github.com/turicas/1455973
 
-class CardDraw(object):
-    def __init__(self, card, filename=None, save_path=None):
+class CardDraw:
+    """
+    Handles all drawing operations for creating a card image.
+
+    Manages the composition of card frames, text, symbols, and artwork
+    into a complete MTG card image.
+    """
+
+    def __init__(
+        self,
+        card: Card,
+        filename: Optional[str] = None,
+        save_path: Optional[str] = None
+    ) -> None:
+        """
+        Initialize a CardDraw object for rendering a card.
+
+        Args:
+            card: Card object to render
+            filename: Filename for the output image (default: card.name + ".jpg")
+            save_path: Path to save the rendered image
+
+        Raises:
+            TypeError: If card is not a Card instance
+        """
         if type(card)!=Card:
             raise TypeError("Could not create a new CardDraw object. Input card must be of type Card.")
         self.card = card
@@ -121,18 +181,64 @@ class CardDraw(object):
         self.size = self.image.size
         self.draw = ImageDraw.Draw(self.image)
 
-    def save(self, save_path=None):
+    def save(
+        self,
+        save_path: Optional[str] = None
+    ) -> None:
+        """
+        Save the rendered card image to disk.
+
+        Args:
+            save_path: Optional path to save to (default: self.save_path)
+        """
         self.image.save(save_path or self.save_path)
 
-    def get_text_size(self, font_filename, font_size, text):
+    def get_text_size(
+        self,
+        font_filename: str,
+        font_size: int,
+        text: str
+    ) -> Tuple[int, int]:
+        """
+        Calculate the size of text with a given font.
+
+        Args:
+            font_filename: Path to the font file
+            font_size: Size of the font in points
+            text: Text to measure
+
+        Returns:
+            Tuple of (width, height) in pixels
+        """
         font = ImageFont.truetype(font_filename, font_size)
         _, _, x, y = font.getbbox(text)
         return (x,y)
-    
-    # italics_start_indices -- a list of every index in the current block of text where font should change to italics from regular
-    # italics_end_indices   -- a list of every index in the current block of text where font should change from italics to regular
-    # italics_index_offset  -- an integer giving the number of characters from the current text block that occurred BEFORE the input line of text. Used to adjust italics_start_indices.
-    def get_text_size_adjusted_for_italics(self, font_size, text, italics_start_indices, italics_end_indices, italics_index_offset, font_filename=FONT_PATHS["rules"], font_filename_italics=FONT_PATHS["flavor"]):
+
+    def get_text_size_adjusted_for_italics(
+        self,
+        font_size: int,
+        text: str,
+        italics_start_indices: List[int],
+        italics_end_indices: List[int],
+        italics_index_offset: int,
+        font_filename: str = FONT_PATHS["rules"],
+        font_filename_italics: str = FONT_PATHS["flavor"]
+    ) -> Tuple[int, int]:
+        """
+        Calculate text size accounting for mixed regular and italic fonts.
+
+        Args:
+            font_size: Size of the font in points
+            text: Text to measure
+            italics_start_indices: Indices where italics begin in the full text
+            italics_end_indices: Indices where italics end in the full text
+            italics_index_offset: Character offset from start of full text block
+            font_filename: Path to regular font file
+            font_filename_italics: Path to italic font file
+
+        Returns:
+            Tuple of (width, height) in pixels
+        """
         if len(italics_start_indices) != len(italics_end_indices):
             raise ValueError("Input italics_start_indices and italics_end_indices must be lists of the same length.")
         italics_start_indices_mod = [italics_start_indices[si] - italics_index_offset for si in range(len(italics_start_indices)) if (italics_end_indices[si] - italics_index_offset > 0)]  # italics_start_indices[si] - italics_index_offset >= 0 and
@@ -174,11 +280,56 @@ class CardDraw(object):
             font_size += 1
             text_size = self.get_text_size(font, font_size, text)
         
-    # Writes a single line of text:
-    # italics_start_indices -- a list of every index in the current block of text where font should change to italics from regular
-    # italics_end_indices   -- a list of every index in the current block of text where font should change from italics to regular
-    # italics_index_offset  -- an integer giving the number of characters from the current text block that occurred BEFORE the input line of text. Used to adjust italics_start_indices.
-    def write_text(self, position, text, font_filename, font_filename_italics=FONT_PATHS["flavor"], font_size="fill", color=BLACK, max_width=None, max_height=None, adjust_for_below_letters=False, x_centered=False, y_centered=True, return_symbol_positions=False, italics_start_indices=[], italics_end_indices=[], italics_index_offset=0):
+    def write_text(
+        self,
+        position: Union[str, Tuple[int, int]],
+        text: str,
+        font_filename: str,
+        font_filename_italics: str = FONT_PATHS["flavor"],
+        font_size: Union[str, int] = "fill",
+        color: Tuple[int, int, int] = BLACK,
+        max_width: Optional[int] = None,
+        max_height: Optional[int] = None,
+        adjust_for_below_letters: bool = False,
+        x_centered: bool = False,
+        y_centered: bool = True,
+        return_symbol_positions: bool = False,
+        italics_start_indices: List[int] = [],
+        italics_end_indices: List[int] = [],
+        italics_index_offset: int = 0
+    ) -> Union[Tuple[int, int], Tuple[Tuple[int, int], List[Tuple[int, int]]]]:
+        """
+        Write text on the card image with support for italics and symbol positioning.
+
+        Renders text with optional italic formatting and tracks positions for mana symbols.
+        Supports automatic font sizing and text centering.
+
+        Args:
+            position: Either 'center' or a tuple of (x, y) coordinates for text placement
+            text: The text string to render
+            font_filename: Path to the regular font file
+            font_filename_italics: Path to the italics font file (default: flavor text font)
+            font_size: Either 'fill' for automatic sizing or an integer font size
+            color: RGB tuple for text color (default: black)
+            max_width: Maximum width constraint for auto-sizing
+            max_height: Maximum height constraint for auto-sizing
+            adjust_for_below_letters: Whether to adjust y-position based on descenders
+            x_centered: Whether to center text horizontally at the given position
+            y_centered: Whether to center text vertically at the given position
+            return_symbol_positions: Whether to return positions of '○' placeholder symbols
+            italics_start_indices: List of character indices where italics should start
+            italics_end_indices: List of character indices where italics should end
+            italics_index_offset: Offset to adjust italics indices for text fragments
+
+        Returns:
+            If return_symbol_positions is False: tuple of (width, height) of rendered text
+            If return_symbol_positions is True: tuple of ((width, height), list of (x, y) positions)
+
+        Raises:
+            ValueError: If italics_start_indices and italics_end_indices have different lengths
+            ValueError: If any italics end index is less than its corresponding start index
+            ValueError: If position is not 'center' or a tuple/list
+        """
         if len(italics_start_indices) != len(italics_end_indices):
             raise ValueError("Input italics_start_indices and italics_end_indices must be lists of the same length.")
         italics_start_indices_mod = [italics_start_indices[si] - italics_index_offset for si in range(len(italics_start_indices)) if (italics_end_indices[si] - italics_index_offset > 0)]  # italics_start_indices[si] - italics_index_offset >= 0 and
@@ -254,8 +405,32 @@ class CardDraw(object):
         else:
             return text_size
 
-    # TODO -- within flavor text, support non-italicized words
-    def write_rules_text(self, font_size='fill', color=BLACK, place='left'):
+    def write_rules_text(
+        self,
+        font_size: Union[str, int] = 'fill',
+        color: Tuple[int, int, int] = BLACK,
+        place: str = 'left'
+    ) -> Optional[Tuple[int, int]]:
+        """
+        Write the rules text and flavor text on the card image.
+
+        Handles complex text layout including:
+        - Automatic font sizing to fit text box
+        - Mana symbol replacement with placeholder characters
+        - Italic formatting for flavor text and reminder text
+        - Multi-line text wrapping
+        - Saga chapter formatting with chapter symbols
+        - Token-specific text positioning
+        - MDFC (Modal Double-Faced Card) adjustments
+
+        Args:
+            font_size: Either 'fill' for automatic sizing or an integer font size
+            color: RGB tuple for text color (default: black)
+            place: Text alignment - 'left', 'right', or 'center'
+
+        Returns:
+            Tuple of (width, height) of the rendered text box, or None if no text to render
+        """
         font_filename, font_filename_flavor = FONT_PATHS["rules"], FONT_PATHS["flavor"]
         text, text_flavor = self.card.rules, self.card.flavor
         if (text is None or len(text)==0) and (text_flavor is None or len(text_flavor)==0) and (self.card.rules1 is None and self.card.rules2 is None and self.card.rules3 is None and self.card.rules4 is None and self.card.rules5 is None):
@@ -586,7 +761,14 @@ class CardDraw(object):
                     this_group_ypos += single_saga_symbol_height + 4 + 4*(len(unique_chapter_group_numbers)==1)
         return (max_width, height - y)
 
-    def write_name(self):
+    def write_name(
+        self
+    ) -> None:
+        """
+        Write the card name on the card image.
+
+        Renders the card name in the appropriate position with proper sizing.
+        """
         mdfc_or_transform = self.card.special is not None and (("mdfc" in self.card.special) or ("transform" in self.card.special))
         position = (POSITION_CARD_NAME[0]+ SPECIAL_SYMBOL_SIZE, POSITION_CARD_NAME[1]) if mdfc_or_transform else POSITION_CARD_NAME
         position = (position[0]+(int(CARD_WIDTH/2)-POSITION_CARD_NAME[0] if self.card.is_token() else 0), position[1])
@@ -603,7 +785,14 @@ class CardDraw(object):
         x_centered = self.card.is_token()
         self.write_text(position, self.card.name, font_filename=font_filename, font_size='fill', max_height=MAX_HEIGHT_CARD_NAME, max_width=max_width, adjust_for_below_letters=1, x_centered=x_centered, color=color)
 
-    def write_type_line(self):
+    def write_type_line(
+        self
+    ) -> None:
+        """
+        Write the type line on the card image.
+
+        Renders the card's type line (supertype, cardtype, subtype) in the correct position.
+        """
         if self.card.special is not None and "back" in self.card.special:
             color = WHITE
         else:
@@ -621,7 +810,14 @@ class CardDraw(object):
             position = POSITION_CARD_TYPE
         self.write_text(position, self.card.get_type_line(), font_filename=FONT_PATHS["name"], font_size='fill', max_height=MAX_HEIGHT_CARD_TYPE, max_width=MAX_WIDTH_CARD_TYPE - max_width_adjustment, adjust_for_below_letters=1, color=color)
 
-    def write_power_toughness(self):
+    def write_power_toughness(
+        self
+    ) -> None:
+        """
+        Write power/toughness on the card image for creatures.
+
+        Renders the P/T in the correct position if the card is a creature.
+        """
         if self.card.is_vehicle():
             color = WHITE
         elif self.card.special is not None and "back" in self.card.special:
@@ -647,7 +843,14 @@ class CardDraw(object):
             mana_image = mana_image.resize((symbol_size, symbol_size))
             self.image.paste(mana_image, symbol_position, mana_image)
 
-    def paste_mana_symbols(self):
+    def paste_mana_symbols(
+        self
+    ) -> None:
+        """
+        Paste mana cost symbols on the card image.
+
+        Renders the mana symbols in the top-right corner of the card.
+        """
         if self.card.mana is None or len(self.card.mana)==0:
             return
         mana_symbols = [m.replace('}','').replace('/','') for m in self.card.mana.split('{')]
@@ -663,7 +866,14 @@ class CardDraw(object):
             self.image.paste(mana_image, position, mana_image)
             position = (position[0]-(3+MANA_SYMBOL_SIZE), position[1])
 
-    def paste_set_symbol(self):
+    def paste_set_symbol(
+        self
+    ) -> None:
+        """
+        Paste the set symbol on the card image.
+
+        Renders the set symbol at the appropriate position with rarity coloring.
+        """
         if self.card.rarity is None or len(self.card.rarity)==0:
             rarity = "common"
         else:
@@ -686,7 +896,18 @@ class CardDraw(object):
             position = POSITION_SET_SYMBOL
         self.image.paste(rarity_image, position, rarity_image)
 
-    def paste_artwork(self, artwork_path=None):
+    def paste_artwork(
+        self,
+        artwork_path: Optional[str] = None
+    ) -> None:
+        """
+        Paste the card artwork on the card image.
+
+        Composites the artwork image onto the card frame.
+
+        Args:
+            artwork_path: Path to the artwork image file
+        """
         if artwork_path is None:
             artwork_path = os.path.join(".", "Artwork")
         pattern1 = re.compile(rf"^{re.escape(self.card.name)}\.jpg$")
@@ -705,7 +926,14 @@ class CardDraw(object):
         else:
             self.image.paste(artwork_image, (58, 118))
         
-    def paste_mdfc_indicator(self):
+    def paste_mdfc_indicator(
+        self
+    ) -> None:
+        """
+        Paste the MDFC (Modal Double-Faced Card) indicator on the card.
+
+        Renders a small icon showing the other face of a double-faced card.
+        """
         mdfc_indicator = self.card.related_indicator
         if (mdfc_indicator is None) or (self.card.special is None) or ("mdfc" not in self.card.special):
             return
@@ -779,7 +1007,18 @@ class CardDraw(object):
         font_filename = FONT_PATHS["name"]
         self.write_text(text_position, text, font_filename=font_filename, font_size='fill', max_height=max_height_mdfc_indicator, max_width=max_width_mdfc_indicator, adjust_for_below_letters=1, x_centered=False, color=color)
 
-    def adjust_token_frame(self, black_token_cover=True):
+    def adjust_token_frame(
+        self,
+        black_token_cover: bool = True
+    ) -> None:
+        """
+        Adjust the frame for token cards.
+
+        Applies special formatting for token frames, including optional black cover overlay.
+
+        Args:
+            black_token_cover: Whether to apply black cover to the token frame
+        """
         if not self.card.is_token():
             return
         if not black_token_cover:

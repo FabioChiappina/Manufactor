@@ -6,7 +6,7 @@ that are created by card abilities.
 """
 
 import re
-from num2words import num2words
+from num2words import num2words # type: ignore
 from src.core.mana import Mana
 from src.core.ability import AbilityElements
 

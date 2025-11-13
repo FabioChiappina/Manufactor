@@ -10,6 +10,7 @@ This module provides the Mana class which handles:
 """
 
 from functools import cmp_to_key
+from typing import Optional, List, Dict
 
 
 class Mana:
@@ -26,9 +27,23 @@ class Mana:
     mana_symbols = mana_symbols_standard + mana_symbols_variable + mana_symbols_numeric + mana_symbols_dual_hybrid + mana_symbols_mono_hybrid + mana_symbols_phyrexian + mana_symbols_phyrexian_hybrid + mana_symbols_custom
     mana_symbols_bracketed = ["{"+s+"}" for s in mana_symbols]
 
-    # Returns a dictionary where keys are mana symbols present in the card's mana cost, and values are counts for each of those mana symbols.
-    # Note that generic mana symbols are supported only up until {20}.
-    def get_mana_symbols(mana_cost):
+    @staticmethod
+    def get_mana_symbols(
+        mana_cost: Optional[str]
+    ) -> Dict[str, int]:
+        """
+        Get mana symbols in a mana cost with their counts.
+
+        Args:
+            mana_cost: Mana cost string (e.g., "{2}{U}{U}{R}")
+
+        Returns:
+            Dictionary mapping mana symbols to their counts
+            (e.g., {'2': 1, 'u': 2, 'r': 1})
+
+        Note:
+            Generic mana symbols supported up to {20}
+        """
         mana_symbols = {}
         try:
             mana_cost = mana_cost.lower()
@@ -41,8 +56,19 @@ class Mana:
                 mana_symbols[symbol] = count
         return mana_symbols
 
-    # Returns the integer mana value (converted mana cost) of the input card.
-    def get_mana_value(mana_cost):
+    @staticmethod
+    def get_mana_value(
+        mana_cost: Optional[str]
+    ) -> int:
+        """
+        Calculate the mana value (converted mana cost) of a mana cost.
+
+        Args:
+            mana_cost: Mana cost string (e.g., "{2}{U}{U}{R}")
+
+        Returns:
+            Integer mana value (e.g., 5 for "{2}{U}{U}{R}")
+        """
         mana_value = 0
         mana_value_dict = Mana.get_mana_symbols(mana_cost)
         for symbol in mana_value_dict.keys():
@@ -54,10 +80,34 @@ class Mana:
                 mana_value += 1 * mana_value_dict[symbol]
         return mana_value
 
-    def get_colors(mana_cost):
+    @staticmethod
+    def get_colors(
+        mana_cost: Optional[str]
+    ) -> List[str]:
+        """
+        Extract color identity from mana cost.
+
+        Args:
+            mana_cost: Mana cost string
+
+        Returns:
+            List of color codes present in the mana cost
+        """
         return [] if mana_cost is None else [color for color in ['w','u','b','r','g'] if color in mana_cost.lower()]
 
-    def get_colors_in_text(text):
+    @staticmethod
+    def get_colors_in_text(
+        text: str
+    ) -> List[str]:
+        """
+        Extract colors from rules text.
+
+        Args:
+            text: Rules text containing mana symbols
+
+        Returns:
+            List of color codes found in the text
+        """
         text = text.lower()
         colors = []
         for c in ["w","u","b","r","g"]:
@@ -66,7 +116,21 @@ class Mana:
                     colors.append(c)
         return colors
 
-    def get_colors_produced_by_land(text):
+    @staticmethod
+    def get_colors_produced_by_land(
+        text: str
+    ) -> List[str]:
+        """
+        Extract colors of mana produced by a land.
+
+        Parses land rules text to determine which colors of mana it can produce.
+
+        Args:
+            text: Land rules text
+
+        Returns:
+            List of color codes the land can produce
+        """
         rules = text.lower()
         colors = []
         rules_lines = rules.split("\n")
@@ -84,128 +148,225 @@ class Mana:
                     colors.append(c)
         return colors
 
-    def is_monocolored(mana_cost):
+    @staticmethod
+    def is_monocolored(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is exactly one color."""
         return len(Mana.get_colors(mana_cost))==1
 
-    def is_colorless(mana_cost):
+    @staticmethod
+    def is_colorless(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is colorless."""
         return len(Mana.get_colors(mana_cost))==0
 
-    def is_multicolored(mana_cost):
+    @staticmethod
+    def is_multicolored(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is multicolored (2+ colors)."""
         return len(Mana.get_colors(mana_cost))>1
 
-    def is_bicolored(mana_cost):
+    @staticmethod
+    def is_bicolored(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is exactly two colors."""
         return len(Mana.get_colors(mana_cost))==2
 
-    def is_tricolored(mana_cost):
+    @staticmethod
+    def is_tricolored(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is exactly three colors."""
         return len(Mana.get_colors(mana_cost))==3
 
-    def is_quadcolored(mana_cost):
+    @staticmethod
+    def is_quadcolored(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is exactly four colors."""
         return len(Mana.get_colors(mana_cost))==4
 
-    def is_pentacolored(mana_cost):
+    @staticmethod
+    def is_pentacolored(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is all five colors."""
         return len(Mana.get_colors(mana_cost))==5
 
-    def is_white(mana_cost):
+    @staticmethod
+    def is_white(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost contains white."""
         return 'w' in Mana.get_colors(mana_cost)
 
-    def is_blue(mana_cost):
+    @staticmethod
+    def is_blue(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost contains blue."""
         return 'u' in Mana.get_colors(mana_cost)
 
-    def is_black(mana_cost):
+    @staticmethod
+    def is_black(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost contains black."""
         return 'b' in Mana.get_colors(mana_cost)
 
-    def is_red(mana_cost):
+    @staticmethod
+    def is_red(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost contains red."""
         return 'r' in Mana.get_colors(mana_cost)
 
-    def is_green(mana_cost):
+    @staticmethod
+    def is_green(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost contains green."""
         return 'g' in Mana.get_colors(mana_cost)
 
-    def is_azorius(mana_cost):
+    @staticmethod
+    def is_azorius(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Azorius colors (white/blue)."""
         return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost)
 
-    def is_orzhov(mana_cost):
+    @staticmethod
+    def is_orzhov(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Orzhov colors (white/black)."""
         return Mana.is_white(mana_cost) and Mana.is_black(mana_cost)
 
-    def is_boros(mana_cost):
+    @staticmethod
+    def is_boros(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Boros colors (red/white)."""
         return Mana.is_white(mana_cost) and Mana.is_red(mana_cost)
 
-    def is_selesnya(mana_cost):
+    @staticmethod
+    def is_selesnya(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Selesnya colors (green/white)."""
         return Mana.is_white(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_dimir(mana_cost):
+    @staticmethod
+    def is_dimir(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Dimir colors (blue/black)."""
         return Mana.is_blue(mana_cost) and Mana.is_black(mana_cost)
 
-    def is_izzet(mana_cost):
+    @staticmethod
+    def is_izzet(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Izzet colors (blue/red)."""
         return Mana.is_blue(mana_cost) and Mana.is_red(mana_cost)
 
-    def is_simic(mana_cost):
+    @staticmethod
+    def is_simic(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Simic colors (green/blue)."""
         return Mana.is_blue(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_rakdos(mana_cost):
+    @staticmethod
+    def is_rakdos(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Rakdos colors (black/red)."""
         return Mana.is_black(mana_cost) and Mana.is_red(mana_cost)
 
-    def is_golgari(mana_cost):
+    @staticmethod
+    def is_golgari(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Golgari colors (black/green)."""
         return Mana.is_black(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_gruul(mana_cost):
+    @staticmethod
+    def is_gruul(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Gruul colors (red/green)."""
         return Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_abzan(mana_cost):
+    @staticmethod
+    def is_abzan(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Abzan colors (white/black/green)."""
         return Mana.is_white(mana_cost) and Mana.is_black(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_bant(mana_cost):
+    @staticmethod
+    def is_bant(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Bant colors (green/white/blue)."""
         return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_esper(mana_cost):
+    @staticmethod
+    def is_esper(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Esper colors (white/blue/black)."""
         return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_black(mana_cost)
 
-    def is_grixis(mana_cost):
+    @staticmethod
+    def is_grixis(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Grixis colors (blue/black/red)."""
         return Mana.is_blue(mana_cost) and Mana.is_black(mana_cost) and Mana.is_red(mana_cost)
 
-    def is_jeskai(mana_cost):
+    @staticmethod
+    def is_jeskai(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Jeskai colors (blue/red/white)."""
         return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_red(mana_cost)
 
-    def is_jund(mana_cost):
+    @staticmethod
+    def is_jund(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Jund colors (black/red/green)."""
         return Mana.is_black(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_mardu(mana_cost):
+    @staticmethod
+    def is_mardu(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Mardu colors (red/white/black)."""
         return Mana.is_white(mana_cost) and Mana.is_black(mana_cost) and Mana.is_red(mana_cost)
 
-    def is_naya(mana_cost):
+    @staticmethod
+    def is_naya(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Naya colors (red/green/white)."""
         return Mana.is_white(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_sultai(mana_cost):
+    @staticmethod
+    def is_sultai(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Sultai colors (black/green/blue)."""
         return Mana.is_blue(mana_cost) and Mana.is_black(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_temur(mana_cost):
+    @staticmethod
+    def is_temur(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Temur colors (green/blue/red)."""
         return Mana.is_blue(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_glint(mana_cost):
+    @staticmethod
+    def is_glint(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Glint colors (blue/black/red/green - non-white)."""
         return Mana.is_blue(mana_cost) and Mana.is_black(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_dune(mana_cost):
+    @staticmethod
+    def is_dune(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Dune colors (white/black/red/green - non-blue)."""
         return Mana.is_white(mana_cost) and Mana.is_black(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_ink(mana_cost):
+    @staticmethod
+    def is_ink(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Ink colors (white/blue/red/green - non-black)."""
         return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_red(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_witch(mana_cost):
+    @staticmethod
+    def is_witch(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Witch colors (white/blue/black/green - non-red)."""
         return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_black(mana_cost) and Mana.is_green(mana_cost)
 
-    def is_yore(mana_cost):
+    @staticmethod
+    def is_yore(mana_cost: Optional[str]) -> bool:
+        """Check if mana cost is Yore colors (white/blue/black/red - non-green)."""
         return Mana.is_white(mana_cost) and Mana.is_blue(mana_cost) and Mana.is_black(mana_cost) and Mana.is_red(mana_cost)
 
-    # Sorts the input colors list to WUBRG order.
-    # Colors are not wrapped around -- the order is always WUBRG. (e.g., W is always before G)
-    def colors_to_wubrg_order(colors):
+    @staticmethod
+    def colors_to_wubrg_order(
+        colors: List[str]
+    ) -> List[str]:
+        """
+        Sort colors to WUBRG order (non-wrapping).
+
+        Args:
+            colors: List of color codes
+
+        Returns:
+            Sorted list in WUBRG order
+        """
         sorted_colors = []
         for color in "wubrgcs":
             if color in colors:
                 sorted_colors.append(color)
         return sorted_colors
 
-    # Corrects any hybrid mana symbols with incorrect orderings (e.g., {u/w} --> {w/u})
-    def correct_hybrid_symbols(mana_cost):
+    @staticmethod
+    def correct_hybrid_symbols(
+        mana_cost: Optional[str]
+    ) -> Optional[str]:
+        """
+        Correct hybrid mana symbol orderings.
+
+        Fixes incorrect hybrid symbol orders (e.g., {u/w} -> {w/u}).
+
+        Args:
+            mana_cost: Mana cost string
+
+        Returns:
+            Corrected mana cost string, or None if input is None
+        """
         if mana_cost is None:
             return None
         mana_cost = mana_cost.replace("u/w", "w/u")
@@ -235,8 +396,21 @@ class Mana:
         mana_cost = mana_cost.replace("g/2", "2/g")
         return mana_cost
 
-    # Sorts the input mana cost so that wrap-around WUBRG order is reinforced. (e.g, WG --> GW)
-    def sort(mana_cost):
+    @staticmethod
+    def sort(
+        mana_cost: Optional[str]
+    ) -> Optional[str]:
+        """
+        Sort mana cost by wrap-around WUBRG order.
+
+        Ensures mana symbols are in canonical order (e.g., WG -> GW).
+
+        Args:
+            mana_cost: Mana cost string
+
+        Returns:
+            Sorted mana cost string, or None if input is None/invalid
+        """
         if mana_cost is None or type(mana_cost)!=str:
             return None
         if mana_cost == "{t}" or mana_cost == "{q}":
@@ -250,9 +424,21 @@ class Mana:
         mana_symbols_list = ["{"+m+"}" for m in mana_symbols_list]
         return "".join(mana_symbols_list)
 
-    # Comparator used to decide which of two input mana symbols comes first in wrap-around WUBRG order.
-    # Returns a negative number if mana_symbol_1 comes before mana_symbol_2.
-    def compare_two_mana_symbols(mana_symbol_1, mana_symbol_2):
+    @staticmethod
+    def compare_two_mana_symbols(
+        mana_symbol_1: str,
+        mana_symbol_2: str
+    ) -> int:
+        """
+        Compare two mana symbols for wrap-around WUBRG ordering.
+
+        Args:
+            mana_symbol_1: First mana symbol
+            mana_symbol_2: Second mana symbol
+
+        Returns:
+            Negative if symbol_1 comes before symbol_2, positive otherwise, 0 if equal
+        """
         mana_symbol_1 = mana_symbol_1.replace("{","").replace("}","")
         mana_symbol_2 = mana_symbol_2.replace("{","").replace("}","")
         if mana_symbol_1 == mana_symbol_2:
