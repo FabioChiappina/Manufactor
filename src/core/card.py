@@ -107,7 +107,11 @@ class Card:
         tags: Optional[Union[str, List[str]]] = None,
         complete: Union[int, bool, str] = 0,
         real: Union[int, bool, str] = 0,
-        frame: Optional[str] = None
+        frame: Optional[str] = None,
+        legendary: Union[int, bool, None] = None,
+        basic: Union[int, bool, None] = None,
+        snow: Union[int, bool, None] = None,
+        token: Union[int, bool, None] = None
     ) -> None:
         """
         Initialize a Magic: The Gathering Card.
@@ -118,7 +122,8 @@ class Card:
             artwork: Path to artwork file
             setname: Set code/name
             mana: Mana cost string (e.g., "{2}{U}{R}")
-            cardtype: Card type(s) (e.g., "Creature", "Instant")
+            cardtype: Card type(s) (e.g., "Creature", "Instant"). Can include supertypes
+                     for backward compatibility, or use separate supertype parameters.
             subtype: Card subtype(s) (e.g., "Human Wizard")
             power: Creature power (string or int)
             toughness: Creature toughness (string or int)
@@ -140,6 +145,10 @@ class Card:
             complete: 1 if card is complete (has image), 0 otherwise
             real: 1 if real MTG card, 0 if custom
             frame: Path to custom frame image
+            legendary: True/1 if legendary, False/0 or None if not
+            basic: True/1 if basic, False/0 or None if not
+            snow: True/1 if snow, False/0 or None if not
+            token: True/1 if token, False/0 or None if not
 
         Raises:
             TypeError: If any argument is not of the expected type
@@ -244,8 +253,42 @@ class Card:
         self.related_indicator=related_indicator
         self.tags=tags
         self.complete=complete
-        self.supertype=Card.get_supertype_from_cardtype(cardtype)
-        self.cardtype=Card.filter_supertypes_from_cardtype(cardtype)
+
+        # Handle supertypes: support both old format (in cardtype string) and new format (separate fields)
+        # Priority: individual fields > cardtype string parsing
+        supertype_from_cardtype = Card.get_supertype_from_cardtype(cardtype)
+
+        # Build supertype string from individual fields or cardtype string
+        supertype_parts = []
+
+        # Check individual supertype fields first (new format)
+        # Only fall back to cardtype parsing if the field is None (not explicitly set)
+        if legendary is not None:
+            if legendary == 1 or legendary is True:
+                supertype_parts.append("Legendary")
+        elif supertype_from_cardtype and "legendary" in supertype_from_cardtype.lower():
+            supertype_parts.append("Legendary")
+
+        if basic is not None:
+            if basic == 1 or basic is True:
+                supertype_parts.append("Basic")
+        elif supertype_from_cardtype and "basic" in supertype_from_cardtype.lower():
+            supertype_parts.append("Basic")
+
+        if snow is not None:
+            if snow == 1 or snow is True:
+                supertype_parts.append("Snow")
+        elif supertype_from_cardtype and "snow" in supertype_from_cardtype.lower():
+            supertype_parts.append("Snow")
+
+        if token is not None:
+            if token == 1 or token is True:
+                supertype_parts.append("Token")
+        elif supertype_from_cardtype and "token" in supertype_from_cardtype.lower():
+            supertype_parts.append("Token")
+
+        self.supertype = " ".join(supertype_parts) if supertype_parts else None
+        self.cardtype = Card.filter_supertypes_from_cardtype(cardtype)
         self.colors = self.get_colors() if colors is None else colors
         if frame is not None and type(frame)==str and frame.endswith(".jpg"):
             if frame in os.listdir("."):

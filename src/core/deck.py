@@ -136,6 +136,15 @@ class Deck:
                         tags.append(tag)
             if "frame" not in card.keys():
                 card["frame"]=None
+            # Handle new supertype fields (default to None if not present)
+            if "legendary" not in card.keys():
+                card["legendary"]=None
+            if "basic" not in card.keys():
+                card["basic"]=None
+            if "snow" not in card.keys():
+                card["snow"]=None
+            if "token" not in card.keys():
+                card["token"]=None
         cards = [Card(name=card["name"],
                       artist=card["artist"],
                       artwork=card["artwork"],
@@ -161,7 +170,11 @@ class Deck:
                       tags=card["tags"],
                       complete=card["complete"],
                       real=card["real"],
-                      frame=card["frame"])
+                      frame=card["frame"],
+                      legendary=card["legendary"],
+                      basic=card["basic"],
+                      snow=card["snow"],
+                      token=card["token"])
                   for keyname, card in card_dict.items() if (keyname.lower() != "_basics") and (keyname.lower() != "_common_tokens")]
         deck_name = os.path.basename(deck_json_filepath).replace(".json","") if deck_name is None else deck_name
         return Deck(cards=cards, name=deck_name, tags=tags, basics_dict=basics_dict, common_tokens=common_tokens)
