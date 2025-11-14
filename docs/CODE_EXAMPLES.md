@@ -78,6 +78,7 @@ deck.description = "Fast aggressive red deck"
 deck.format = "Modern"
 deck.author = "PlayerName"
 deck.commander = None  # or card name for Commander format
+deck.setname = "MRD"  # Default set code for all cards in deck
 
 # Export to new format
 deck.to_json(
@@ -471,7 +472,8 @@ print("Done!")
     "last_modified": "2025-11-14T15:30:00Z",
     "author": "PlayerName",
     "tags": ["aggro", "red"],
-    "commander": null
+    "commander": null,
+    "setname": "MRD"
   },
   "cards": {
     "Lightning Bolt": {

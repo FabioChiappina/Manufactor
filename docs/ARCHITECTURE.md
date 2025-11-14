@@ -117,7 +117,8 @@ Decks/
     "created": "2025-11-14T12:00:00Z",
     "last_modified": "2025-11-14T15:30:00Z",
     "author": "User",
-    "tags": ["red", "aggro", "burn"]
+    "tags": ["red", "aggro", "burn"],
+    "setname": "MBD"
   },
 
   "cards": {
@@ -155,7 +156,8 @@ Decks/
       "complete": 1,
       "rarity": "rare",
       "colors": ["r"],
-      "artwork": "Artwork/DocksideExtortionist.jpg"
+      "artwork": "Artwork/DocksideExtortionist.jpg",
+      "setname": "C19"
     }
   },
 
@@ -183,7 +185,14 @@ Decks/
 - ✅ Added `metadata` section for deck information
 - ✅ Added `quantity` field for card copies
 - ✅ Added `source_cards` field to track token origins
+- ✅ Added `setname` field in metadata as deck-wide default (cards can override individually)
 - ✅ `Deck.to_json()` exports in new format (or old format if requested)
+
+**Set Code Handling:**
+- Deck-level `setname` in metadata provides default for all cards (defaults to "UNK" if not specified)
+- Individual cards can specify their own `setname` to override the deck default
+- When exporting, card `setname` is only included if it differs from deck default
+- Example: Deck has `setname: "MBD"`, but "Dockside Extortionist" specifies `setname: "C19"`
 
 **Key Methods:**
 - `Deck.from_json()` - Auto-detects format based on "metadata" key
@@ -205,6 +214,7 @@ Decks/
 | author | string | No | Deck creator name |
 | tags | list | No | Categorization tags (e.g., ["aggro", "control"]) |
 | commander | string | No | Commander card name (if format is Commander) |
+| setname | string | No | Default set code for cards (default: "UNK"). Cards can override this individually |
 
 ---
 

@@ -52,7 +52,8 @@
     "last_modified": "2025-11-14T15:30:00Z",
     "author": "User",
     "tags": ["aggro", "red"],
-    "commander": "Card Name"
+    "commander": "Card Name",
+    "setname": "DKN"
   },
   "cards": { /* card objects */ },
   "tokens": { /* token objects */ }
@@ -187,6 +188,7 @@ deck.description        # str (new format)
 deck.format             # str (new format)
 deck.author             # str (new format)
 deck.commander          # str (new format)
+deck.setname            # str (new format) - Default set code for cards
 
 # Methods
 deck.count_spells()

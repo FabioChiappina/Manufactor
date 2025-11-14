@@ -220,6 +220,9 @@ class Deck:
         deck_tags = metadata.get("tags", [])
         commander = metadata.get("commander")
 
+        # Get default setname from metadata, fallback to parameter, then "UNK"
+        default_setname = metadata.get("setname", setname)
+
         # Extract cards
         card_dict = data.get("cards", {})
         tags = []
@@ -232,7 +235,7 @@ class Deck:
             if "artwork" not in card.keys():
                 card["artwork"]=None
             if "setname" not in card.keys():
-                card["setname"]=setname
+                card["setname"]=default_setname
             if "mana" not in card.keys():
                 card["mana"]=None
             if "cardtype" not in card.keys():
@@ -360,7 +363,8 @@ class Deck:
             last_modified=last_modified,
             author=author,
             commander=commander,
-            tokens=tokens_dict
+            tokens=tokens_dict,
+            setname=default_setname
         )
 
     @staticmethod
@@ -401,7 +405,8 @@ class Deck:
         last_modified: Optional[str] = None,
         author: Optional[str] = None,
         commander: Optional[str] = None,
-        tokens: Optional[Dict[str, Any]] = None
+        tokens: Optional[Dict[str, Any]] = None,
+        setname: Optional[str] = None
     ) -> None:
         """
         Initialize a Deck.
@@ -420,6 +425,7 @@ class Deck:
             author: Deck creator name
             commander: Commander card name (if Commander format)
             tokens: Dictionary of token definitions (new format)
+            setname: Default set code for cards without specific setname (default: "UNK")
 
         Raises:
             TypeError: If cards contains non-Card objects or name is not a string
@@ -443,6 +449,7 @@ class Deck:
         self.author = author
         self.commander = commander
         self.tokens = tokens or {}
+        self.setname = setname or "UNK"
 
     def to_json(
         self,
@@ -473,7 +480,8 @@ class Deck:
                     "last_modified": datetime.now().isoformat(),
                     "author": self.author,
                     "tags": self.tags,
-                    "commander": self.commander
+                    "commander": self.commander,
+                    "setname": self.setname
                 },
                 "cards": {},
                 "tokens": self.tokens
@@ -511,6 +519,10 @@ class Deck:
                 if card.frame: card_data["frame"] = card.frame
                 if card.artwork: card_data["artwork"] = card.artwork
                 if card.artist: card_data["artist"] = card.artist
+
+                # Add setname only if it differs from deck's default
+                if hasattr(card, 'setname') and card.setname and card.setname != self.setname:
+                    card_data["setname"] = card.setname
 
                 # Add supertype fields if present
                 if hasattr(card, 'supertype') and card.supertype:
