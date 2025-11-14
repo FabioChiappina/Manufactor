@@ -1,0 +1,56 @@
+{
+  "Treasure": {
+    "name": "Treasure",
+    "cardtype": "Artifact",
+    "subtype": "Treasure",
+    "rules": "{T}, Sacrifice this artifact: Add one mana of any color.",
+    "token": 1,
+    "colors": [],
+    "rarity": "common"
+  },
+  "Clue": {
+    "name": "Clue",
+    "cardtype": "Artifact",
+    "subtype": "Clue",
+    "rules": "{2}, Sacrifice this artifact: Draw a card.",
+    "token": 1,
+    "colors": [],
+    "rarity": "common"
+  },
+  "Food": {
+    "name": "Food",
+    "cardtype": "Artifact",
+    "subtype": "Food",
+    "rules": "{2}, {T}, Sacrifice this artifact: You gain 3 life.",
+    "token": 1,
+    "colors": [],
+    "rarity": "common"
+  },
+  "Blood": {
+    "name": "Blood",
+    "cardtype": "Artifact",
+    "subtype": "Blood",
+    "rules": "{1}, {T}, Discard a card, Sacrifice this artifact: Draw a card.",
+    "token": 1,
+    "colors": [],
+    "rarity": "common"
+  },
+  "Map": {
+    "name": "Map",
+    "cardtype": "Artifact",
+    "subtype": "Map",
+    "rules": "{1}, {T}, Sacrifice this artifact: Search your library for a land card, reveal it, put it into your hand, then shuffle.",
+    "token": 1,
+    "colors": [],
+    "rarity": "uncommon"
+  },
+  "Powerstone": {
+    "name": "Powerstone",
+    "cardtype": "Artifact",
+    "subtype": "Powerstone",
+    "rules": "{T}: Add {C}. This mana can't be spent to cast a nonartifact spell.",
+    "token": 1,
+    "colors": [],
+    "rarity": "common"
+  }
+}

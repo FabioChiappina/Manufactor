@@ -31,6 +31,8 @@ class Deck:
         """
         Load a deck from a JSON file.
 
+        Supports both old format (flat card dict) and new format (metadata/cards/tokens).
+
         Args:
             deck_json_filepath: Path to the JSON file containing deck data
             setname: Set code for cards (default: "UNK")
@@ -44,7 +46,25 @@ class Deck:
             json.JSONDecodeError: If file contains invalid JSON
         """
         f = open(deck_json_filepath)
-        card_dict = json.load(f)
+        data = json.load(f)
+        f.close()
+
+        # Detect format: new format has "metadata" key, old format does not
+        if "metadata" in data:
+            # New format
+            return Deck._from_json_new_format(data, setname, deck_name)
+        else:
+            # Old format (backward compatibility)
+            return Deck._from_json_old_format(data, deck_json_filepath, setname, deck_name)
+
+    @staticmethod
+    def _from_json_old_format(
+        card_dict: Dict[str, Any],
+        deck_json_filepath: str,
+        setname: str = "UNK",
+        deck_name: Optional[str] = None
+    ) -> 'Deck':
+        """Load deck from old JSON format (flat card dictionary)."""
         basics_dict = {}
         common_tokens = []
         tags = []
@@ -180,6 +200,170 @@ class Deck:
         return Deck(cards=cards, name=deck_name, tags=tags, basics_dict=basics_dict, common_tokens=common_tokens)
 
     @staticmethod
+    def _from_json_new_format(
+        data: Dict[str, Any],
+        setname: str = "UNK",
+        deck_name: Optional[str] = None
+    ) -> 'Deck':
+        """Load deck from new JSON format (metadata/cards/tokens structure)."""
+        from datetime import datetime
+
+        # Extract metadata
+        metadata = data.get("metadata", {})
+        folder_name = metadata.get("folder_name", "Unknown")
+        deck_display_name = metadata.get("deck_name", deck_name or folder_name)
+        description = metadata.get("description")
+        format_type = metadata.get("format")
+        created = metadata.get("created")
+        last_modified = metadata.get("last_modified")
+        author = metadata.get("author")
+        deck_tags = metadata.get("tags", [])
+        commander = metadata.get("commander")
+
+        # Extract cards
+        card_dict = data.get("cards", {})
+        tags = []
+
+        # Process each card
+        for keyname, card in card_dict.items():
+            # Set defaults for missing fields
+            if "artist" not in card.keys():
+                card["artist"]=None
+            if "artwork" not in card.keys():
+                card["artwork"]=None
+            if "setname" not in card.keys():
+                card["setname"]=setname
+            if "mana" not in card.keys():
+                card["mana"]=None
+            if "cardtype" not in card.keys():
+                card["cardtype"]=None
+            if "subtype" not in card.keys():
+                card["subtype"]=None
+            if "power" not in card.keys():
+                card["power"]=None
+            if "toughness" not in card.keys():
+                card["toughness"]=None
+            if "rarity" not in card.keys():
+                card["rarity"]=None
+            if "rules" not in card.keys():
+                card["rules"]=None
+            for i in range(1, 7):
+                if f"rules{i}" not in card.keys():
+                    card[f"rules{i}"]=None
+            if "flavor" not in card.keys():
+                card["flavor"]=None
+            if "special" not in card.keys():
+                card["special"]=None
+            if "related_indicator" not in card.keys():
+                card["related_indicator"]=None
+            if "related" not in card.keys():
+                card["related"]=None
+            elif (card["special"] is not None) and (("mdfc" in card["special"].lower()) or ("transform" in card["special"].lower())) and (card["related_indicator"] is None):
+                # Auto-generate related_indicator for double-faced cards
+                related_name, related_mana = "", ""
+                for keyname2, card2 in card_dict.items():
+                    if card2["name"] == card["related"]:
+                        related_name = card2["name"] if "name" in card2.keys() else ""
+                        if ("mana" not in card2.keys()) or len(card2["mana"])==0:
+                            if "land" in card2["cardtype"].lower():
+                                related_colors = Mana.get_colors_produced_by_land(card2["rules"])
+                                related_mana = "{t}: Add "
+                                for ci, c in enumerate(related_colors):
+                                    related_mana += "{"+c+"}"
+                                    if (ci==0) and len(related_colors)==2:
+                                        related_mana += " or "
+                                    elif len(related_colors)==3 and (ci == 0):
+                                        related_mana += ", "
+                                    elif len(related_colors)==3 and (ci == 1):
+                                        related_mana += ", or "
+                                related_mana += "."
+                            else:
+                                related_mana = ""
+                        else:
+                            related_mana = card2["mana"]
+                        break
+                card["related_indicator"]=related_name+" "+related_mana
+            if "colors" not in card.keys():
+                card["colors"]=None
+            if "tags" not in card.keys():
+                card["tags"]=None
+            if "quantity" not in card.keys():
+                card["quantity"]=None
+            if "complete" not in card.keys():
+                card["complete"]=0
+            if "real" not in card.keys():
+                card["real"]=0
+            if card["tags"] is not None:
+                for tag in card["tags"]:
+                    if tag not in tags:
+                        tags.append(tag)
+            if "frame" not in card.keys():
+                card["frame"]=None
+            # Handle supertype fields
+            if "legendary" not in card.keys():
+                card["legendary"]=None
+            if "basic" not in card.keys():
+                card["basic"]=None
+            if "snow" not in card.keys():
+                card["snow"]=None
+            if "token" not in card.keys():
+                card["token"]=None
+
+        # Create Card objects
+        cards = [Card(name=card["name"],
+                      artist=card["artist"],
+                      artwork=card["artwork"],
+                      setname=card["setname"],
+                      mana=card["mana"],
+                      cardtype=card["cardtype"],
+                      subtype=card["subtype"],
+                      power=card["power"],
+                      toughness=card["toughness"],
+                      rarity=card["rarity"],
+                      rules=card["rules"],
+                      rules1=card["rules1"],
+                      rules2=card["rules2"],
+                      rules3=card["rules3"],
+                      rules4=card["rules4"],
+                      rules5=card["rules5"],
+                      rules6=card["rules6"],
+                      flavor=card["flavor"],
+                      special=card["special"],
+                      related=card["related"],
+                      related_indicator=card["related_indicator"],
+                      colors=card["colors"],
+                      tags=card["tags"],
+                      quantity=card["quantity"],
+                      complete=card["complete"],
+                      real=card["real"],
+                      frame=card["frame"],
+                      legendary=card["legendary"],
+                      basic=card["basic"],
+                      snow=card["snow"],
+                      token=card["token"])
+                  for keyname, card in card_dict.items()]
+
+        # Extract tokens (stored in deck, not as separate Cards)
+        tokens_dict = data.get("tokens", {})
+
+        # Merge deck_tags with card tags
+        all_tags = list(set(tags + deck_tags))
+
+        return Deck(
+            cards=cards,
+            name=deck_display_name,
+            tags=all_tags,
+            folder_name=folder_name,
+            description=description,
+            format=format_type,
+            created=created,
+            last_modified=last_modified,
+            author=author,
+            commander=commander,
+            tokens=tokens_dict
+        )
+
+    @staticmethod
     def from_deck_folder(
         deck_folder: str
     ) -> 'Deck':
@@ -209,17 +393,33 @@ class Deck:
         name: str = "Unknown",
         tags: List[str] = [],
         basics_dict: Dict[str, Any] = {},
-        common_tokens: List[str] = []
+        common_tokens: List[str] = [],
+        folder_name: Optional[str] = None,
+        description: Optional[str] = None,
+        format: Optional[str] = None,
+        created: Optional[str] = None,
+        last_modified: Optional[str] = None,
+        author: Optional[str] = None,
+        commander: Optional[str] = None,
+        tokens: Optional[Dict[str, Any]] = None
     ) -> None:
         """
         Initialize a Deck.
 
         Args:
             cards: List of Card objects in the deck
-            name: Name of the deck
+            name: Display name of the deck
             tags: List of tags for categorization
-            basics_dict: Dictionary of basic land information
-            common_tokens: List of common token names created by cards
+            basics_dict: Dictionary of basic land information (old format)
+            common_tokens: List of common token names created by cards (old format)
+            folder_name: Name of deck folder on filesystem
+            description: User-provided deck description
+            format: Format (Commander, Modern, Standard, etc.)
+            created: Deck creation timestamp (ISO 8601)
+            last_modified: Last modification timestamp (ISO 8601)
+            author: Deck creator name
+            commander: Commander card name (if Commander format)
+            tokens: Dictionary of token definitions (new format)
 
         Raises:
             TypeError: If cards contains non-Card objects or name is not a string
@@ -233,6 +433,151 @@ class Deck:
         self.tags = tags
         self.basics_dict = basics_dict
         self.common_tokens = common_tokens
+
+        # New metadata fields
+        self.folder_name = folder_name or name
+        self.description = description
+        self.format = format
+        self.created = created
+        self.last_modified = last_modified
+        self.author = author
+        self.commander = commander
+        self.tokens = tokens or {}
+
+    def to_json(
+        self,
+        filepath: Optional[str] = None,
+        use_new_format: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Export deck to JSON format.
+
+        Args:
+            filepath: Optional path to save JSON file. If None, returns dict without saving.
+            use_new_format: If True, use new metadata/cards/tokens format. If False, use old flat format.
+
+        Returns:
+            Dictionary representation of the deck
+        """
+        from datetime import datetime
+
+        if use_new_format:
+            # New format with metadata/cards/tokens structure
+            deck_dict = {
+                "metadata": {
+                    "folder_name": self.folder_name,
+                    "deck_name": self.name,
+                    "description": self.description,
+                    "format": self.format,
+                    "created": self.created or datetime.now().isoformat(),
+                    "last_modified": datetime.now().isoformat(),
+                    "author": self.author,
+                    "tags": self.tags,
+                    "commander": self.commander
+                },
+                "cards": {},
+                "tokens": self.tokens
+            }
+
+            # Add cards
+            for card in self.cards:
+                card_data = {
+                    "name": card.name,
+                    "cardtype": card.cardtype,
+                }
+
+                # Add optional fields only if they have values
+                if card.mana: card_data["mana"] = card.mana
+                if card.subtype: card_data["subtype"] = card.subtype
+                if card.power: card_data["power"] = card.power
+                if card.toughness: card_data["toughness"] = card.toughness
+                if card.rarity: card_data["rarity"] = card.rarity
+                if card.rules: card_data["rules"] = card.rules
+                if card.rules1: card_data["rules1"] = card.rules1
+                if card.rules2: card_data["rules2"] = card.rules2
+                if card.rules3: card_data["rules3"] = card.rules3
+                if card.rules4: card_data["rules4"] = card.rules4
+                if card.rules5: card_data["rules5"] = card.rules5
+                if card.rules6: card_data["rules6"] = card.rules6
+                if card.flavor: card_data["flavor"] = card.flavor
+                if card.special: card_data["special"] = card.special
+                if card.related: card_data["related"] = card.related
+                if card.related_indicator: card_data["related_indicator"] = card.related_indicator
+                if card.colors: card_data["colors"] = card.colors
+                if card.tags: card_data["tags"] = card.tags
+                if card.quantity and card.quantity != 1: card_data["quantity"] = card.quantity
+                if card.complete: card_data["complete"] = card.complete
+                if card.real: card_data["real"] = card.real
+                if card.frame: card_data["frame"] = card.frame
+                if card.artwork: card_data["artwork"] = card.artwork
+                if card.artist: card_data["artist"] = card.artist
+
+                # Add supertype fields if present
+                if hasattr(card, 'supertype') and card.supertype:
+                    if 'Legendary' in card.supertype: card_data["legendary"] = 1
+                    if 'Basic' in card.supertype: card_data["basic"] = 1
+                    if 'Snow' in card.supertype: card_data["snow"] = 1
+                    if 'Token' in card.supertype: card_data["token"] = 1
+
+                deck_dict["cards"][card.name] = card_data
+
+        else:
+            # Old format (flat card dictionary) for backward compatibility
+            deck_dict = {}
+
+            # Add cards
+            for card in self.cards:
+                card_data = {
+                    "name": card.name,
+                    "cardtype": card.cardtype,
+                }
+
+                # Add all fields (old format includes everything)
+                if card.mana: card_data["mana"] = card.mana
+                if card.subtype: card_data["subtype"] = card.subtype
+                if card.power: card_data["power"] = card.power
+                if card.toughness: card_data["toughness"] = card.toughness
+                if card.rarity: card_data["rarity"] = card.rarity
+                if card.rules: card_data["rules"] = card.rules
+                if card.rules1: card_data["rules1"] = card.rules1
+                if card.rules2: card_data["rules2"] = card.rules2
+                if card.rules3: card_data["rules3"] = card.rules3
+                if card.rules4: card_data["rules4"] = card.rules4
+                if card.rules5: card_data["rules5"] = card.rules5
+                if card.rules6: card_data["rules6"] = card.rules6
+                if card.flavor: card_data["flavor"] = card.flavor
+                if card.special: card_data["special"] = card.special
+                if card.related: card_data["related"] = card.related
+                if card.related_indicator: card_data["related_indicator"] = card.related_indicator
+                if card.colors: card_data["colors"] = card.colors
+                if card.tags: card_data["tags"] = card.tags
+                if card.complete: card_data["complete"] = card.complete
+                if card.real: card_data["real"] = card.real
+                if card.frame: card_data["frame"] = card.frame
+                if card.artwork: card_data["artwork"] = card.artwork
+                if card.artist: card_data["artist"] = card.artist
+
+                # Add supertype fields
+                if hasattr(card, 'supertype') and card.supertype:
+                    if 'Legendary' in card.supertype: card_data["legendary"] = 1
+                    if 'Basic' in card.supertype: card_data["basic"] = 1
+                    if 'Snow' in card.supertype: card_data["snow"] = 1
+                    if 'Token' in card.supertype: card_data["token"] = 1
+
+                deck_dict[card.name] = card_data
+
+            # Add old format special keys
+            if self.basics_dict:
+                deck_dict["_basics"] = self.basics_dict
+            if self.common_tokens:
+                deck_dict["_common_tokens"] = self.common_tokens
+
+        # Save to file if filepath provided
+        if filepath:
+            with open(filepath, 'w') as f:
+                json.dump(deck_dict, f, indent=4)
+
+        return deck_dict
 
     def count_spells(
         self
@@ -404,26 +749,51 @@ class Deck:
 
     def get_tokens(
         self,
-        save_path: Optional[str] = None
+        save_path: Optional[str] = None,
+        save_to_deck: bool = True,
+        save_legacy_file: bool = False
     ) -> Tuple[List[Dict[str, Any]], List[str]]:
         """
         Extract all tokens created by cards in the deck.
 
-        Parses rules text of all cards to identify tokens and saves them to JSON.
+        Parses rules text of all cards to identify tokens. Populates self.tokens with
+        new format including source_cards tracking.
 
         Args:
             save_path: Optional path to save token JSON file (default: DECK_PATH/deck_name)
+            save_to_deck: If True, populate self.tokens dict (new format)
+            save_legacy_file: If True, save separate _Tokens.json file (old format)
 
         Returns:
             Tuple of (specialized_tokens, common_tokens) where:
             - specialized_tokens: List of dicts with unique token properties
             - common_tokens: List of common token names
         """
+        from src.token_generation.token_parser import load_common_token_definitions
+
+        # Track which cards create which tokens
+        token_to_sources = {}  # {token_name: [source_card_names]}
         all_tokens, all_common_tokens = [], []
+
         for card in self.cards:
             this_card_specialized_tokens, this_card_common_tokens = card.get_tokens()
+
+            # Track source cards for specialized tokens
+            for token in this_card_specialized_tokens:
+                token_name = token.get('name', '')
+                if token_name not in token_to_sources:
+                    token_to_sources[token_name] = []
+                token_to_sources[token_name].append(card.name)
+
+            # Track source cards for common tokens
+            for token_name in this_card_common_tokens:
+                if token_name not in token_to_sources:
+                    token_to_sources[token_name] = []
+                token_to_sources[token_name].append(card.name)
+
             all_tokens += this_card_specialized_tokens
             all_common_tokens += this_card_common_tokens
+
         def unique_tokens(
             all_tokens: List[Dict[str, Any]]
         ) -> List[Dict[str, Any]]:
@@ -458,24 +828,69 @@ class Deck:
                 new_dict['related'] = related_list
                 unique_all_tokens.append(new_dict)
             return unique_all_tokens
+
         all_tokens = unique_tokens(all_tokens)
-        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete","related"] if k in d} for d in all_tokens] 
-        all_common_tokens = list(set(all_common_tokens)) 
-        print(f"\nFound {len(all_tokens)} token with names:", [token["name"] for token in all_tokens])
+        all_tokens = [{k: d[k] for k in ["name","cardtype","subtype","rules","power","toughness","frame","complete","related"] if k in d} for d in all_tokens]
+        all_common_tokens = list(set(all_common_tokens))
+
+        print(f"\nFound {len(all_tokens)} specialized tokens:", [token["name"] for token in all_tokens])
         if len(all_common_tokens)>0:
             print(f"Found {len(all_common_tokens)} common tokens: {all_common_tokens}")
-        tokens_dict = {"_TOKEN_"+d['name']: d for d in all_tokens}
-        if len(all_common_tokens)>0:
-            tokens_dict["_COMMON_TOKENS"] = all_common_tokens
-        if save_path is None:
-            save_path = os.path.join(DECK_PATH, self.name)
-        if not os.path.isdir(save_path):
-            os.mkdir(save_path)
-        if not os.path.isdir(save_path):
-            os.mkdir(save_path)
-        with open(os.path.join(save_path, self.name+'_Tokens.json'), 'w') as json_file:
-            json.dump(tokens_dict, json_file, indent=4)
-                 
+
+        # Populate self.tokens with new format (includes source_cards)
+        if save_to_deck:
+            self.tokens = {}
+            common_token_defs = load_common_token_definitions()
+
+            # Add specialized tokens
+            for token in all_tokens:
+                token_name = token['name']
+                token_key = f"_TOKEN_{token_name}"
+                token_dict = token.copy()
+                token_dict['token'] = 1
+                token_dict['quantity'] = 1
+                token_dict['source_cards'] = token_to_sources.get(token_name, [])
+                # Rename 'related' to 'source_cards' if it exists
+                if 'related' in token_dict:
+                    del token_dict['related']
+                self.tokens[token_key] = token_dict
+
+            # Add common tokens with definitions from common_tokens.json
+            for common_token_name in all_common_tokens:
+                token_key = f"_TOKEN_{common_token_name}"
+                if common_token_name in common_token_defs:
+                    # Use definition from common_tokens.json
+                    token_dict = common_token_defs[common_token_name].copy()
+                    token_dict['source_cards'] = token_to_sources.get(common_token_name, [])
+                    token_dict['quantity'] = 1
+                    token_dict['complete'] = 1  # Common tokens are pre-defined
+                    self.tokens[token_key] = token_dict
+                else:
+                    # Fallback: minimal token definition
+                    self.tokens[token_key] = {
+                        'name': common_token_name,
+                        'token': 1,
+                        'complete': 0,
+                        'quantity': 1,
+                        'source_cards': token_to_sources.get(common_token_name, [])
+                    }
+
+        # Legacy: Save separate _Tokens.json file (old format)
+        if save_legacy_file:
+            tokens_dict = {"_TOKEN_"+d['name']: d for d in all_tokens}
+            if len(all_common_tokens)>0:
+                tokens_dict["_COMMON_TOKENS"] = all_common_tokens
+
+            if save_path is None:
+                save_path = os.path.join(DECK_PATH, self.name)
+            if not os.path.isdir(save_path):
+                os.mkdir(save_path)
+
+            with open(os.path.join(save_path, self.name+'_Tokens.json'), 'w') as json_file:
+                json.dump(tokens_dict, json_file, indent=4)
+
+        return (all_tokens, all_common_tokens)
+
     # TODO -- For tokens with duplicate names, make json string names (not card names) different according to differences -- can just append _B, _C, etc. (use letters here bc numbers to be reserved for arts (many arts with same name except _number will all map to same dict, just get different arts))
 
 

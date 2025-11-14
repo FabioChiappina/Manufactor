@@ -16,7 +16,7 @@ The configuration system allows users to customize where Manufactor stores deck 
    - Validates configuration
 
 2. **`src/utils/paths.py`** - Path constants (updated)
-   - Now loads user-configurable paths from config.json
+   - Now loads user-configurable paths from config/config.json
    - Maintains static asset paths relative to project
 
 3. **`src/services/settings_manager.py`** - Settings service layer
@@ -28,11 +28,11 @@ The configuration system allows users to customize where Manufactor stores deck 
    - User-friendly command-line interface
    - View, validate, and modify settings
 
-5. **`config.json`** - User configuration file (gitignored)
+5. **`config/config.json`** - User configuration file (gitignored)
    - Stores user-specific paths
    - Auto-created with defaults on first run
 
-6. **`config.example.json`** - Template configuration
+6. **`config/config.example.json`** - Template configuration
    - Committed to git as documentation
    - Shows expected structure
 

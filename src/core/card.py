@@ -105,6 +105,7 @@ class Card:
         related_indicator: Optional[str] = None,
         colors: Optional[List[str]] = None,
         tags: Optional[Union[str, List[str]]] = None,
+        quantity: Union[int, None] = None,
         complete: Union[int, bool, str] = 0,
         real: Union[int, bool, str] = 0,
         frame: Optional[str] = None,
@@ -142,6 +143,7 @@ class Card:
             related_indicator: Text/mana cost for opposite side indicator
             colors: List of color identities (['w', 'u', 'b', 'r', 'g'])
             tags: Tag(s) for categorization
+            quantity: Number of copies of this card in deck (default: 1)
             complete: 1 if card is complete (has image), 0 otherwise
             real: 1 if real MTG card, 0 if custom
             frame: Path to custom frame image
@@ -252,7 +254,9 @@ class Card:
         self.related=related
         self.related_indicator=related_indicator
         self.tags=tags
+        self.quantity=quantity if quantity is not None else 1
         self.complete=complete
+        self.real=real
 
         # Handle supertypes: support both old format (in cardtype string) and new format (separate fields)
         # Priority: individual fields > cardtype string parsing

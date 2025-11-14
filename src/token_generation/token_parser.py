@@ -6,9 +6,28 @@ that are created by card abilities.
 """
 
 import re
+import json
+from typing import Dict, Any, List, Tuple, Optional
+from pathlib import Path
 from num2words import num2words # type: ignore
 from src.core.mana import Mana
 from src.core.ability import AbilityElements
+
+
+def load_common_token_definitions() -> Dict[str, Any]:
+    """
+    Load common token definitions from config/common_tokens.json.
+
+    Returns:
+        Dictionary of common token definitions keyed by token name
+    """
+    from src.utils.paths import PROJECT_ROOT
+
+    common_tokens_path = Path(PROJECT_ROOT) / "config" / "common_tokens.json"
+    if common_tokens_path.exists():
+        with open(common_tokens_path, 'r') as f:
+            return json.load(f)
+    return {}
 
 
 # This function is extracted from Card.get_tokens_from_rules_text()
@@ -16,14 +35,14 @@ from src.core.ability import AbilityElements
 def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=None, exclude_list=None, complete=0, Card=None):
     """
     Parse rules text to extract token definitions.
-    
+
     Args:
         rules_text: The rules text to parse
         card_name: Name of the card creating the tokens (for related field)
         common_tokens_list: List of common token names to track separately
         exclude_list: List of token names to exclude
         complete: Whether the token is complete (1) or needs image generation (0)
-    
+
     Returns:
         Tuple of (specialized_tokens, common_tokens) where:
         - specialized_tokens: List of dicts with token properties
@@ -34,8 +53,10 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
         from src.core.card import Card as CardClass
         Card = CardClass
 
+    # Load common tokens from JSON if not provided
     if common_tokens_list is None:
-        common_tokens_list = ["Treasure", "Clue", "Food", "Blood", "Map", "Powerstone"]
+        common_token_defs = load_common_token_definitions()
+        common_tokens_list = list(common_token_defs.keys())
     if exclude_list is None:
         exclude_list = ["Creature", "Noncreature", "Artifact", "Nonartifact", "Enchantment",
                        "Nonenchantment", "Land", "Nonland", "Planeswalker", "Nonplaneswalker",

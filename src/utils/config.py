@@ -29,9 +29,9 @@ class ConfigManager:
             config_path: Path to the config file. If None, uses default location.
         """
         if config_path is None:
-            # Default config location: project root
+            # Default config location: config folder in project root
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            config_path = os.path.join(project_root, "config.json")
+            config_path = os.path.join(project_root, "config", "config.json")
 
         self.config_path = config_path
         self._config: Dict[str, Any] = {}
