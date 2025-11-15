@@ -80,16 +80,10 @@ deck.author = "PlayerName"
 deck.commander = None  # or card name for Commander format
 deck.setname = "MRD"  # Default set code for all cards in deck
 
-# Export to new format
+# Export deck
 deck.to_json(
     filepath="Decks/MyDeck/MyDeck.json",
-    use_new_format=True
-)
-
-# Or export to old format for backward compatibility
-deck.to_json(
-    filepath="Decks/MyDeck/MyDeck_old.json",
-    use_new_format=False
+    use_new_format=True  # Always use True for current format
 )
 ```
 
@@ -333,8 +327,7 @@ deck = Deck.from_deck_folder("Test")
 
 # Get all tokens from deck (NEW: populates self.tokens with source tracking)
 specialized_tokens, common_tokens = deck.get_tokens(
-    save_to_deck=True,      # Populate self.tokens dict (recommended)
-    save_legacy_file=False  # Optional: create separate _Tokens.json (old format)
+    save_to_deck=True       # Populate self.tokens dict
 )
 
 # Analyze generated tokens
@@ -508,36 +501,6 @@ print("Done!")
 }
 ```
 
-### OLD FORMAT: Minimal Card Definition (Still Supported)
-```json
-{
-  "Lightning Bolt": {
-    "name": "Lightning Bolt",
-    "cardtype": "Instant"
-  }
-}
-```
-
-### OLD FORMAT: Complete Card Definition (Still Supported)
-```json
-{
-  "Sheoldred, the Apocalypse": {
-    "name": "Sheoldred, the Apocalypse",
-    "mana": "{2}{b}{b}",
-    "cardtype": "Creature",
-    "subtype": "Phyrexian Praetor",
-    "rarity": "Mythic",
-    "power": "4",
-    "toughness": "5",
-    "rules": "Deathtouch\nWhenever you draw a card, you gain 2 life.\nWhenever an opponent draws a card, they lose 2 life.",
-    "flavor": "\"Gix failed. I shall not.\"",
-    "complete": 1,
-    "legendary": 1,
-    "tags": ["LifeDrain"]
-  }
-}
-```
-
 ### Multi-line Rules (Saga)
 ```json
 {
@@ -558,19 +521,29 @@ print("Done!")
 ### Double-Faced Card (Transform)
 ```json
 {
-  "Archangel Avacyn": {
-    "name": "Archangel Avacyn",
-    "mana": "{3}{w}{w}",
-    "cardtype": "Creature",
-    "subtype": "Angel",
-    "rarity": "Mythic",
-    "power": "4",
-    "toughness": "4",
-    "rules": "Flash\nFlying, vigilance\nWhen Archangel Avacyn enters the battlefield, creatures you control gain indestructible until end of turn.\nWhen a non-Angel creature you control dies, transform Archangel Avacyn at the beginning of the next upkeep.",
-    "special": "transform-front",
-    "related": "Avacyn, the Purifier",
-    "complete": 1,
-    "legendary": 1
+  "Archangel Avacyn / Avacyn, the Purifier": {
+    "front": {
+      "name": "Archangel Avacyn",
+      "mana": "{3}{w}{w}",
+      "cardtype": "Creature",
+      "subtype": "Angel",
+      "power": "4",
+      "toughness": "4",
+      "rules": "Flash\nFlying, vigilance\nWhen Archangel Avacyn enters the battlefield, creatures you control gain indestructible until end of turn.\nWhen a non-Angel creature you control dies, transform Archangel Avacyn at the beginning of the next upkeep.",
+      "legendary": 1
+    },
+    "back": {
+      "name": "Avacyn, the Purifier",
+      "cardtype": "Creature",
+      "subtype": "Angel",
+      "power": "6",
+      "toughness": "5",
+      "rules": "Flying\nWhen this creature transforms into Avacyn, the Purifier, it deals 3 damage to each other creature and each opponent.",
+      "legendary": 1
+    },
+    "double_faced_type": "transform",
+    "rarity": "mythic",
+    "complete": 1
   }
 }
 ```

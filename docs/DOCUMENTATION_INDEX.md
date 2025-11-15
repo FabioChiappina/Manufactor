@@ -87,16 +87,38 @@ Configuration management guide:
 
 **Best for**: Setting up paths and configuration
 
-#### 6. SUPERTYPES.md
-Detailed documentation of supertype handling:
-- Old vs new supertype format
-- Field mapping
+#### 6. JSON_FORMAT.md
+Complete JSON format reference:
+- Deck structure (metadata/cards/tokens)
+- Metadata fields
+- Card fields (face-specific and card-level)
+- Token fields
+- Mana cost format
+- Color codes
+- Complete examples
+
+**Best for**: JSON format reference when creating or editing decks
+
+#### 7. DOUBLE_FACED_CARDS.md
+Double-faced card documentation:
+- Transform and MDFC support
+- JSON structure with front/back objects
+- Code architecture (CardFace class)
+- Commander field (single and multiple)
+- Benefits for web UI
+
+**Best for**: Working with double-faced cards
+
+#### 8. SUPERTYPES.md
+Supertype field documentation:
+- Legendary, Basic, Snow, Token fields
+- How to use separate supertype fields
+- Examples
 - Backward compatibility
-- JSON examples
 
-**Best for**: Understanding the supertype refactoring
+**Best for**: Understanding supertype fields
 
-#### 7. README.md
+#### 9. README.md
 Getting started guide with:
 - Prerequisites
 - Virtual environment setup
@@ -136,9 +158,10 @@ Getting started guide with:
 3. ARCHITECTURE_QUICK_REFERENCE.md (Important Paths section)
 
 ### I want to create card definitions
-1. ARCHITECTURE_QUICK_REFERENCE.md (JSON Card Schema)
+1. JSON_FORMAT.md (complete format reference)
 2. CODE_EXAMPLES.md (JSON Examples section)
-3. ARCHITECTURE.md (section 2: Cards and Decks Structure)
+3. DOUBLE_FACED_CARDS.md (for transform/MDFC cards)
+4. SUPERTYPES.md (for legendary, basic, snow fields)
 
 ### I want to understand the refactoring
 1. REFACTORING_PLAN.md (all sections)
@@ -188,15 +211,20 @@ Utilities (Paths, Config, File Utils)
 
 ## File Locations
 
-### Documentation (in repo root)
+### Documentation (docs/ folder)
 - ARCHITECTURE.md
 - ARCHITECTURE_QUICK_REFERENCE.md
 - CODE_EXAMPLES.md
-- REFACTORING_PLAN.md
-- CONFIGURATION.md
+- JSON_FORMAT.md
+- DOUBLE_FACED_CARDS.md
 - SUPERTYPES.md
-- README.md
+- CONFIGURATION.md
+- REFACTORING_PLAN.md
 - DOCUMENTATION_INDEX.md (this file)
+
+### Other Documentation
+- README.md (repo root)
+- scripts/README.md (utility scripts)
 
 ### Source Code
 - src/core/card.py - Card data model

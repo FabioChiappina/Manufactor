@@ -229,7 +229,13 @@ class Deck:
 
         # Process each card
         for keyname, card in card_dict.items():
-            # Set defaults for missing fields
+            # Check if this is a card with new front/back structure
+            if "front" in card:
+                # New structure (either single-faced with front, or double-faced with front+back)
+                # Skip defaults, handle separately
+                continue
+
+            # Set defaults for missing fields (old format only)
             if "artist" not in card.keys():
                 card["artist"]=None
             if "artwork" not in card.keys():
@@ -313,38 +319,231 @@ class Deck:
                 card["token"]=None
 
         # Create Card objects
-        cards = [Card(name=card["name"],
-                      artist=card["artist"],
-                      artwork=card["artwork"],
-                      setname=card["setname"],
-                      mana=card["mana"],
-                      cardtype=card["cardtype"],
-                      subtype=card["subtype"],
-                      power=card["power"],
-                      toughness=card["toughness"],
-                      rarity=card["rarity"],
-                      rules=card["rules"],
-                      rules1=card["rules1"],
-                      rules2=card["rules2"],
-                      rules3=card["rules3"],
-                      rules4=card["rules4"],
-                      rules5=card["rules5"],
-                      rules6=card["rules6"],
-                      flavor=card["flavor"],
-                      special=card["special"],
-                      related=card["related"],
-                      related_indicator=card["related_indicator"],
-                      colors=card["colors"],
-                      tags=card["tags"],
-                      quantity=card["quantity"],
-                      complete=card["complete"],
-                      real=card["real"],
-                      frame=card["frame"],
-                      legendary=card["legendary"],
-                      basic=card["basic"],
-                      snow=card["snow"],
-                      token=card["token"])
-                  for keyname, card in card_dict.items()]
+        from src.core.card import CardFace
+        cards = []
+
+        for keyname, card in card_dict.items():
+            # Check for new double-faced structure
+            if "front" in card and "back" in card:
+                # Double-faced card with new structure
+                # Extract shared card-level fields
+                quantity = card.get("quantity", 1)
+                complete = card.get("complete", 0)
+                real = card.get("real", 0)
+                rarity = card.get("rarity")
+                colors = card.get("colors")
+                card_tags = card.get("tags")
+                setname = card.get("setname", default_setname)
+                artwork = card.get("artwork")
+                artist = card.get("artist")
+                double_faced_type = card.get("double_faced_type")  # "transform" or "mdfc"
+
+                # Create CardFace objects for front and back
+                front_data = card["front"]
+                back_data = card["back"]
+
+                front_face = CardFace(
+                    name=front_data["name"],
+                    mana=front_data.get("mana"),
+                    cardtype=front_data.get("cardtype"),
+                    subtype=front_data.get("subtype"),
+                    power=front_data.get("power"),
+                    toughness=front_data.get("toughness"),
+                    rules=front_data.get("rules"),
+                    rules1=front_data.get("rules1"),
+                    rules2=front_data.get("rules2"),
+                    rules3=front_data.get("rules3"),
+                    rules4=front_data.get("rules4"),
+                    rules5=front_data.get("rules5"),
+                    rules6=front_data.get("rules6"),
+                    flavor=front_data.get("flavor"),
+                    related_indicator=front_data.get("related_indicator"),
+                    legendary=front_data.get("legendary"),
+                    basic=front_data.get("basic"),
+                    snow=front_data.get("snow")
+                )
+
+                back_face = CardFace(
+                    name=back_data["name"],
+                    mana=back_data.get("mana"),
+                    cardtype=back_data.get("cardtype"),
+                    subtype=back_data.get("subtype"),
+                    power=back_data.get("power"),
+                    toughness=back_data.get("toughness"),
+                    rules=back_data.get("rules"),
+                    rules1=back_data.get("rules1"),
+                    rules2=back_data.get("rules2"),
+                    rules3=back_data.get("rules3"),
+                    rules4=back_data.get("rules4"),
+                    rules5=back_data.get("rules5"),
+                    rules6=back_data.get("rules6"),
+                    flavor=back_data.get("flavor"),
+                    related_indicator=back_data.get("related_indicator"),
+                    legendary=back_data.get("legendary"),
+                    basic=back_data.get("basic"),
+                    snow=back_data.get("snow")
+                )
+
+                # Create Card using front face data for the old fields (for backward compatibility)
+                # but also populate the new front/back CardFace fields
+                new_card = Card(
+                    name=front_face.name,
+                    artist=artist,
+                    artwork=artwork,
+                    setname=setname,
+                    mana=front_face.mana,
+                    cardtype=front_face.cardtype,
+                    subtype=front_face.subtype,
+                    power=front_face.power,
+                    toughness=front_face.toughness,
+                    rarity=rarity,
+                    rules=front_face.rules,
+                    rules1=front_face.rules1,
+                    rules2=front_face.rules2,
+                    rules3=front_face.rules3,
+                    rules4=front_face.rules4,
+                    rules5=front_face.rules5,
+                    rules6=front_face.rules6,
+                    flavor=front_face.flavor,
+                    special=f"{double_faced_type}-front" if double_faced_type else None,
+                    related=back_face.name,
+                    related_indicator=front_face.related_indicator,
+                    colors=colors,
+                    tags=card_tags,
+                    quantity=quantity,
+                    complete=complete,
+                    real=real,
+                    legendary=front_face.supertype and "legendary" in front_face.supertype.lower(),
+                    basic=front_face.supertype and "basic" in front_face.supertype.lower(),
+                    snow=front_face.supertype and "snow" in front_face.supertype.lower()
+                )
+
+                # Populate the new CardFace fields
+                new_card.front = front_face
+                new_card.back = back_face
+                new_card.double_faced_type = double_faced_type
+
+                cards.append(new_card)
+
+                # Collect tags
+                if card_tags:
+                    for tag in card_tags:
+                        if tag not in tags:
+                            tags.append(tag)
+            elif "front" in card:
+                # Single-faced card with new structure (has front but no back)
+                # Extract shared card-level fields
+                quantity = card.get("quantity", 1)
+                complete = card.get("complete", 0)
+                real = card.get("real", 0)
+                rarity = card.get("rarity")
+                colors = card.get("colors")
+                card_tags = card.get("tags")
+                setname = card.get("setname", default_setname)
+                artwork = card.get("artwork")
+                artist = card.get("artist")
+                token = card.get("token")
+
+                # Create CardFace object for front
+                front_data = card["front"]
+
+                front_face = CardFace(
+                    name=front_data["name"],
+                    mana=front_data.get("mana"),
+                    cardtype=front_data.get("cardtype"),
+                    subtype=front_data.get("subtype"),
+                    power=front_data.get("power"),
+                    toughness=front_data.get("toughness"),
+                    rules=front_data.get("rules"),
+                    rules1=front_data.get("rules1"),
+                    rules2=front_data.get("rules2"),
+                    rules3=front_data.get("rules3"),
+                    rules4=front_data.get("rules4"),
+                    rules5=front_data.get("rules5"),
+                    rules6=front_data.get("rules6"),
+                    flavor=front_data.get("flavor"),
+                    related_indicator=front_data.get("related_indicator"),
+                    legendary=front_data.get("legendary"),
+                    basic=front_data.get("basic"),
+                    snow=front_data.get("snow")
+                )
+
+                # Create Card using front face data
+                new_card = Card(
+                    name=front_face.name,
+                    artist=artist,
+                    artwork=artwork,
+                    setname=setname,
+                    mana=front_face.mana,
+                    cardtype=front_face.cardtype,
+                    subtype=front_face.subtype,
+                    power=front_face.power,
+                    toughness=front_face.toughness,
+                    rarity=rarity,
+                    rules=front_face.rules,
+                    rules1=front_face.rules1,
+                    rules2=front_face.rules2,
+                    rules3=front_face.rules3,
+                    rules4=front_face.rules4,
+                    rules5=front_face.rules5,
+                    rules6=front_face.rules6,
+                    flavor=front_face.flavor,
+                    colors=colors,
+                    tags=card_tags,
+                    quantity=quantity,
+                    complete=complete,
+                    real=real,
+                    token=token,
+                    legendary=front_face.supertype and "legendary" in front_face.supertype.lower(),
+                    basic=front_face.supertype and "basic" in front_face.supertype.lower(),
+                    snow=front_face.supertype and "snow" in front_face.supertype.lower()
+                )
+
+                # Populate the new CardFace field (no back face for single-faced cards)
+                new_card.front = front_face
+
+                cards.append(new_card)
+
+                # Collect tags
+                if card_tags:
+                    for tag in card_tags:
+                        if tag not in tags:
+                            tags.append(tag)
+            else:
+                # Single-faced card (old structure)
+                cards.append(Card(
+                    name=card["name"],
+                    artist=card["artist"],
+                    artwork=card["artwork"],
+                    setname=card["setname"],
+                    mana=card["mana"],
+                    cardtype=card["cardtype"],
+                    subtype=card["subtype"],
+                    power=card["power"],
+                    toughness=card["toughness"],
+                    rarity=card["rarity"],
+                    rules=card["rules"],
+                    rules1=card["rules1"],
+                    rules2=card["rules2"],
+                    rules3=card["rules3"],
+                    rules4=card["rules4"],
+                    rules5=card["rules5"],
+                    rules6=card["rules6"],
+                    flavor=card["flavor"],
+                    special=card["special"],
+                    related=card["related"],
+                    related_indicator=card["related_indicator"],
+                    colors=card["colors"],
+                    tags=card["tags"],
+                    quantity=card["quantity"],
+                    complete=card["complete"],
+                    real=card["real"],
+                    frame=card["frame"],
+                    legendary=card["legendary"],
+                    basic=card["basic"],
+                    snow=card["snow"],
+                    token=card["token"]
+                ))
 
         # Extract tokens (stored in deck, not as separate Cards)
         tokens_dict = data.get("tokens", {})
@@ -404,7 +603,7 @@ class Deck:
         created: Optional[str] = None,
         last_modified: Optional[str] = None,
         author: Optional[str] = None,
-        commander: Optional[str] = None,
+        commander: Optional[Any] = None,
         tokens: Optional[Dict[str, Any]] = None,
         setname: Optional[str] = None
     ) -> None:
@@ -423,7 +622,7 @@ class Deck:
             created: Deck creation timestamp (ISO 8601)
             last_modified: Last modification timestamp (ISO 8601)
             author: Deck creator name
-            commander: Commander card name (if Commander format)
+            commander: Commander card name(s). Can be a string (single commander) or list of strings (partner commanders, etc.)
             tokens: Dictionary of token definitions (new format)
             setname: Default set code for cards without specific setname (default: "UNK")
 
@@ -447,7 +646,18 @@ class Deck:
         self.created = created
         self.last_modified = last_modified
         self.author = author
-        self.commander = commander
+
+        # Commander can be a string (single) or list (partners/multiple)
+        # Normalize to list internally for consistency
+        if commander is None:
+            self.commander = None
+        elif isinstance(commander, str):
+            self.commander = [commander] if commander else None
+        elif isinstance(commander, list):
+            self.commander = commander if commander else None
+        else:
+            self.commander = [str(commander)]
+
         self.tokens = tokens or {}
         self.setname = setname or "UNK"
 
@@ -469,6 +679,15 @@ class Deck:
         from datetime import datetime
 
         if use_new_format:
+            # Export commander: if single commander, export as string for simplicity
+            # If multiple commanders (partners, etc.), export as list
+            commander_export = None
+            if self.commander is not None:
+                if len(self.commander) == 1:
+                    commander_export = self.commander[0]
+                else:
+                    commander_export = self.commander
+
             # New format with metadata/cards/tokens structure
             deck_dict = {
                 "metadata": {
@@ -480,7 +699,7 @@ class Deck:
                     "last_modified": datetime.now().isoformat(),
                     "author": self.author,
                     "tags": self.tags,
-                    "commander": self.commander,
+                    "commander": commander_export,
                     "setname": self.setname
                 },
                 "cards": {},
@@ -489,49 +708,89 @@ class Deck:
 
             # Add cards
             for card in self.cards:
-                card_data = {
-                    "name": card.name,
-                    "cardtype": card.cardtype,
-                }
+                # Check if this is a double-faced card with CardFace objects
+                if hasattr(card, 'front') and card.front is not None and hasattr(card, 'back') and card.back is not None:
+                    # Double-faced card - use new front/back structure
+                    key = f"{card.front.name} / {card.back.name}"
 
-                # Add optional fields only if they have values
-                if card.mana: card_data["mana"] = card.mana
-                if card.subtype: card_data["subtype"] = card.subtype
-                if card.power: card_data["power"] = card.power
-                if card.toughness: card_data["toughness"] = card.toughness
-                if card.rarity: card_data["rarity"] = card.rarity
-                if card.rules: card_data["rules"] = card.rules
-                if card.rules1: card_data["rules1"] = card.rules1
-                if card.rules2: card_data["rules2"] = card.rules2
-                if card.rules3: card_data["rules3"] = card.rules3
-                if card.rules4: card_data["rules4"] = card.rules4
-                if card.rules5: card_data["rules5"] = card.rules5
-                if card.rules6: card_data["rules6"] = card.rules6
-                if card.flavor: card_data["flavor"] = card.flavor
-                if card.special: card_data["special"] = card.special
-                if card.related: card_data["related"] = card.related
-                if card.related_indicator: card_data["related_indicator"] = card.related_indicator
-                if card.colors: card_data["colors"] = card.colors
-                if card.tags: card_data["tags"] = card.tags
-                if card.quantity and card.quantity != 1: card_data["quantity"] = card.quantity
-                if card.complete: card_data["complete"] = card.complete
-                if card.real: card_data["real"] = card.real
-                if card.frame: card_data["frame"] = card.frame
-                if card.artwork: card_data["artwork"] = card.artwork
-                if card.artist: card_data["artist"] = card.artist
+                    card_data = {
+                        "front": card.front.to_dict(),
+                        "back": card.back.to_dict(),
+                    }
 
-                # Add setname only if it differs from deck's default
-                if hasattr(card, 'setname') and card.setname and card.setname != self.setname:
-                    card_data["setname"] = card.setname
+                    # Add shared card-level fields
+                    if card.double_faced_type: card_data["double_faced_type"] = card.double_faced_type
+                    if card.quantity and card.quantity != 1: card_data["quantity"] = card.quantity
+                    if card.complete: card_data["complete"] = card.complete
+                    if card.real: card_data["real"] = card.real
+                    if card.rarity: card_data["rarity"] = card.rarity
+                    if card.colors: card_data["colors"] = card.colors
+                    if card.tags: card_data["tags"] = card.tags
+                    if card.artwork: card_data["artwork"] = card.artwork
+                    if card.artist: card_data["artist"] = card.artist
 
-                # Add supertype fields if present
-                if hasattr(card, 'supertype') and card.supertype:
-                    if 'Legendary' in card.supertype: card_data["legendary"] = 1
-                    if 'Basic' in card.supertype: card_data["basic"] = 1
-                    if 'Snow' in card.supertype: card_data["snow"] = 1
-                    if 'Token' in card.supertype: card_data["token"] = 1
+                    # Add setname only if it differs from deck's default
+                    if hasattr(card, 'setname') and card.setname and card.setname != self.setname:
+                        card_data["setname"] = card.setname
 
-                deck_dict["cards"][card.name] = card_data
+                    deck_dict["cards"][key] = card_data
+                else:
+                    # Single-faced card - use new front structure for consistency
+                    # Check if card has CardFace object
+                    if hasattr(card, 'front') and card.front is not None:
+                        # Card has CardFace - use it
+                        card_data = {
+                            "front": card.front.to_dict()
+                        }
+                    else:
+                        # Card doesn't have CardFace - create front dict from card fields
+                        front_dict = {
+                            "name": card.name,
+                        }
+
+                        # Add face-specific fields
+                        if card.mana: front_dict["mana"] = card.mana
+                        if card.cardtype: front_dict["cardtype"] = card.cardtype
+                        if card.subtype: front_dict["subtype"] = card.subtype
+                        if card.power: front_dict["power"] = card.power
+                        if card.toughness: front_dict["toughness"] = card.toughness
+                        if card.rules: front_dict["rules"] = card.rules
+                        if card.rules1: front_dict["rules1"] = card.rules1
+                        if card.rules2: front_dict["rules2"] = card.rules2
+                        if card.rules3: front_dict["rules3"] = card.rules3
+                        if card.rules4: front_dict["rules4"] = card.rules4
+                        if card.rules5: front_dict["rules5"] = card.rules5
+                        if card.rules6: front_dict["rules6"] = card.rules6
+                        if card.flavor: front_dict["flavor"] = card.flavor
+                        if card.related_indicator: front_dict["related_indicator"] = card.related_indicator
+
+                        # Add supertype fields to front
+                        if hasattr(card, 'supertype') and card.supertype:
+                            if 'Legendary' in card.supertype: front_dict["legendary"] = 1
+                            if 'Basic' in card.supertype: front_dict["basic"] = 1
+                            if 'Snow' in card.supertype: front_dict["snow"] = 1
+
+                        card_data = {"front": front_dict}
+
+                    # Add shared card-level fields
+                    if card.quantity and card.quantity != 1: card_data["quantity"] = card.quantity
+                    if card.complete: card_data["complete"] = card.complete
+                    if card.real: card_data["real"] = card.real
+                    if card.rarity: card_data["rarity"] = card.rarity
+                    if card.colors: card_data["colors"] = card.colors
+                    if card.tags: card_data["tags"] = card.tags
+                    if card.artwork: card_data["artwork"] = card.artwork
+                    if card.artist: card_data["artist"] = card.artist
+
+                    # Add setname only if it differs from deck's default
+                    if hasattr(card, 'setname') and card.setname and card.setname != self.setname:
+                        card_data["setname"] = card.setname
+
+                    # Add token field if present
+                    if hasattr(card, 'token') and card.token:
+                        card_data["token"] = card.token
+
+                    deck_dict["cards"][card.name] = card_data
 
         else:
             # Old format (flat card dictionary) for backward compatibility

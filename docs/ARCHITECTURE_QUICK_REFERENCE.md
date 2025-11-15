@@ -38,9 +38,9 @@
 
 ## Deck JSON Schema
 
-**Status:** ✅ **FULLY IMPLEMENTED** - Backward compatible with old format
+**Status:** ✅ **FULLY IMPLEMENTED**
 
-### Full Deck Structure (New Format)
+### Full Deck Structure
 ```json
 {
   "metadata": {
@@ -415,14 +415,14 @@ dm.create_deck_folder("NewDeck")
 
 ---
 
-## Special Keywords in JSON
+## Token Key Convention
 
-| Keyword | Purpose |
-|---------|---------|
-| `_basics` | Basic land definitions (special key, ignored from card creation) |
-| `_common_tokens` | List of common token names (Treasure, Clue, Food, etc.) |
-| `_TOKEN_*` | Token definitions (e.g., `_TOKEN_Treasure`) - auto-generated |
-| `_COMMON_TOKENS` | List of common token names in tokens JSON - auto-generated |
+Token keys in the `tokens` section should use the `_TOKEN_` prefix:
+
+**Example:**
+- `_TOKEN_Treasure` - Treasure token definition
+- `_TOKEN_Zombie` - Zombie token definition
+- `_TOKEN_Food` - Food token definition
 
 ---
 

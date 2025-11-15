@@ -12,6 +12,156 @@ from src.core.card_set import CardSet
 from src.utils.paths import CARD_BORDERS_PATH
 
 
+class CardFace:
+    """
+    Represents one face of a Magic: The Gathering card.
+
+    For single-faced cards, only the front face is used.
+    For double-faced cards (transform/MDFC), both front and back faces exist.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        mana: Optional[str] = None,
+        cardtype: Optional[str] = None,
+        subtype: Optional[str] = None,
+        power: Optional[Union[str, int]] = None,
+        toughness: Optional[Union[str, int]] = None,
+        rules: Optional[str] = None,
+        rules1: Optional[str] = None,
+        rules2: Optional[str] = None,
+        rules3: Optional[str] = None,
+        rules4: Optional[str] = None,
+        rules5: Optional[str] = None,
+        rules6: Optional[str] = None,
+        flavor: Optional[str] = None,
+        related_indicator: Optional[str] = None,
+        legendary: Union[int, bool, None] = None,
+        basic: Union[int, bool, None] = None,
+        snow: Union[int, bool, None] = None,
+    ) -> None:
+        """
+        Initialize a card face.
+
+        Args:
+            name: Face name (required)
+            mana: Mana cost string
+            cardtype: Card type(s) (can include supertypes for backward compatibility)
+            subtype: Card subtype(s)
+            power: Creature power
+            toughness: Creature toughness
+            rules: Main rules text
+            rules1-6: Individual rules lines
+            flavor: Flavor text
+            related_indicator: Indicator text/mana for opposite face
+            legendary: True if legendary
+            basic: True if basic
+            snow: True if snow
+        """
+        # Validation
+        if not isinstance(name, str):
+            raise TypeError("name must be of type str")
+        if mana is not None and not isinstance(mana, str):
+            raise TypeError("mana must be of type str")
+        if cardtype is not None and not isinstance(cardtype, str):
+            raise TypeError("cardtype must be of type str")
+        if subtype is not None and not isinstance(subtype, str):
+            raise TypeError("subtype must be of type str")
+        if power is not None and not isinstance(power, (str, int)):
+            raise TypeError("power must be of type str or int")
+        elif isinstance(power, int):
+            power = str(power)
+        if toughness is not None and not isinstance(toughness, (str, int)):
+            raise TypeError("toughness must be of type str or int")
+        elif isinstance(toughness, int):
+            toughness = str(toughness)
+
+        self.name = name
+        self.mana = Mana.sort(mana) if mana else None
+        self.subtype = subtype
+        self.power = power
+        self.toughness = toughness
+        self.rules = Card.sort_rules_text_mana_symbols(rules)
+        self.rules1 = Card.sort_rules_text_mana_symbols(rules1)
+        self.rules2 = Card.sort_rules_text_mana_symbols(rules2)
+        self.rules3 = Card.sort_rules_text_mana_symbols(rules3)
+        self.rules4 = Card.sort_rules_text_mana_symbols(rules4)
+        self.rules5 = Card.sort_rules_text_mana_symbols(rules5)
+        self.rules6 = Card.sort_rules_text_mana_symbols(rules6)
+        self.flavor = flavor
+        self.related_indicator = related_indicator
+
+        # Handle supertypes
+        supertype_from_cardtype = Card.get_supertype_from_cardtype(cardtype)
+        supertype_parts = []
+
+        if legendary is not None:
+            if legendary == 1 or legendary is True:
+                supertype_parts.append("Legendary")
+        elif supertype_from_cardtype and "legendary" in supertype_from_cardtype.lower():
+            supertype_parts.append("Legendary")
+
+        if basic is not None:
+            if basic == 1 or basic is True:
+                supertype_parts.append("Basic")
+        elif supertype_from_cardtype and "basic" in supertype_from_cardtype.lower():
+            supertype_parts.append("Basic")
+
+        if snow is not None:
+            if snow == 1 or snow is True:
+                supertype_parts.append("Snow")
+        elif supertype_from_cardtype and "snow" in supertype_from_cardtype.lower():
+            supertype_parts.append("Snow")
+
+        self.supertype = " ".join(supertype_parts) if supertype_parts else None
+        self.cardtype = Card.filter_supertypes_from_cardtype(cardtype) if cardtype else None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert this face to a dictionary for JSON serialization."""
+        face_dict = {
+            "name": self.name,
+        }
+
+        # Add optional fields only if they have values
+        if self.mana:
+            face_dict["mana"] = self.mana
+        if self.cardtype:
+            face_dict["cardtype"] = self.cardtype
+        if self.subtype:
+            face_dict["subtype"] = self.subtype
+        if self.power:
+            face_dict["power"] = self.power
+        if self.toughness:
+            face_dict["toughness"] = self.toughness
+        if self.rules:
+            face_dict["rules"] = self.rules
+        if self.rules1:
+            face_dict["rules1"] = self.rules1
+        if self.rules2:
+            face_dict["rules2"] = self.rules2
+        if self.rules3:
+            face_dict["rules3"] = self.rules3
+        if self.rules4:
+            face_dict["rules4"] = self.rules4
+        if self.rules5:
+            face_dict["rules5"] = self.rules5
+        if self.rules6:
+            face_dict["rules6"] = self.rules6
+        if self.flavor:
+            face_dict["flavor"] = self.flavor
+        if self.related_indicator:
+            face_dict["related_indicator"] = self.related_indicator
+        if self.supertype and "legendary" in self.supertype.lower():
+            face_dict["legendary"] = 1
+        if self.supertype and "basic" in self.supertype.lower():
+            face_dict["basic"] = 1
+        if self.supertype and "snow" in self.supertype.lower():
+            face_dict["snow"] = 1
+
+        return face_dict
+
+
 class Card:
     supertypes = ["token", "legendary", "basic", "snow"]
     cardtypes  = ["artifact", "enchantment", "land", "creature", "planeswalker", "instant", "sorcery", "battle"]
@@ -303,6 +453,12 @@ class Card:
                 self.frame = self.get_frame_filename(CARD_BORDERS_PATH)
         else:
             self.frame = self.get_frame_filename(CARD_BORDERS_PATH)
+
+        # New structure: CardFace objects for front/back (populated when loading from new JSON format)
+        # For backward compatibility, these are None when using the old __init__ signature
+        self.front: Optional[CardFace] = None
+        self.back: Optional[CardFace] = None
+        self.double_faced_type: Optional[str] = None  # "transform" | "mdfc" | None
 
     def get_colors(
         self
