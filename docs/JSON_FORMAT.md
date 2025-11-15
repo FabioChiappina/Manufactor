@@ -8,6 +8,7 @@ This document describes the complete JSON format for Manufactor deck files.
 - [Cards Section](#cards-section)
   - [Single-Faced Cards](#single-faced-cards)
   - [Double-Faced Cards](#double-faced-cards)
+  - [Subspell Cards](#subspell-cards)
   - [Basic Lands](#basic-lands)
 - [Tokens Section](#tokens-section)
 - [Complete Example](#complete-example)
@@ -147,6 +148,46 @@ Double-faced cards use the "Front Name / Back Name" format as the key:
 }
 ```
 
+### Subspell Cards
+
+Cards with subspells (Adventure/Omen) use the "Main Name / Subspell Name" format as the key:
+
+```json
+{
+  "cards": {
+    "Beanstalk Giant / Fertile Footsteps": {
+      "front": {
+        "name": "Beanstalk Giant",
+        "mana": "{6}{g}",
+        "cardtype": "Creature",
+        "subtype": "Giant",
+        "power": "5",
+        "toughness": "5",
+        "rules": "Beanstalk Giant's power and toughness are each equal to the number of lands you control."
+      },
+      "subspell": {
+        "name": "Fertile Footsteps",
+        "mana": "{2}{g}",
+        "cardtype": "Sorcery",
+        "subtype": "Adventure",
+        "rules": "Search your library for a basic land card, put it onto the battlefield, then shuffle."
+      },
+      "quantity": 1,
+      "complete": 1,
+      "rarity": "uncommon"
+    }
+  }
+}
+```
+
+**Subspell Requirements:**
+- Must be Instant or Sorcery
+- Cannot have power/toughness
+- Subtype is typically "Adventure" or "Omen"
+- Subspell mana cost contributes to card's color identity
+
+See [SUBSPELLS.md](SUBSPELLS.md) for complete subspell documentation.
+
 ### Basic Lands
 
 Basic lands are regular cards with the `basic` field:
@@ -169,7 +210,7 @@ Basic lands are regular cards with the `basic` field:
 }
 ```
 
-### Face Fields (front/back)
+### Face Fields (front/back/subspell)
 
 Fields that go inside `front` or `back` objects:
 

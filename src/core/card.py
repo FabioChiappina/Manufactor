@@ -230,6 +230,42 @@ class Card:
             supertype_string = supertype_string[0:-1]
         return supertype_string
 
+    @staticmethod
+    def validate_subspell_cardface(subspell: 'CardFace') -> None:
+        """
+        Validate that a CardFace can be used as a subspell.
+
+        Subspells (Adventure/Omen) must be instant or sorcery and cannot have
+        power/toughness. Subtype is typically Adventure or Omen but others are
+        allowed for future expansion.
+
+        Args:
+            subspell: The CardFace to validate
+
+        Raises:
+            ValueError: If the subspell is invalid
+        """
+        import warnings
+
+        # Must be instant or sorcery
+        if not subspell.cardtype:
+            raise ValueError("Subspell must have a cardtype")
+
+        cardtype_lower = subspell.cardtype.lower()
+        if "instant" not in cardtype_lower and "sorcery" not in cardtype_lower:
+            raise ValueError(f"Subspell must be instant or sorcery, got: {subspell.cardtype}")
+
+        # Cannot have power/toughness
+        if subspell.power is not None or subspell.toughness is not None:
+            raise ValueError("Subspells cannot have power/toughness")
+
+        # Subtype should be Adventure or Omen (but allow others for future expansion)
+        if subspell.subtype and subspell.subtype not in ["Adventure", "Omen"]:
+            warnings.warn(
+                f"Unusual subspell subtype: {subspell.subtype}. "
+                f"Expected 'Adventure' or 'Omen'."
+            )
+
     def __init__(
         self,
         name: Optional[str] = None,
@@ -443,7 +479,17 @@ class Card:
 
         self.supertype = " ".join(supertype_parts) if supertype_parts else None
         self.cardtype = Card.filter_supertypes_from_cardtype(cardtype)
+
+        # Initialize CardFace fields before calling get_colors() (which may check for subspell)
+        # For backward compatibility, these are None when using the old __init__ signature
+        self.front: Optional[CardFace] = None
+        self.back: Optional[CardFace] = None
+        self.double_faced_type: Optional[str] = None  # "transform" | "mdfc" | None
+        self.subspell: Optional[CardFace] = None  # Adventure/Omen subspell
+
+        # Now safe to call get_colors() since self.subspell exists
         self.colors = self.get_colors() if colors is None else colors
+
         if frame is not None and type(frame)==str and frame.endswith(".jpg"):
             if frame in os.listdir("."):
                 self.frame = frame
@@ -454,17 +500,14 @@ class Card:
         else:
             self.frame = self.get_frame_filename(CARD_BORDERS_PATH)
 
-        # New structure: CardFace objects for front/back (populated when loading from new JSON format)
-        # For backward compatibility, these are None when using the old __init__ signature
-        self.front: Optional[CardFace] = None
-        self.back: Optional[CardFace] = None
-        self.double_faced_type: Optional[str] = None  # "transform" | "mdfc" | None
-
     def get_colors(
         self
     ) -> List[str]:
         """
         Get the color identity of this card.
+
+        For cards with subspells (Adventure/Omen), includes colors from both
+        the main card and the subspell mana cost.
 
         Returns:
             List of color codes (e.g., ['w', 'u', 'b', 'r', 'g'])
@@ -475,7 +518,21 @@ class Card:
             except:
                 return []
         else:
-            return Mana.get_colors(self.mana)
+            # Get colors from main card
+            colors = Mana.get_colors(self.mana)
+
+            # If card has a subspell, include its colors too
+            if self.is_subspell() and self.subspell.mana:
+                subspell_colors = Mana.get_colors(self.subspell.mana)
+                # Merge colors, avoiding duplicates and maintaining WUBRG order
+                for color in subspell_colors:
+                    if color not in colors:
+                        colors.append(color)
+                # Sort in WUBRG order
+                wubrg_order = ['w', 'u', 'b', 'r', 'g']
+                colors = sorted(colors, key=lambda c: wubrg_order.index(c) if c in wubrg_order else 99)
+
+            return colors
 
     def is_monocolored(
         self
@@ -778,6 +835,26 @@ class Card:
     def is_spell(self) -> bool:
         """Check if this card is a spell (non-land)."""
         return (not self.is_land()) and (self.is_creature() or self.is_artifact() or self.is_enchantment() or self.is_planeswalker() or self.is_instant() or self.is_sorcery() or self.is_battle())
+
+    def is_subspell(self) -> bool:
+        """Check if this card has a subspell (Adventure/Omen)."""
+        return self.subspell is not None
+
+    def get_full_card_name(self) -> str:
+        """
+        Get the full card name including subspell or back face if present.
+
+        Returns:
+            "Card Name / Subspell Name" if subspell exists,
+            "Front Name / Back Name" if double-faced card,
+            otherwise "Card Name"
+        """
+        if self.is_subspell():
+            return f"{self.name} / {self.subspell.name}"
+        elif self.back is not None:
+            return f"{self.name} / {self.back.name}"
+        else:
+            return self.name
 
     @staticmethod
     def sort_rules_text_mana_symbols(

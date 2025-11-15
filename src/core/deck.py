@@ -502,6 +502,33 @@ class Deck:
                 # Populate the new CardFace field (no back face for single-faced cards)
                 new_card.front = front_face
 
+                # Check for subspell (Adventure/Omen)
+                if "subspell" in card:
+                    from src.core.card import Card as CardClass
+                    subspell_data = card["subspell"]
+
+                    subspell_face = CardFace(
+                        name=subspell_data["name"],
+                        mana=subspell_data.get("mana"),
+                        cardtype=subspell_data.get("cardtype"),
+                        subtype=subspell_data.get("subtype"),
+                        rules=subspell_data.get("rules"),
+                        rules1=subspell_data.get("rules1"),
+                        rules2=subspell_data.get("rules2"),
+                        rules3=subspell_data.get("rules3"),
+                        rules4=subspell_data.get("rules4"),
+                        rules5=subspell_data.get("rules5"),
+                        rules6=subspell_data.get("rules6"),
+                        flavor=subspell_data.get("flavor"),
+                        related_indicator=subspell_data.get("related_indicator")
+                    )
+
+                    # Validate the subspell
+                    CardClass.validate_subspell_cardface(subspell_face)
+
+                    # Attach to card
+                    new_card.subspell = subspell_face
+
                 cards.append(new_card)
 
                 # Collect tags
@@ -790,7 +817,17 @@ class Deck:
                     if hasattr(card, 'token') and card.token:
                         card_data["token"] = card.token
 
-                    deck_dict["cards"][card.name] = card_data
+                    # Add subspell if present (Adventure/Omen)
+                    if hasattr(card, 'subspell') and card.subspell is not None:
+                        card_data["subspell"] = card.subspell.to_dict()
+
+                    # Use full card name as key if subspell exists
+                    if hasattr(card, 'subspell') and card.subspell is not None:
+                        key = f"{card.name} / {card.subspell.name}"
+                    else:
+                        key = card.name
+
+                    deck_dict["cards"][key] = card_data
 
         else:
             # Old format (flat card dictionary) for backward compatibility
