@@ -925,13 +925,18 @@ class Deck:
             Dictionary mapping card types to their counts
         """
         cardtypes_dict = {c.capitalize():0 for c in Card.cardtypes}
+        cardtypes_dict["Unknown"] = 0  # For unrecognized card types
         for card in self.cards:
             if not count_tokens and card.is_token():
                 continue
             if not count_backs and card.special is not None and "back" in card.special.lower():
                 continue
             for thistype in card.cardtype.split():
-                cardtypes_dict[thistype.capitalize()] += 1
+                thistype_cap = thistype.capitalize()
+                if thistype_cap in cardtypes_dict:
+                    cardtypes_dict[thistype_cap] += 1
+                else:
+                    cardtypes_dict["Unknown"] += 1
         return cardtypes_dict
 
     def print_type_summary(

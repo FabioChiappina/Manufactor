@@ -21,6 +21,10 @@ from src.rendering.layout_constants import *
 all_symbols = Mana.mana_symbols + ["q", "t"]
 all_symbols_bracketed = ["{"+s+"}" for s in all_symbols]
 
+# Path to subspell assets
+SUBSPELL_PATH = os.path.join(ASSETS_PATH, "Subspells")
+POWER_TOUGHNESS_PATH = os.path.join(ASSETS_PATH, "PowerToughness")
+
 
 def create_card_image_from_Card(
     card: Card,
@@ -49,13 +53,14 @@ def create_card_image_from_Card(
     for card_artwork in card_artworks:
         this_save_path = save_path if save_path.endswith(card_artwork) else os.path.join(save_path, card_artwork)
         card_draw = CardDraw(card, save_path=this_save_path)
+        card_draw.adjust_token_frame(black_token_cover)
+        card_draw.paste_artwork(artwork_path=os.path.join(os.path.dirname(save_path), "Artwork", card_artwork))
+        card_draw.paste_subspell_frame()
         card_draw.write_name()
         card_draw.write_type_line()
         card_draw.write_rules_text()
         card_draw.paste_mana_symbols()
         card_draw.paste_set_symbol()
-        card_draw.adjust_token_frame(black_token_cover)
-        card_draw.paste_artwork(artwork_path=os.path.join(os.path.dirname(save_path), "Artwork", card_artwork))
         card_draw.paste_mdfc_indicator()
         card_draw.write_power_toughness()
         card_draw.save()
@@ -180,6 +185,43 @@ class CardDraw:
         self.image = Image.open(self.card.frame)
         self.size = self.image.size
         self.draw = ImageDraw.Draw(self.image)
+
+    def get_subspell_color(self, mana_cost: Optional[str]) -> str:
+        """
+        Determine the color designation for a subspell based on its mana cost.
+
+        Args:
+            mana_cost: The mana cost string (e.g., "{2}{g}")
+
+        Returns:
+            Color code: 'w', 'u', 'b', 'r', 'g', 'm' (multicolor), or 'c' (colorless)
+        """
+        if not mana_cost:
+            return 'c'
+
+        colors = Mana.get_colors(mana_cost)
+
+        if len(colors) == 0:
+            return 'c'
+        elif len(colors) == 1:
+            return colors[0]
+        else:
+            return 'm'
+
+    def is_adventure_subspell(self) -> bool:
+        """
+        Check if the card has an adventure subspell.
+
+        Returns:
+            True if the card has a subspell with subtype "Adventure"
+        """
+        if not self.card.is_subspell():
+            return False
+
+        if self.card.subspell.subtype and "adventure" in self.card.subspell.subtype.lower():
+            return True
+
+        return False
 
     def save(
         self,
@@ -1026,3 +1068,81 @@ class CardDraw:
         black_image_name = ("legendary_" if self.card.is_legendary() else "") + "token_black_frame_cover.png"
         black_image = Image.open(os.path.join(ASSETS_PATH, black_image_name))
         self.image.paste(black_image, (0,0), black_image)
+
+    def paste_subspell_frame(
+        self
+    ) -> None:
+        """
+        Paste the subspell frame layers on the card image.
+
+        For non-adventure subspells: Pastes the appropriate *_subspell.png based on subspell mana cost.
+        For adventure subspells: Pastes *_adventure.png based on main card colors, then *_adventure_left.png
+        based on subspell colors, and finally the power/toughness box if applicable.
+        """
+        if not self.card.is_subspell():
+            return
+
+        is_adventure = self.is_adventure_subspell()
+
+        if not is_adventure:
+            # Simple case: just paste the subspell frame based on subspell colors
+            subspell_color = self.get_subspell_color(self.card.subspell.mana)
+
+            # Skip artifact and land subspells for now as requested
+            if subspell_color in ['artifact', 'land']:
+                return
+
+            subspell_frame_filename = f"{subspell_color}_subspell.png"
+            subspell_frame_path = os.path.join(SUBSPELL_PATH, subspell_frame_filename)
+
+            if os.path.exists(subspell_frame_path):
+                subspell_frame = Image.open(subspell_frame_path)
+                self.image.paste(subspell_frame, (0, 0), subspell_frame)
+        else:
+            # Adventure case: more complex layering
+            # Step 1: Paste *_adventure.png based on main card colors
+            main_card_color = self.get_subspell_color(self.card.mana)
+            adventure_frame_filename = f"{main_card_color}_adventure.png"
+            adventure_frame_path = os.path.join(SUBSPELL_PATH, adventure_frame_filename)
+
+            if os.path.exists(adventure_frame_path):
+                adventure_frame = Image.open(adventure_frame_path)
+                self.image.paste(adventure_frame, (0, 0), adventure_frame)
+
+            # Step 2: Paste *_adventure_left.png based on subspell colors
+            subspell_color = self.get_subspell_color(self.card.subspell.mana)
+            adventure_left_filename = f"{subspell_color}_adventure_left.png"
+            adventure_left_path = os.path.join(SUBSPELL_PATH, adventure_left_filename)
+
+            if os.path.exists(adventure_left_path):
+                adventure_left = Image.open(adventure_left_path)
+                self.image.paste(adventure_left, (0, 0), adventure_left)
+
+            # Step 3: Paste power/toughness box if the main card is a creature or vehicle
+            if self.card.is_creature() or self.card.is_vehicle():
+                self.paste_adventure_pt_box()
+
+    def paste_adventure_pt_box(
+        self
+    ) -> None:
+        """
+        Paste the power/toughness box for adventure creatures/vehicles.
+
+        Uses artifact_pt.png for artifact creatures, vehicle_pt.png for vehicles,
+        and color-appropriate *_pt.png otherwise.
+        """
+        # Determine which PT box to use
+        if self.card.is_vehicle():
+            pt_box_filename = "vehicle_pt.png"
+        elif self.card.cardtype and "artifact" in self.card.cardtype.lower() and self.card.is_creature():
+            pt_box_filename = "artifact_pt.png"
+        else:
+            # Use main card color for PT box
+            main_card_color = self.get_subspell_color(self.card.mana)
+            pt_box_filename = f"{main_card_color}_pt.png"
+
+        pt_box_path = os.path.join(POWER_TOUGHNESS_PATH, pt_box_filename)
+
+        if os.path.exists(pt_box_path):
+            pt_box = Image.open(pt_box_path)
+            self.image.paste(pt_box, (0, 0), pt_box)
