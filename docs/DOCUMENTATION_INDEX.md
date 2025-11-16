@@ -238,7 +238,7 @@ Utilities (Paths, Config, File Utils)
 ### Example Data
 - Decks/Test/Test.json - Example deck
 - Decks/Test/Test_Tokens.json - Example tokens
-- Assets/CardBorders/ - Frame templates (76+ files)
+- Assets/CardFrames/ - Frame templates (76+ files)
 - Assets/Symbols/ - Symbol images
 - Assets/Fonts/ - TTF font files
 

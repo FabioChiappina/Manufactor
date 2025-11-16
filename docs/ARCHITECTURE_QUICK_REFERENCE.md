@@ -28,7 +28,7 @@
 ### Assets
 | Asset | Location | Count |
 |-------|----------|-------|
-| Card Frames | `Assets/CardBorders/` | 76+ .jpg |
+| Card Frames | `Assets/CardFrames/` | 76+ .jpg |
 | Mana Symbols | `Assets/Symbols/` | PNG symbols |
 | Set Symbols | `Assets/SetSymbols/` | PNG set icons |
 | MDFC Indicator | `Assets/MDFC/` | PNG indicators |
@@ -431,7 +431,7 @@ Token keys in the `tokens` section should use the `_TOKEN_` prefix:
 ```python
 PROJECT_ROOT = /Users/fabiochiappina/Desktop/Artwork/Magic/Manufactor
 ASSETS_PATH = PROJECT_ROOT/Assets
-CARD_BORDERS_PATH = ASSETS_PATH/CardBorders
+CARD_FRAMES_PATH = ASSETS_PATH/CardFrames
 SYMBOL_PATH = ASSETS_PATH/Symbols
 SET_SYMBOL_PATH = ASSETS_PATH/SetSymbols
 SAGA_SYMBOL_PATH = ASSETS_PATH/SagaSymbols

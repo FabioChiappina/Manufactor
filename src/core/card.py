@@ -9,7 +9,7 @@ import os
 from typing import Optional, List, Union, Dict, Any
 from src.core.mana import Mana
 from src.core.card_set import CardSet
-from src.utils.paths import CARD_BORDERS_PATH
+from src.utils.paths import CARD_FRAMES_PATH
 
 
 class CardFace:
@@ -493,12 +493,12 @@ class Card:
         if frame is not None and type(frame)==str and frame.endswith(".jpg"):
             if frame in os.listdir("."):
                 self.frame = frame
-            elif frame in os.listdir(CARD_BORDERS_PATH):
-                self.frame = os.path.join(CARD_BORDERS_PATH, frame)
+            elif frame in os.listdir(CARD_FRAMES_PATH):
+                self.frame = os.path.join(CARD_FRAMES_PATH, frame)
             else:
-                self.frame = self.get_frame_filename(CARD_BORDERS_PATH)
+                self.frame = self.get_frame_filename(CARD_FRAMES_PATH)
         else:
-            self.frame = self.get_frame_filename(CARD_BORDERS_PATH)
+            self.frame = self.get_frame_filename(CARD_FRAMES_PATH)
 
     def get_colors(
         self

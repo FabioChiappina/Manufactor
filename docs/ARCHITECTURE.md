@@ -406,7 +406,7 @@ CardDraw(card: Card, save_path: str)
 
 ### 4.3 Frame System
 
-**Frame Files** (`Assets/CardBorders/`):
+**Frame Files** (`Assets/CardFrames/`):
 - Named by color scheme: `w_`, `u_`, `b_`, `r_`, `g_`, `c_`, `m_` (multicolor), `wu_`, `ub_`, etc.
 - Special types: `creature`, `noncreature`, `artifact-creature`, `artifact-noncreature`, `land`, `enchantment-*`
 - Special frames: `transform-front`, `transform-back`, `mdfc-front`, `mdfc-back`, `token-*`, `saga`
@@ -561,7 +561,7 @@ src/
 
 ```
 Assets/
-├── CardBorders/             # Frame templates (76+ .jpg files)
+├── CardFrames/              # Frame templates (76+ .jpg files)
 ├── Symbols/                 # Mana and ability symbols
 ├── SetSymbols/              # Set symbols (expansion icons)
 ├── SagaSymbols/             # Saga chapter symbols
@@ -1130,7 +1130,7 @@ From `src/utils/paths.py`:
 PROJECT_ROOT = /Users/fabiochiappina/Desktop/Artwork/Magic/Manufactor
 
 ASSETS_PATH = PROJECT_ROOT/Assets
-CARD_BORDERS_PATH = ASSETS_PATH/CardBorders
+CARD_FRAMES_PATH = ASSETS_PATH/CardFrames
 SYMBOL_PATH = ASSETS_PATH/Symbols
 SET_SYMBOL_PATH = ASSETS_PATH/SetSymbols
 SAGA_SYMBOL_PATH = ASSETS_PATH/SagaSymbols

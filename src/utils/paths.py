@@ -13,7 +13,8 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 
 # Static asset paths (relative to project structure)
 ASSETS_PATH = os.path.join(PROJECT_ROOT, "Assets")
-CARD_BORDERS_PATH = os.path.join(ASSETS_PATH, "CardBorders")
+CARD_FRAMES_PATH = os.path.join(ASSETS_PATH, "CardFrames")
+CARD_BORDERS_PATH = CARD_FRAMES_PATH  # Backward compatibility alias
 SYMBOL_PATH = os.path.join(ASSETS_PATH, "Symbols")
 SET_SYMBOL_PATH = os.path.join(ASSETS_PATH, "SetSymbols")
 SAGA_SYMBOL_PATH = os.path.join(ASSETS_PATH, "SagaSymbols")
