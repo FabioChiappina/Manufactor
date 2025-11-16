@@ -59,6 +59,7 @@ def create_card_image_from_Card(
         card_draw.write_name()
         card_draw.write_type_line()
         card_draw.write_rules_text()
+        card_draw.write_subspell_text()
         card_draw.paste_mana_symbols()
         card_draw.paste_set_symbol()
         card_draw.paste_mdfc_indicator()
@@ -255,6 +256,63 @@ class CardDraw:
         font = ImageFont.truetype(font_filename, font_size)
         _, _, x, y = font.getbbox(text)
         return (x,y)
+
+    def extract_italics_indices_from_text(
+        self,
+        text: str
+    ) -> Tuple[str, List[int], List[int]]:
+        """
+        Extract italics start/end indices from text with parentheses and <i> tags.
+
+        Processes text to find:
+        - Parenthetical text: (reminder text)
+        - Custom italic tags: <i>italic text</i>
+
+        Args:
+            text: Text string potentially containing parentheses or <i> tags
+
+        Returns:
+            Tuple of (processed_text, italics_start_indices, italics_end_indices)
+            - processed_text has <i>/</ removed but keeps parentheses
+            - italics_start_indices: list of character positions where italics begin
+            - italics_end_indices: list of character positions where italics end
+        """
+        if not any([it in text for it in ["(", ")", "<i>", "</i>"]]):
+            return text, [], []
+
+        force_italics_start_positions, force_italics_end_positions = [], []
+        last_found_indicator = None
+
+        for position in range(len(text)):
+            try:
+                if text[position:position+3] == "<i>":
+                    if last_found_indicator is None or last_found_indicator != "<i>":
+                        force_italics_start_positions.append(position)
+                        text = text[0:position] + text[position+3:]
+                        last_found_indicator = "<i>"
+                elif text[position:position+4] == "</i>":
+                    if last_found_indicator is None or last_found_indicator != "</i>":
+                        force_italics_end_positions.append(position)
+                        text = text[0:position] + text[position+4:]
+                        last_found_indicator = "</i>"
+                elif text[position] == "(":
+                    if last_found_indicator is None or last_found_indicator != "(":
+                        force_italics_start_positions.append(position)
+                        last_found_indicator = "("
+                elif text[position] == ")":
+                    if last_found_indicator is None or last_found_indicator != ")":
+                        force_italics_end_positions.append(position + 1)
+                        last_found_indicator = ")"
+            except:
+                pass
+
+        # Ensure balanced start/end indices
+        while len(force_italics_end_positions) < len(force_italics_start_positions):
+            force_italics_end_positions.append(len(text) + 1)
+        while len(force_italics_start_positions) < len(force_italics_end_positions):
+            force_italics_start_positions = [0] + force_italics_start_positions
+
+        return text, force_italics_start_positions, force_italics_end_positions
 
     def get_text_size_adjusted_for_italics(
         self,
@@ -479,6 +537,8 @@ class CardDraw:
             return
         if self.card.is_saga():
             max_width = MAX_WIDTH_SAGA_RULES_TEXT_BOX
+        elif self.card.is_subspell():
+            max_width = MAX_WIDTH_SUBSPELL_MAIN_RULES_TEXT_BOX
         else:
             max_width = MAX_WIDTH_RULES_TEXT_BOX
         if (text is None or len(text)==0) and text_flavor is not None:
@@ -517,6 +577,9 @@ class CardDraw:
         elif self.card.is_saga():
             max_height = MAX_HEIGHT_SAGA_RULES_TEXT_BOX
             x,y = POSITION_SAGA_RULES_TEXT
+        elif self.card.is_subspell():
+            max_height = MAX_HEIGHT_RULES_TEXT_BOX
+            x,y = POSITION_SUBSPELL_MAIN_RULES_TEXT
         else:
             max_height = MAX_HEIGHT_RULES_TEXT_BOX
             x,y = POSITION_RULES_TEXT
@@ -524,7 +587,7 @@ class CardDraw:
             max_height -= 14
         if font_size == 'fill':
             fill = True
-            font_size = self.get_font_size(text, font_filename, max_height=MAX_FONT_SIZE_RULES_TEXT_LETTERS, max_width=MAX_WIDTH_RULES_TEXT_BOX)
+            font_size = self.get_font_size(text, font_filename, max_height=MAX_FONT_SIZE_RULES_TEXT_LETTERS, max_width=max_width)
         else:
             fill = False
         text_blocks = text.split('\n')
@@ -781,7 +844,11 @@ class CardDraw:
         self.paste_in_text_symbols(list_of_symbols, list_of_symbol_positions, symbol_size)
         # Paste the line between text and flavor text:
         if flavor_line_position is not None:
-            flavor_line_image = Image.open(os.path.join(ASSETS_PATH, "flavor_line.png"))
+            # Use the right-side flavor line for cards with subspells, otherwise use the full line
+            if self.card.is_subspell():
+                flavor_line_image = Image.open(os.path.join(ASSETS_PATH, "flavor_line_right.png"))
+            else:
+                flavor_line_image = Image.open(os.path.join(ASSETS_PATH, "flavor_line.png"))
             self.image.paste(flavor_line_image, flavor_line_position, flavor_line_image)
         # Paste the lines between Saga chapters:
         if len(saga_line_positions)>0:
@@ -1146,3 +1213,388 @@ class CardDraw:
         if os.path.exists(pt_box_path):
             pt_box = Image.open(pt_box_path)
             self.image.paste(pt_box, (0, 0), pt_box)
+
+    def paste_subspell_mana_symbols(
+        self
+    ) -> None:
+        """
+        Paste mana cost symbols for the subspell on the card image.
+
+        Renders the subspell's mana symbols in the top-right area of the subspell section.
+        Uses smaller symbols than the main card, with different sizes for adventure vs omen.
+        """
+        if not self.card.is_subspell():
+            return
+
+        if self.card.subspell.mana is None or len(self.card.subspell.mana) == 0:
+            return
+
+        # Use different positions and sizes for adventure vs other subspells
+        is_adventure = self.is_adventure_subspell()
+        position = POSITION_ADVENTURE_MANA_SYMBOL if is_adventure else POSITION_SUBSPELL_MANA_SYMBOL
+        symbol_size = ADVENTURE_MANA_SYMBOL_SIZE if is_adventure else SUBSPELL_MANA_SYMBOL_SIZE
+
+        # Parse mana symbols from the subspell mana cost
+        mana_symbols = [m.replace('}','').replace('/','') for m in self.card.subspell.mana.split('{')]
+        mana_symbol_paths = [os.path.join(SYMBOL_PATH, symbol+".png") for symbol in mana_symbols if (len(symbol)!=0 and os.path.isfile(os.path.join(SYMBOL_PATH, symbol+".png")))]
+        mana_symbol_paths.reverse()
+
+        for mana_symbol in mana_symbol_paths:
+            # Add shadow for depth
+            shadow_image = Image.open(os.path.join(SYMBOL_PATH, "black.png"))
+            shadow_image = shadow_image.resize((symbol_size, symbol_size))
+            self.image.paste(shadow_image, (position[0]-1, position[1]+2), shadow_image)
+
+            # Paste the mana symbol
+            mana_image = Image.open(mana_symbol)
+            mana_image = mana_image.resize((symbol_size, symbol_size))
+            self.image.paste(mana_image, position, mana_image)
+
+            # Move left for next symbol
+            position = (position[0]-(3+symbol_size), position[1])
+
+    def write_subspell_text(
+        self
+    ) -> None:
+        """
+        Write the subspell name, type, and rules text on the left side of the card.
+
+        This renders all text for the subspell portion of adventure/omen cards.
+        """
+        if not self.card.is_subspell():
+            return
+
+        # Paste subspell mana symbols
+        self.paste_subspell_mana_symbols()
+
+        # Write subspell name
+        self.write_subspell_name()
+
+        # Write subspell type line
+        self.write_subspell_type()
+
+        # Write subspell rules text
+        self.write_subspell_rules()
+
+    def write_subspell_name(
+        self
+    ) -> None:
+        """Write the subspell name on the card."""
+        if not self.card.is_subspell() or not self.card.subspell.name:
+            return
+
+        font_filename = FONT_PATHS["name"]
+        text = self.card.subspell.name
+
+        # Use different positions and heights for adventure vs other subspells
+        is_adventure = self.is_adventure_subspell()
+        x, y = POSITION_ADVENTURE_NAME if is_adventure else POSITION_SUBSPELL_NAME
+        max_height = MAX_HEIGHT_ADVENTURE_NAME if is_adventure else MAX_HEIGHT_SUBSPELL_NAME
+        symbol_size = ADVENTURE_MANA_SYMBOL_SIZE if is_adventure else SUBSPELL_MANA_SYMBOL_SIZE
+
+        # Adjust max width based on number of mana symbols (similar to main card name)
+        max_width = MAX_WIDTH_SUBSPELL_NAME
+        if self.card.subspell.mana is not None:
+            num_mana_symbols = self.card.subspell.mana.count("{")
+            max_width -= num_mana_symbols * symbol_size
+
+        font_size = self.get_font_size(
+            text,
+            font_filename,
+            max_height=max_height,
+            max_width=max_width
+        )
+        font = ImageFont.truetype(font_filename, font_size)
+        self.draw.text((x, y), text, WHITE, font=font)
+
+    def write_subspell_type(
+        self
+    ) -> None:
+        """Write the subspell type line on the card."""
+        if not self.card.is_subspell():
+            return
+
+        font_filename = FONT_PATHS["type"]
+
+        # Build type line from cardtype and subtype
+        type_parts = []
+        if self.card.subspell.cardtype:
+            type_parts.append(self.card.subspell.cardtype)
+        if self.card.subspell.subtype:
+            type_parts.append("—")
+            type_parts.append(self.card.subspell.subtype)
+
+        if not type_parts:
+            return
+
+        text = " ".join(type_parts)
+        x, y = POSITION_SUBSPELL_TYPE
+
+        font_size = self.get_font_size(
+            text,
+            font_filename,
+            max_height=MAX_HEIGHT_SUBSPELL_TYPE,
+            max_width=MAX_WIDTH_SUBSPELL_TYPE
+        )
+        font = ImageFont.truetype(font_filename, font_size)
+        self.draw.text((x, y), text, WHITE, font=font)
+
+    def write_subspell_rules(
+        self
+    ) -> None:
+        """
+        Write the subspell rules text and flavor text on the card.
+
+        Handles the same text formatting as main rules text including:
+        - Mana symbol replacement with placeholders
+        - Italic formatting for parenthetical text (reminder text)
+        - Custom italic tags (<i>text</i>)
+        - Multi-line text wrapping
+        - Flavor text with separator line (flavor_line_left.png)
+        """
+        if not self.card.is_subspell():
+            return
+
+        # Early return if no rules or flavor text
+        if (not self.card.subspell.rules or len(self.card.subspell.rules) == 0) and \
+           (not self.card.subspell.flavor or len(self.card.subspell.flavor) == 0):
+            return
+
+        font_filename = FONT_PATHS["rules"]
+        font_filename_flavor = FONT_PATHS["flavor"]
+        text = self.card.subspell.rules
+        text_flavor = self.card.subspell.flavor
+        x, y = POSITION_SUBSPELL_RULES_TEXT
+        max_width = MAX_WIDTH_SUBSPELL_RULES_TEXT_BOX
+        max_height = MAX_HEIGHT_SUBSPELL_RULES_TEXT_BOX
+
+        # Handle case where only flavor text exists
+        if (text is None or len(text) == 0) and text_flavor is not None:
+            text = text_flavor
+            font_filename = font_filename_flavor
+            text_flavor = None
+
+        # Process rules and flavor text blocks
+        text_blocks = text.split('\n') if text else []
+        flavor_block_index = None
+        if text_flavor is not None:
+            flavor_block_index = len(text_blocks)
+            text_blocks += text_flavor.split('\n')
+
+        # Extract italics indices and replace mana symbols for each text block
+        list_of_symbols = []
+        italics_start_indices_per_block = []
+        italics_end_indices_per_block = []
+
+        for ti, text_block in enumerate(text_blocks):
+            # Extract italics
+            text_block, italics_start, italics_end = self.extract_italics_indices_from_text(text_block)
+            italics_start_indices_per_block.append(italics_start)
+            italics_end_indices_per_block.append(italics_end)
+
+            # Replace mana symbols
+            tokenized_text = text_block.split()
+            retokenized_text = []
+            for token in tokenized_text:
+                if "{" not in token:
+                    retokenized_text.append(token)
+                    continue
+                prev_bracket = None
+                token_replaced = ""
+                for index, c in enumerate(token):
+                    if c == '{':
+                        prev_bracket = index
+                    if prev_bracket is None:
+                        token_replaced += c
+                    if prev_bracket is not None and index > 0 and index < len(token) and c == "}":
+                        found_symbol = token[prev_bracket:index+1]
+                        if found_symbol in all_symbols_bracketed:
+                            list_of_symbols.append(found_symbol.replace("{", "").replace("}", ""))
+                            token_replaced += " ○ "
+                            prev_bracket = None
+                        else:
+                            token_replaced += found_symbol
+                token_replaced = token_replaced.replace("  ", " ")
+                retokenized_text.append(token_replaced)
+            text_blocks[ti] = " ".join(retokenized_text)
+
+        # Start with max font size and work down
+        font_size = MAX_FONT_SIZE_RULES_TEXT_LETTERS
+        total_height = float('inf')
+        text_lines = []
+        stored_italics_start_per_block = [idx.copy() for idx in italics_start_indices_per_block]
+        stored_italics_end_per_block = [idx.copy() for idx in italics_end_indices_per_block]
+
+        while total_height > max_height and font_size > 8:
+            italics_start_indices_per_block = [idx.copy() for idx in stored_italics_start_per_block]
+            italics_end_indices_per_block = [idx.copy() for idx in stored_italics_end_per_block]
+
+            text_height = self.get_text_size(font_filename, font_size, "j")[1]
+            text_height_flavor = self.get_text_size(font_filename_flavor, font_size, "j")[1]
+            text_lines = []
+            text_lines_block_indices = []
+            cumulative_text_height = text_height
+
+            for ti, this_text_block in enumerate(text_blocks):
+                italics_start_indices = italics_start_indices_per_block[ti]
+                italics_end_indices = italics_end_indices_per_block[ti]
+
+                # Adjust italics indices for symbols
+                extra_italics_shift_indices = []
+                if len(italics_start_indices) > 0:
+                    for txtchr_i, txtchr in enumerate(this_text_block):
+                        if txtchr_i < 2 or txtchr != "○":
+                            continue
+                        if (this_text_block[txtchr_i-2] not in [" ", "○"]) and (this_text_block[txtchr_i-1] == " "):
+                            if txtchr_i not in extra_italics_shift_indices:
+                                extra_italics_shift_indices.append(txtchr_i)
+
+                for extra_italics_shift_index in extra_italics_shift_indices:
+                    for italics_i in range(len(italics_start_indices)):
+                        if italics_start_indices[italics_i] > extra_italics_shift_index:
+                            italics_start_indices[italics_i] += 1
+                        if italics_end_indices[italics_i] > extra_italics_shift_index:
+                            italics_end_indices[italics_i] += 1
+
+                words = this_text_block.split()
+
+                # Preprocess words to combine symbols
+                words_adjusted_for_symbols = []
+                last_symbol_seen = None
+                for wi, word in enumerate(words):
+                    if word != "○":
+                        if last_symbol_seen is not None:
+                            italics_index_adjustment = wi - last_symbol_seen - 1
+                            for italics_i in range(len(italics_start_indices)):
+                                if italics_start_indices[italics_i] > len(" ".join(words_adjusted_for_symbols[:last_symbol_seen])):
+                                    italics_start_indices[italics_i] += italics_index_adjustment
+                                if italics_end_indices[italics_i] > len(" ".join(words_adjusted_for_symbols[:last_symbol_seen])):
+                                    italics_end_indices[italics_i] += italics_index_adjustment
+                            words_adjusted_for_symbols.append(" " + "  ".join(words[last_symbol_seen:wi]) + (" " if ((wi <= len(words)-1) and (words[wi] not in [".", ",", ":"])) else ""))
+                            last_symbol_seen = None
+                        words_adjusted_for_symbols.append(word)
+                        continue
+                    if last_symbol_seen is None:
+                        last_symbol_seen = wi
+                    if wi == len(words) - 1:
+                        words_adjusted_for_symbols.append(" " + "  ".join(words[last_symbol_seen:]))
+
+                # Combine symbols with following punctuation
+                words_readjusted = []
+                previous_word_is_symbol = False
+                previous_word_is_quote = False
+                for word in words_adjusted_for_symbols:
+                    if previous_word_is_symbol and word in [".", ",", ":", ".\""]:
+                        words_readjusted[-1] = words_readjusted[-1] + " " + word
+                    elif previous_word_is_quote and "○" in word:
+                        words_readjusted[-1] = words_readjusted[-1] + word
+                    else:
+                        words_readjusted.append(word)
+                    previous_word_is_symbol = "○" in word
+                    previous_word_is_quote = "\"" in word
+                words = words_readjusted.copy()
+
+                # Break into lines using italic-aware sizing
+                lines = []
+                line = []
+                current_italics_index_offset = 0
+                current_font = font_filename_flavor if ti == flavor_block_index else font_filename
+                for word in words:
+                    new_line = ' '.join(line + [word])
+                    size = self.get_text_size_adjusted_for_italics(font_size, new_line, italics_start_indices, italics_end_indices, current_italics_index_offset, current_font, font_filename_flavor)
+                    if size[0] <= max_width:
+                        line.append(word)
+                    else:
+                        if line:
+                            current_italics_index_offset += len(' '.join(line)) + 1
+                            cumulative_text_height += text_height
+                            lines.append(line)
+                        line = [word]
+                if line:
+                    cumulative_text_height += text_height
+                    lines.append(line)
+
+                # Add flavor text separator
+                if ti == flavor_block_index:
+                    cumulative_text_height += text_height
+                    text_height = text_height_flavor
+                    text_lines.append(" ")  # Separator line marker
+                    text_lines_block_indices.append(None)
+
+                text_lines += [' '.join(line) for line in lines if line]
+                text_lines_block_indices += [ti for line in lines if line]
+
+                # Add spacing between text blocks (except before flavor)
+                if ti != len(text_blocks) - 1 and (True if flavor_block_index is None else ti < flavor_block_index):
+                    cumulative_text_height += text_height / 2
+                    text_lines.append("")
+                    text_lines_block_indices.append(None)
+
+            text_height = self.get_text_size(font_filename, font_size, "j")[1]
+            total_height = len(text_lines) * text_height - (0.5 * text_height) * len([t for t in text_lines if t == ""])
+            if total_height <= max_height:
+                break
+            font_size -= 1
+
+        # Center vertically if there's extra space
+        if total_height < max_height:
+            y += (max_height - total_height) / 2
+
+        # Render lines with italic support and track symbol positions
+        line_height = self.get_text_size(font_filename, font_size, "Mj")[1]
+        current_y = y
+        list_of_symbol_positions = []
+        symbol_size = self.get_text_size(font_filename, font_size, "I")[1]
+        current_italics_index_offset = 0
+        flavor_line_position = None
+        previous_seen_block_index = None
+
+        for index, line in enumerate(text_lines):
+            if line == "":
+                current_y += line_height / 2
+            elif line == " ":
+                current_y += line_height
+            else:
+                current_y += line_height
+
+            # Track flavor line position
+            block_index = text_lines_block_indices[index]
+            if index > 0 and text_lines[index - 1] == " ":
+                font_filename = font_filename_flavor
+                flavor_line_position = (POSITION_FLAVOR_LINE[0], int(current_y - line_height / 4))
+
+            # Reset italics offset for new blocks
+            if (previous_seen_block_index is None and block_index is not None) or \
+               (previous_seen_block_index is not None and block_index is not None and previous_seen_block_index < block_index):
+                previous_seen_block_index = block_index
+                current_italics_index_offset = 0
+
+            if block_index is None:
+                italics_start_indices, italics_end_indices = [], []
+            else:
+                italics_start_indices = italics_start_indices_per_block[block_index]
+                italics_end_indices = italics_end_indices_per_block[block_index]
+
+            if line not in ["", " "]:
+                _, symbol_positions = self.write_text(
+                    (x, current_y),
+                    line,
+                    font_filename=font_filename,
+                    font_filename_italics=font_filename_flavor,
+                    font_size=font_size,
+                    color=BLACK,
+                    return_symbol_positions=True,
+                    italics_start_indices=italics_start_indices,
+                    italics_end_indices=italics_end_indices,
+                    italics_index_offset=current_italics_index_offset
+                )
+                list_of_symbol_positions += [(s[0], s[1] + int(0.1 * symbol_size)) for s in symbol_positions]
+                current_italics_index_offset += len(line) + 1
+
+        # Paste mana symbols
+        self.paste_in_text_symbols(list_of_symbols, list_of_symbol_positions, symbol_size)
+
+        # Paste the line between rules and flavor text
+        if flavor_line_position is not None:
+            flavor_line_image = Image.open(os.path.join(ASSETS_PATH, "flavor_line_left.png"))
+            self.image.paste(flavor_line_image, flavor_line_position, flavor_line_image)
