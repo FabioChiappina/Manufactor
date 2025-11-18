@@ -118,7 +118,27 @@ Supertype field documentation:
 
 **Best for**: Understanding supertype fields
 
-#### 9. README.md
+#### 9. SUBSPELLS.md
+Subspell card documentation:
+- Adventure and Omen card support
+- JSON structure with subspell objects
+- Rendering and layout details
+- Complete examples
+
+**Best for**: Working with Adventure/Omen cards
+
+#### 10. REAL_CARDS.md
+Real MTG card integration guide:
+- Marking cards as real vs custom
+- Folder structure recommendations
+- Scryfall API integration strategy
+- UI filtering implementation
+- Local caching approaches
+- Code examples for image providers
+
+**Best for**: Mixing real and custom cards in decks
+
+#### 11. README.md
 Getting started guide with:
 - Prerequisites
 - Virtual environment setup
@@ -161,11 +181,18 @@ Getting started guide with:
 1. JSON_FORMAT.md (complete format reference)
 2. CODE_EXAMPLES.md (JSON Examples section)
 3. DOUBLE_FACED_CARDS.md (for transform/MDFC cards)
-4. SUPERTYPES.md (for legendary, basic, snow fields)
+4. SUBSPELLS.md (for Adventure/Omen cards)
+5. SUPERTYPES.md (for legendary, basic, snow fields)
+6. REAL_CARDS.md (for marking real vs custom cards)
 
 ### I want to understand the refactoring
 1. REFACTORING_PLAN.md (all sections)
 2. ARCHITECTURE.md (section 10: Key Technical Decisions)
+
+### I want to build a UI with real and custom cards
+1. REAL_CARDS.md (complete integration guide)
+2. ARCHITECTURE.md (section 7: Services Layer)
+3. CODE_EXAMPLES.md (Deck Loading section)
 
 ---
 
@@ -217,7 +244,9 @@ Utilities (Paths, Config, File Utils)
 - CODE_EXAMPLES.md
 - JSON_FORMAT.md
 - DOUBLE_FACED_CARDS.md
+- SUBSPELLS.md
 - SUPERTYPES.md
+- REAL_CARDS.md
 - CONFIGURATION.md
 - REFACTORING_PLAN.md
 - DOCUMENTATION_INDEX.md (this file)
