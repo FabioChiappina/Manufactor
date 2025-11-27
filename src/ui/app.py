@@ -11,6 +11,30 @@ from src.services.settings_manager import SettingsManager
 from src.utils.paths import PROJECT_ROOT
 
 
+def check_deck_path_configured():
+    """
+    Check if deck path is configured.
+
+    Returns:
+        Tuple of (is_configured: bool, message: str)
+    """
+    settings = SettingsManager()
+    deck_path = settings.get_deck_path()
+
+    if not deck_path or not deck_path.strip():
+        return False, """## ⚠️ Configuration Required
+
+**Error**: Deck path is not configured.
+
+Please go to the **Settings** tab and configure your Deck Path before using Manufactor."""
+    else:
+        return True, """## Your Decks
+
+Browse and manage your custom card decks.
+
+*Deck management features coming soon...*"""
+
+
 def save_settings(deck_path: str, cockatrice_path: str):
     """
     Save settings to config.json.
@@ -20,7 +44,7 @@ def save_settings(deck_path: str, cockatrice_path: str):
         cockatrice_path: Path to Cockatrice installation
 
     Returns:
-        Tuple of (success message, updated deck path, updated cockatrice path)
+        Tuple of (success message, updated deck path, updated cockatrice path, deck status message)
     """
     settings = SettingsManager()
 
@@ -31,14 +55,19 @@ def save_settings(deck_path: str, cockatrice_path: str):
 
         # Validate
         errors = settings.get_validation_errors()
+
+        # Check deck path status for My Decks tab update
+        _, deck_status = check_deck_path_configured()
+
         if errors:
             warning_msg = "Settings saved with warnings:\n" + "\n".join(f"- {e}" for e in errors)
-            return warning_msg, deck_path, cockatrice_path
+            return warning_msg, deck_path, cockatrice_path, deck_status
         else:
-            return "Settings saved successfully!", deck_path, cockatrice_path
+            return "Settings saved successfully!", deck_path, cockatrice_path, deck_status
 
     except Exception as e:
-        return f"Error saving settings: {str(e)}", deck_path, cockatrice_path
+        _, deck_status = check_deck_path_configured()
+        return f"Error saving settings: {str(e)}", deck_path, cockatrice_path, deck_status
 
 
 def load_current_settings():
@@ -189,13 +218,11 @@ def create_ui():
 
         # My Decks tab
         with gr.Tab("My Decks"):
-            gr.Markdown("""
-            ## Your Decks
+            # Get initial deck status
+            _, initial_deck_status = check_deck_path_configured()
 
-            Browse and manage your custom card decks.
-
-            *Deck management features coming soon...*
-            """)
+            # Create dynamic markdown that can be updated from Settings
+            deck_status_display = gr.Markdown(initial_deck_status)
 
         # Settings tab
         with gr.Tab("Settings", elem_id="settings-tab"):
@@ -227,7 +254,7 @@ def create_ui():
             save_button.click(
                 fn=save_settings,
                 inputs=[deck_path_input, cockatrice_path_input],
-                outputs=[status_message, deck_path_input, cockatrice_path_input]
+                outputs=[status_message, deck_path_input, cockatrice_path_input, deck_status_display]
             )
 
             gr.Markdown("---")
