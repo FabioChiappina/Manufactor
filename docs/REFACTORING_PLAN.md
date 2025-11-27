@@ -177,47 +177,69 @@ Organized command-line tools and external integrations:
 
 **Testing**: CLI functionality verified with `--help` flag
 
+### ✅ Phase 5: Services Layer
+**Status**: Complete
+**Commit**: `TBD`
+
+Created comprehensive business logic layer to bridge UI and core functionality:
+
+#### 1. **src/services/card_builder.py** (~280 lines)
+Complete CardBuilder class with:
+- `create_card_from_form_data()` - Creates Card from UI form data
+- `validate_card_data()` - Validates form inputs with error messages
+- `get_suggested_frame()` - Suggests appropriate frame based on properties
+- `infer_colors_from_mana()` - Extracts color identity from mana cost
+- `calculate_mana_value()` - Calculates mana value (CMC)
+- `get_default_card_data()` - Provides type-specific defaults
+- Smart validation for creature stats, planeswalker loyalty, mana costs
+
+#### 2. **src/services/image_generator.py** (~207 lines)
+Complete ImageGenerator class with:
+- `generate_deck_images()` - Generates all card/token images with progress tracking
+- `generate_single_card_image()` - Generates individual card images
+- Directory management and file organization
+- Token image generation with automatic JSON regeneration
+- Progress callback support for UI integration
+
+#### 3. **src/services/deck_manager.py** (~217 lines)
+Complete DeckManager class with:
+- `load_deck_from_folder()` and `load_deck_from_json()` - Deck loading
+- `get_deck_statistics()` - Comprehensive deck analysis
+- `print_deck_summaries()` - Console output for deck stats
+- `list_available_decks()` - Browse available decks
+- `create_deck_folder()` - Create new deck with proper structure
+- Mana curve and color distribution analysis
+
+#### 4. **src/services/cockatrice_exporter.py** (~154 lines)
+Complete CockatriceExporter class with:
+- `export_deck()` - Full Cockatrice export with options
+- `validate_export_paths()` - Path validation with error reporting
+- `get_export_info()` - Preview export details
+- `is_cockatrice_available()` - Check configuration status
+- `get_cockatrice_deck_path()` - Get .cod file path
+
+#### 5. **src/services/settings_manager.py** (~206 lines)
+Complete SettingsManager class with:
+- `get_deck_path()` and `set_deck_path()` - Deck path management
+- `get_cockatrice_path()` and `set_cockatrice_path()` - Cockatrice configuration
+- `validate_paths()` - Validate all configured paths
+- `get_validation_errors()` - Get validation error messages
+- `create_missing_directories()` - Auto-create missing directories
+- `reset_to_defaults()` - Reset configuration
+
+**CLI Integration**:
+- Updated `src/cli/build_deck.py` to use services layer
+- Removed direct core/rendering imports
+- Improved error handling and user feedback
+- Better progress reporting
+
+**Exports**:
+- Updated `src/services/__init__.py` with all five services
+- Clean API for GUI development
+
 ---
 
 ## Planned Phases
-
----
-
-### 📋 Phase 5: Services Layer
-**Status**: Planned
-
-Create business logic layer to bridge UI and core logic:
-
-#### 1. **src/services/card_builder.py**
-```python
-class CardBuilder:
-    def create_card_from_form_data(form_data: dict) -> Card
-    def validate_card_data(form_data: dict) -> List[str]
-    def get_suggested_frame(colors, cardtype) -> str
-```
-
-#### 2. **src/services/image_generator.py**
-```python
-class ImageGenerator:
-    def generate_card_image(card: Card, output_path: str) -> bool
-    def generate_deck_images(deck: Deck, progress_callback) -> bool
-    def preview_card(card: Card) -> Image
-```
-
-#### 3. **src/services/deck_builder.py**
-```python
-class DeckBuilder:
-    def build_from_json(json_path: str) -> Deck
-    def export_deck(deck: Deck, format: str) -> bool
-    def get_deck_statistics(deck: Deck) -> dict
-```
-
-#### 4. **src/services/cockatrice_exporter.py**
-```python
-class CockatriceExporter:
-    def export_deck(deck: Deck, options: dict) -> bool
-    def validate_export_paths() -> List[str]
-```
 
 ---
 
@@ -280,24 +302,25 @@ During transition:
 
 - [ ] All tests passing (Phase 6)
 - [x] No circular dependencies (Resolved with lazy imports)
-- [x] Clear module boundaries (Phases 1-4 complete)
-- [ ] Services layer implemented (Phase 5)
+- [x] Clear module boundaries (Phases 1-5 complete)
+- [x] Services layer implemented (Phase 5 complete)
 - [ ] GUI prototype working (Phase 7)
 - [x] Documentation complete (README and REFACTORING_PLAN updated)
 - [x] Original CLI still functional (Legacy scripts maintained)
-- [x] New modular CLI working (`python3 -m src.cli.build_deck`)
+- [x] New modular CLI working with services layer (`python3 -m src.cli.build_deck`)
 
 ### Progress Summary
 
-**Completed: Phases 1-4** ✅
+**Completed: Phases 1-5** ✅
 - Project structure established
 - All core classes extracted and modular
 - Rendering code organized
 - CLI and integration code separated
+- Services layer implemented (CardBuilder, ImageGenerator, DeckManager, CockatriceExporter, SettingsManager)
+- CLI refactored to use services
 - Full backward compatibility maintained
 
-**Remaining: Phases 5-7** 📋
-- Services layer (business logic bridge)
+**Remaining: Phases 6-7** 📋
 - Unit tests
 - GUI development
 

@@ -51,9 +51,11 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
         json_filepath_tokens = os.path.join(json_filepath_tokens, "custom_tokens.json")
     setname = CardSet.adjust_forbidden_custom_setname((deck.name.lower().replace("the ",""))[0:3].upper())
     # Get any tokens that must be updated in Cockatrice
+    tokens_deck = None
     try:
-        tokens_deck = Deck.from_json(os.path.join(DECK_PATH, deck.name, deck.name+'_Tokens.json'), setname, deck.name+"_Tokens")
-        tokens_cards = tokens_deck.cards   
+        # Use folder_name for filesystem paths
+        tokens_deck = Deck.from_json(os.path.join(DECK_PATH, deck.folder_name, deck.folder_name+'_Tokens.json'), setname, deck.folder_name+"_Tokens")
+        tokens_cards = tokens_deck.cards
     except Exception as e:
         tokens_cards = []
     if error_archiving_original_tokens:
@@ -68,7 +70,8 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             this_card_name = setname+"_"+card.name
             tokens_with_this_name_paths = [] # Saved tokens paths (a list since some tokens can have duplicates, like MyToken_1.jpg)
             tokens_cockatrice_target_paths = [] # Paths in the cockatrice folder to which to copy the tokens
-            base_path_this_token = os.path.join(DECK_PATH, deck.name, "Tokens", card.name+".jpg")
+            # Use folder_name for filesystem paths
+            base_path_this_token = os.path.join(DECK_PATH, deck.folder_name, "Tokens", card.name+".jpg")
             if os.path.exists(base_path_this_token):
                 duplicate_token_names.append(this_card_name.replace('"', '').replace("."," "))
                 tokens_with_this_name_paths.append(base_path_this_token)
@@ -76,7 +79,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 found_this_token = True
             this_token_counter = 1
             while True:
-                incremented_token_path = os.path.join(DECK_PATH, deck.name, "Tokens", card.name+"_"+str(this_token_counter)+".jpg")
+                incremented_token_path = os.path.join(DECK_PATH, deck.folder_name, "Tokens", card.name+"_"+str(this_token_counter)+".jpg")
                 if os.path.isfile(incremented_token_path):
                     duplicate_token_names.append(this_card_name.replace('"', '').replace("."," ")+"_"+str(this_token_counter))
                     tokens_with_this_name_paths.append(incremented_token_path)
@@ -86,7 +89,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 else:
                     break
             if not found_this_token:
-                print(f"\nWARNING: Could not find any tokens with the name {card.name} in the tokens path:", os.path.join(DECK_PATH, deck.name, "Tokens"), "  This token's artwork was not added to Cockatrice.")
+                print(f"\nWARNING: Could not find any tokens with the name {card.name} in the tokens path:", os.path.join(DECK_PATH, deck.folder_name, "Tokens"), "  This token's artwork was not added to Cockatrice.")
             for saved_token_path, target_cockatrice_token_path in zip(tokens_with_this_name_paths, tokens_cockatrice_target_paths):
                 try:
                     shutil.copy(saved_token_path, target_cockatrice_token_path)
@@ -96,7 +99,8 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 all_token_names_this_deck += duplicate_token_names
         else:
             this_card_name = card.name
-            current_image_path = os.path.join(DECK_PATH, deck.name, "Cards", card.name+".jpg")
+            # Use folder_name for filesystem paths
+            current_image_path = os.path.join(DECK_PATH, deck.folder_name, "Cards", card.name+".jpg")
             modified_this_card_name = this_card_name.replace('"', '').replace("."," ")
             try:
                 shutil.copy(current_image_path, os.path.join(COCKATRICE_IMAGE_PATH, modified_this_card_name+".full.jpeg"))
@@ -279,8 +283,9 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             cdeck.write('    <zone name="tokens">\n')
             for cdeck_tokenname in sorted(all_token_names_this_deck):
                 cdeck.write('        <card number="1" name="'+cdeck_tokenname+'"/>\n')
-            for cdeck_common_tokenname in sorted(tokens_deck.common_tokens):
-                cdeck.write('        <card number="1" name="'+cdeck_common_tokenname+' Token"/>\n')
+            if tokens_deck is not None:
+                for cdeck_common_tokenname in sorted(tokens_deck.common_tokens):
+                    cdeck.write('        <card number="1" name="'+cdeck_common_tokenname+' Token"/>\n')
             cdeck.write('    </zone>\n')
             cdeck.write('</cockatrice_deck>\n')
         cdeck.close()

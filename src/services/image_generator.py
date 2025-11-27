@@ -42,7 +42,7 @@ class ImageGenerator:
 
         Args:
             deck: The deck to generate images for
-            save_path: Optional custom save path (defaults to DECK_PATH/deck.name)
+            save_path: Optional custom save path (defaults to DECK_PATH/deck.folder_name)
             skip_complete: Skip cards with complete flag set
             automatic_tokens: Regenerate token JSON before creating token images
             progress_callback: Optional callback function(current, total, card_name)
@@ -56,12 +56,12 @@ class ImageGenerator:
         if not isinstance(deck, Deck):
             raise TypeError("Input deck must be of type Deck.")
 
-        # Setup paths
+        # Setup paths - use folder_name for filesystem operations
         if save_path is None:
-            save_path = os.path.join(DECK_PATH, deck.name)
+            save_path = os.path.join(DECK_PATH, deck.folder_name)
 
         # Ensure directory structure
-        self._ensure_directories(save_path, deck.name)
+        self._ensure_directories(save_path, deck.folder_name)
 
         # Generate card images
         cards_generated = self._generate_card_images(
@@ -173,18 +173,18 @@ class ImageGenerator:
         deck.get_tokens()
 
         try:
-            # Load tokens deck
+            # Load tokens deck - use folder_name for filesystem operations
             setname = (deck.name.lower().replace("the ", ""))[0:3].upper()
             setname = CardSet.adjust_forbidden_custom_setname(setname)
 
             tokens_deck = Deck.from_json(
-                os.path.join(DECK_PATH, deck.name, deck.name + '_Tokens.json'),
+                os.path.join(DECK_PATH, deck.folder_name, deck.folder_name + '_Tokens.json'),
                 setname,
-                deck.name + "_Tokens"
+                deck.folder_name + "_Tokens"
             )
 
-            tokens_path = os.path.join(DECK_PATH, deck.name, "Tokens")
-            printing_path = os.path.join(DECK_PATH, deck.name, "Printing")
+            tokens_path = os.path.join(DECK_PATH, deck.folder_name, "Tokens")
+            printing_path = os.path.join(DECK_PATH, deck.folder_name, "Printing")
 
             tokens_to_create = [c for c in tokens_deck.cards if not (c.complete and skip_complete)]
             total = len(tokens_to_create)
