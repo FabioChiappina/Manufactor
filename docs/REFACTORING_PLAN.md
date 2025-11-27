@@ -256,15 +256,45 @@ Add comprehensive unit tests:
 
 ---
 
-### 📋 Phase 7: GUI Development
-**Status**: Future
+### ✅ Phase 7: GUI Development - Basic UI
+**Status**: In Progress (Basic homepage complete)
+**Commit**: `TBD`
 
-Build graphical user interface:
+Built initial web-based user interface using Gradio:
 
-- Choose UI framework (tkinter, PyQt, web-based)
-- Implement `src/ui/windows/` components
-- Implement `src/ui/widgets/` reusable components
-- Connect to services layer
+#### Framework Selection
+- **Chosen**: Gradio (web-based UI framework)
+- **Rationale**:
+  - Rapid prototyping with minimal code
+  - Python-native (no JavaScript required)
+  - Built-in web server
+  - Easy to extend and customize
+  - Modern, responsive design out of the box
+
+#### 1. **src/ui/app.py** (~75 lines)
+- `create_ui()` - Main Gradio interface builder
+- `launch_ui()` - Server launcher with configuration
+- Basic homepage with tabs (Home, About)
+- Placeholder structure for future features
+
+#### Installation
+Updated `requirements.txt`:
+- Added `gradio>=4.0.0`
+- Successfully installed with all dependencies
+
+#### Usage
+```bash
+source venv/bin/activate
+python3 -m src.ui.app
+```
+Opens web interface at `http://localhost:7860`
+
+#### Future Enhancements (Phase 7 continuation)
+- Card creation form
+- Deck management interface
+- Image preview
+- Cockatrice export options
+- Settings configuration UI
 
 ---
 

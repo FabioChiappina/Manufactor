@@ -183,9 +183,27 @@ errors = settings.get_validation_errors()
 
 ## Usage
 
-### Using the New Modular CLI
+### Using the Web UI (NEW!)
 
-The recommended way to use Manufactor is with the new modular structure:
+The easiest way to use Manufactor is with the new Gradio-based web interface:
+
+```bash
+# IMPORTANT: Activate virtual environment first
+source venv/bin/activate
+
+# Launch the web UI
+python3 -m src.ui.app
+
+# The UI will open in your browser at http://localhost:7860
+
+# When done, press Ctrl+C to stop the server
+# Then deactivate the virtual environment
+deactivate
+```
+
+### Using the Modular CLI
+
+You can also use Manufactor via the command line:
 
 ```bash
 # IMPORTANT: Activate virtual environment first
@@ -204,7 +222,7 @@ python3 -m src.cli.prepare_reprints "OutputDirectoryName"
 deactivate
 ```
 
-**Important**: The new CLI requires the virtual environment to be activated to access dependencies (Pillow, num2words).
+**Important**: Both UI and CLI require the virtual environment to be activated to access dependencies (Pillow, num2words, Gradio).
 
 ## Troubleshooting
 
