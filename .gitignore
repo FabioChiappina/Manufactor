@@ -68,3 +68,4 @@ venv.bak/
 
 # User-specific configuration
 config.json
+common_tokens.json

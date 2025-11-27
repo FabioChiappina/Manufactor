@@ -52,14 +52,5 @@
     "token": 1,
     "colors": [],
     "rarity": "common"
-  },
-  "Junk": {
-    "name": "Junk",
-    "cardtype": "Artifact",
-    "subtype": "Junk",
-    "rules": "{T}, Sacrifice this artifact: Exile the top card of your library. You may play that card this turn. Activate only as a sorcery.",
-    "token": 1,
-    "colors": [],
-    "rarity": "common"
   }
 }
