@@ -195,11 +195,22 @@ source venv/bin/activate
 python3 -m src.ui.app
 
 # The UI will open in your browser at http://localhost:7860
+# (or another port if 7860 is in use - check terminal output)
 
 # When done, press Ctrl+C to stop the server
 # Then deactivate the virtual environment
 deactivate
 ```
+
+**UI Features**:
+- **My Decks**: Browse and manage your decks (coming soon)
+- **Settings**: Configure paths and manage common tokens
+  - Set deck path and Cockatrice path
+  - Add, view, and delete common token definitions
+  - All changes save to config files automatically
+- **About**: Project information and help
+
+For detailed UI documentation, see [docs/UI_GUIDE.md](docs/UI_GUIDE.md).
 
 ### Using the Modular CLI
 

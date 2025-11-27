@@ -257,8 +257,8 @@ Add comprehensive unit tests:
 ---
 
 ### ✅ Phase 7: GUI Development - Basic UI
-**Status**: In Progress (Basic homepage complete)
-**Commit**: `TBD`
+**Status**: Complete (Basic UI with Settings)
+**Commits**: `9b28340`, `60c4565`
 
 Built initial web-based user interface using Gradio:
 
@@ -271,11 +271,40 @@ Built initial web-based user interface using Gradio:
   - Easy to extend and customize
   - Modern, responsive design out of the box
 
-#### 1. **src/ui/app.py** (~75 lines)
-- `create_ui()` - Main Gradio interface builder
-- `launch_ui()` - Server launcher with configuration
-- Basic homepage with tabs (Home, About)
-- Placeholder structure for future features
+#### 1. **src/ui/app.py** (~290 lines)
+Complete web interface with three main tabs:
+
+**My Decks Tab**:
+- Placeholder for future deck browsing and management
+- Will include deck listing, creation, and editing
+
+**Settings Tab**:
+- **Path Configuration**:
+  - Deck path input with validation
+  - Cockatrice path input with validation
+  - Save button with status feedback
+  - Integrates with `SettingsManager` service
+  - Saves to `config/config.json`
+
+- **Common Token Management**:
+  - Table view of all common tokens with columns:
+    - Name, Card Type, Subtype, Rules Text, Colors, Frame
+  - Add new tokens with form inputs:
+    - Token name (required)
+    - Card type (defaults to "Artifact")
+    - Subtype (defaults to token name)
+    - Rules text
+    - Colors (comma-separated, e.g., "W, U" or empty for colorless)
+    - Frame (optional, empty for default)
+  - Delete tokens by name
+  - Real-time table updates
+  - Saves to `config/common_tokens.json`
+
+**About Tab**:
+- Project information
+- Feature roadmap
+- Technology stack
+- Current development status
 
 #### Installation
 Updated `requirements.txt`:
@@ -284,17 +313,49 @@ Updated `requirements.txt`:
 
 #### Usage
 ```bash
+# Activate virtual environment
 source venv/bin/activate
+
+# Launch the web UI
 python3 -m src.ui.app
+
+# Opens automatically in browser at http://localhost:7860
+# (or http://127.0.0.1:7861 if port 7860 is in use)
+
+# Press Ctrl+C to stop the server
+# Deactivate virtual environment when done
+deactivate
 ```
-Opens web interface at `http://localhost:7860`
+
+#### Configuration Management
+The UI provides full configuration management:
+
+1. **Settings Tab → Path Configuration**:
+   - Set deck storage location
+   - Set Cockatrice installation path
+   - Validation shows warnings for invalid/missing paths
+   - Changes persist to `config/config.json`
+
+2. **Settings Tab → Common Tokens**:
+   - View all predefined tokens (Treasure, Clue, Food, etc.)
+   - Add custom tokens for your sets
+   - Delete unwanted tokens
+   - Supports colors and custom frames
+   - Changes persist to `config/common_tokens.json`
+
+#### User-Specific Configuration
+As part of Phase 7, made configuration files user-specific:
+- `config/common_tokens.json` → Added to `.gitignore`
+- Created `config/common_tokens.example.json` as template
+- Users can customize tokens without affecting repository
 
 #### Future Enhancements (Phase 7 continuation)
-- Card creation form
-- Deck management interface
-- Image preview
-- Cockatrice export options
-- Settings configuration UI
+- Card creation form with all card properties
+- Deck management interface (browse, create, edit)
+- Image preview and gallery
+- Batch image generation with progress
+- Cockatrice export from UI
+- Deck statistics visualization
 
 ---
 
