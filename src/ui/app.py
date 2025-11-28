@@ -392,9 +392,12 @@ def get_card_artwork_base64(deck_folder_path, card_name):
         return None
 
 
-def create_deck_cards_html():
+def create_deck_cards_html(filter_status="all"):
     """
     Create HTML for displaying decks as cards.
+
+    Args:
+        filter_status: Filter by completion status - "all", "complete", or "incomplete"
 
     Returns:
         HTML string with deck cards
@@ -550,6 +553,12 @@ def create_deck_cards_html():
             print(f"Error processing deck {folder_name}: {e}")
             pass
 
+        # Apply filter
+        if filter_status == "complete" and not deck_complete:
+            continue
+        elif filter_status == "incomplete" and deck_complete:
+            continue
+
         # Get the background image
         bg_image_data = None
         is_partner_commanders = False
@@ -604,14 +613,17 @@ def create_deck_cards_html():
     return html
 
 
-def refresh_deck_view():
+def refresh_deck_view(filter_status="all"):
     """
     Refresh the deck view by regenerating the HTML.
+
+    Args:
+        filter_status: Filter by completion status - "all", "complete", or "incomplete"
 
     Returns:
         Updated HTML for deck cards
     """
-    return create_deck_cards_html()
+    return create_deck_cards_html(filter_status)
 
 
 def create_ui():
@@ -631,15 +643,33 @@ def create_ui():
             gr.Markdown("## My Decks")
             gr.Markdown("Click on a deck card to view details (coming soon)")
 
-            # Refresh button
-            refresh_btn = gr.Button("🔄 Refresh Decks", size="sm")
+            # Filter and refresh controls
+            with gr.Row():
+                filter_all_btn = gr.Button("📚 All Decks", size="sm", variant="primary")
+                filter_complete_btn = gr.Button("✅ Complete", size="sm")
+                filter_incomplete_btn = gr.Button("⏳ Incomplete", size="sm")
+                refresh_btn = gr.Button("🔄 Refresh", size="sm")
 
             # Deck cards display
             deck_cards_display = gr.HTML(create_deck_cards_html)
 
-            # Wire up refresh button
+            # Wire up filter buttons
+            filter_all_btn.click(
+                fn=lambda: refresh_deck_view("all"),
+                outputs=[deck_cards_display]
+            )
+            filter_complete_btn.click(
+                fn=lambda: refresh_deck_view("complete"),
+                outputs=[deck_cards_display]
+            )
+            filter_incomplete_btn.click(
+                fn=lambda: refresh_deck_view("incomplete"),
+                outputs=[deck_cards_display]
+            )
+
+            # Wire up refresh button (uses current filter - defaults to all)
             refresh_btn.click(
-                fn=refresh_deck_view,
+                fn=lambda: refresh_deck_view("all"),
                 outputs=[deck_cards_display]
             )
 

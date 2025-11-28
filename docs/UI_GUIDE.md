@@ -90,12 +90,20 @@ Each deck is shown as a card with:
 - Cards are arranged in a responsive grid (auto-fills based on screen width)
 - Minimum card width: 280px
 
+#### Filter Buttons
+- **📚 All Decks**: Show all decks regardless of completion status (default)
+- **✅ Complete**: Show only decks marked as complete (with `"complete": 1` in metadata)
+- **⏳ Incomplete**: Show only decks marked as incomplete (with `"complete": 0` or missing the field)
+- Use filters to quickly find decks based on their image generation status
+
 #### Refresh Button
-- Click "🔄 Refresh Decks" to reload the deck list
+- Click "🔄 Refresh" to reload the deck list
+- Resets filter to show all decks
 - Useful after:
   - Adding new deck folders
   - Modifying deck JSON files
   - Changing the deck path in Settings
+  - Updating deck completion status
 
 #### Deck Image Configuration
 The background image for each deck card is determined by the `deck_image` field in the deck's metadata section:
