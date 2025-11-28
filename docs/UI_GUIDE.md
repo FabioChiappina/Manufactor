@@ -61,16 +61,90 @@ Simply click on any tab to switch views.
 
 ## My Decks Tab
 
-**Status**: Coming Soon
+The My Decks tab displays all your available decks in a card-based grid layout.
 
-This tab will provide deck management features:
-- Browse all available decks
-- Create new decks
-- Edit existing decks
-- Generate card images for decks
-- Export decks to Cockatrice
+### Features
 
-Currently shows a placeholder message.
+#### Deck Discovery
+- Automatically scans your configured deck path for valid decks
+- A valid deck must have:
+  - A folder in the deck path (e.g., `/Decks/MyDeck/`)
+  - A JSON file with the same name as the folder (e.g., `MyDeck.json`)
+
+#### Deck Cards Display
+Each deck is shown as a card with:
+- **Background Image**: Card artwork displayed at 60% opacity with darkening filter
+  - Uses the `deck_image` field from metadata if specified
+  - Auto-selects the commander for Commander format decks
+  - Falls back to the first card in the deck if no commander
+  - Supports double-faced cards (uses front face artwork)
+- **Deck Name**: The `deck_name` from metadata (falls back to folder name)
+- **Card Count**: Number of cards in the deck (supports both old and new JSON formats)
+- **Format**: Deck format if specified in metadata (e.g., Commander, Standard)
+- **Description**: First 100 characters of the deck description (if available)
+- **Path**: Full path to the deck JSON file (small, de-emphasized text)
+
+#### Deck Card Styles
+- Cards use a purple gradient background
+- Hover effects (lift and shadow) to indicate interactivity
+- Cards are arranged in a responsive grid (auto-fills based on screen width)
+- Minimum card width: 280px
+
+#### Refresh Button
+- Click "🔄 Refresh Decks" to reload the deck list
+- Useful after:
+  - Adding new deck folders
+  - Modifying deck JSON files
+  - Changing the deck path in Settings
+
+#### Deck Image Configuration
+The background image for each deck card is determined by the `deck_image` field in the deck's metadata section:
+
+```json
+{
+  "metadata": {
+    "deck_name": "My Awesome Deck",
+    "deck_image": "Cool Card Name",
+    ...
+  }
+}
+```
+
+**Auto-Selection Rules** (when `deck_image` is absent or empty):
+1. For Commander format decks: Uses the `commander` field
+   - **Single commanders** (string): Uses that commander's artwork
+   - **Partner commanders** (array with exactly 2 commanders): Creates a diagonal split composite image showing both commanders
+     - Top-left half: First commander
+     - Bottom-right half: Second commander
+     - Images are automatically resized and blended with a diagonal split
+   - For other partner combinations (3+ commanders): Uses the first commander
+2. For other formats: Uses the first card in the deck's `cards` dictionary
+3. **Double-Faced Cards**: Automatically handles cards with " / " in the name by searching for the front face artwork
+
+**Artwork Location**: Images are loaded from the `Artwork/` subfolder within each deck folder.
+
+**Supported Formats**: `.jpg`, `.jpeg`, `.png`, `.gif`
+
+#### Configuration Status
+If the deck path is not configured, the tab will show:
+- A warning message
+- Instructions to configure the path in Settings
+
+If the deck path doesn't exist, the tab will show:
+- An error message with the invalid path
+- Instructions to update the path
+
+If no valid decks are found, the tab will show:
+- A message explaining what makes a valid deck folder
+
+### Deck Details (Coming Soon)
+- Currently, clicking on a deck card shows an alert message
+- Future versions will navigate to a deck detail page showing:
+  - Full deck information
+  - Card list
+  - Deck statistics
+  - Image generation options
+  - Export to Cockatrice button
 
 ---
 

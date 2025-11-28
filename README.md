@@ -203,7 +203,13 @@ deactivate
 ```
 
 **UI Features**:
-- **My Decks**: Browse and manage your decks (coming soon)
+- **My Decks**: Browse and manage your decks
+  - Card-based grid view of all available decks
+  - Beautiful card artwork backgrounds (auto-selects commander or featured card)
+  - Special diagonal split display for partner commander decks
+  - Shows deck name, card count, format, and description
+  - Refresh button to reload deck list
+  - Click on decks for details (coming soon)
 - **Settings**: Configure paths and manage common tokens
   - Set deck path and Cockatrice path
   - Add, view, and delete common token definitions
