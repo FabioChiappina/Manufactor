@@ -501,6 +501,7 @@ def create_deck_cards_html():
         card_count = "?"
         deck_description = ""
         deck_format = ""
+        deck_complete = 0
         display_name = folder_name  # Default to folder name
         card_image_name = None
         background_style = ""
@@ -525,6 +526,7 @@ def create_deck_cards_html():
                         display_name = metadata.get('deck_name', folder_name)
                         deck_description = metadata.get('description', '')[:100]  # First 100 chars
                         deck_format = metadata.get('format', '')
+                        deck_complete = metadata.get('complete', 0)
 
                         # Get deck_image from metadata, or auto-select
                         deck_image_raw = metadata.get('deck_image', '')
@@ -580,6 +582,11 @@ def create_deck_cards_html():
         info_parts = [f"📦 {card_count} cards"]
         if deck_format:
             info_parts.append(f"🎮 {deck_format}")
+
+        # Add completion status
+        completion_icon = "✅" if deck_complete else "⏳"
+        completion_text = "Complete" if deck_complete else "Incomplete"
+        info_parts.append(f"{completion_icon} {completion_text}")
 
         html += f"""
         <div class="deck-card"{background_style} onclick="alert('Deck details for {display_name} coming soon!')">

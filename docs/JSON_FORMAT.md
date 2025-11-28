@@ -45,7 +45,8 @@ Contains deck-level information:
     "author": "Your Name",
     "tags": ["Tribal", "Aggro"],
     "commander": "Commander Name",
-    "setname": "SET"
+    "setname": "SET",
+    "complete": 0
   }
 }
 ```
@@ -64,6 +65,7 @@ Contains deck-level information:
 | tags | array of strings | No | Tags for categorization |
 | commander | string or array | No | Commander name(s) - see [Commander Field](#commander-field) |
 | setname | string | No | Default set code for cards (e.g., "RCH", "ANK") |
+| complete | int | No | 1 if all deck images are generated, 0 otherwise (default: 0) |
 
 ### Commander Field
 
@@ -313,7 +315,8 @@ Contains token definitions:
     "author": "Example Author",
     "tags": ["Example", "Tutorial"],
     "commander": "Example Commander",
-    "setname": "EXM"
+    "setname": "EXM",
+    "complete": 0
   },
   "cards": {
     "Example Commander": {

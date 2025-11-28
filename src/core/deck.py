@@ -219,6 +219,7 @@ class Deck:
         author = metadata.get("author")
         deck_tags = metadata.get("tags", [])
         commander = metadata.get("commander")
+        deck_complete = metadata.get("complete", 0)  # Default to 0 (incomplete) if not specified
 
         # Get default setname from metadata, fallback to parameter, then "UNK"
         default_setname = metadata.get("setname", setname)
@@ -590,7 +591,8 @@ class Deck:
             author=author,
             commander=commander,
             tokens=tokens_dict,
-            setname=default_setname
+            setname=default_setname,
+            complete=deck_complete
         )
 
     @staticmethod
@@ -632,7 +634,8 @@ class Deck:
         author: Optional[str] = None,
         commander: Optional[Any] = None,
         tokens: Optional[Dict[str, Any]] = None,
-        setname: Optional[str] = None
+        setname: Optional[str] = None,
+        complete: int = 0
     ) -> None:
         """
         Initialize a Deck.
@@ -652,6 +655,7 @@ class Deck:
             commander: Commander card name(s). Can be a string (single commander) or list of strings (partner commanders, etc.)
             tokens: Dictionary of token definitions (new format)
             setname: Default set code for cards without specific setname (default: "UNK")
+            complete: 1 if all deck images are generated, 0 otherwise (default: 0)
 
         Raises:
             TypeError: If cards contains non-Card objects or name is not a string
@@ -673,6 +677,7 @@ class Deck:
         self.created = created
         self.last_modified = last_modified
         self.author = author
+        self.complete = complete
 
         # Commander can be a string (single) or list (partners/multiple)
         # Normalize to list internally for consistency
@@ -727,7 +732,8 @@ class Deck:
                     "author": self.author,
                     "tags": self.tags,
                     "commander": commander_export,
-                    "setname": self.setname
+                    "setname": self.setname,
+                    "complete": self.complete
                 },
                 "cards": {},
                 "tokens": self.tokens

@@ -89,6 +89,7 @@ class DeckManager:
 
         return {
             'name': deck.name,
+            'complete': getattr(deck, 'complete', 0),
             'total_cards': len(deck.cards),
             'total_lands': len([c for c in deck.cards if c.is_land()]),
             'total_spells': len([c for c in deck.cards if not c.is_land()]),
