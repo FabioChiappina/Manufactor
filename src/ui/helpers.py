@@ -265,10 +265,18 @@ def get_decks_with_metadata(filter_status='all'):
         if not bg_image_data and card_image_name:
             bg_image_data = get_card_artwork_base64(deck_folder_path, card_image_name)
 
+        # Calculate total card count including quantities
+        total_card_count = 0
+        for card_name, card_data in cards_dict.items():
+            if isinstance(card_data, dict):
+                total_card_count += card_data.get('quantity', 1)
+            else:
+                total_card_count += 1
+
         result.append({
             'name': display_name,
             'folder_name': folder_name,
-            'card_count': len(cards_dict),
+            'card_count': total_card_count,
             'format': metadata.get('format', ''),
             'description': metadata.get('description', ''),
             'commander': metadata.get('commander', ''),
@@ -373,15 +381,56 @@ def load_deck_by_name(deck_name):
         display_name = metadata.get('deck_name', folder_name)
 
         if display_name == deck_name:
-            # Get card images from Cards folder
+            # Get commander card images if present
+            commander_images = []
+            commander_names = []
+            commander = metadata.get('commander')
+            if commander:
+                if isinstance(commander, str):
+                    commander_names = [commander]
+                    # Single commander
+                    commander_img = get_card_image_base64(deck_folder_path, commander)
+                    if commander_img:
+                        commander_images.append(commander_img)
+                elif isinstance(commander, list):
+                    commander_names = commander
+                    # Multiple commanders
+                    for commander_name in commander:
+                        commander_img = get_card_image_base64(deck_folder_path, commander_name)
+                        if commander_img:
+                            commander_images.append(commander_img)
+
+            # Get card images from Cards folder, excluding commanders
             cards_with_images = {}
             for card_name, card_data in deck_data.get('cards', {}).items():
+                # Skip commander cards to avoid duplication
+                if card_name in commander_names:
+                    continue
                 # Get the card image (from Cards folder, not Artwork folder)
                 card_image = get_card_image_base64(deck_folder_path, card_name)
+
+                # Get quantity (default to 1 if not specified)
+                quantity = 1
+                if isinstance(card_data, dict):
+                    quantity = card_data.get('quantity', 1)
+
                 cards_with_images[card_name] = {
-                    **card_data,
-                    'image_base64': card_image
+                    **(card_data if isinstance(card_data, dict) else {}),
+                    'image_base64': card_image,
+                    'quantity': quantity
                 }
+
+            # Calculate total card count including commanders and quantities
+            total_cards = 0
+            unique_cards = 0
+            for card_name, card_data in deck_data.get('cards', {}).items():
+                unique_cards += 1
+                if isinstance(card_data, dict):
+                    total_cards += card_data.get('quantity', 1)
+                else:
+                    total_cards += 1
+
+            commander_count = len(commander_names)
 
             return {
                 'name': display_name,
@@ -389,7 +438,11 @@ def load_deck_by_name(deck_name):
                 'folder_path': deck_folder_path,
                 'json_path': json_path,
                 'metadata': metadata,
-                'cards': cards_with_images
+                'cards': cards_with_images,
+                'commander_images': commander_images if commander_images else None,
+                'total_cards': total_cards,
+                'unique_cards': unique_cards,
+                'commander_count': commander_count
             }
 
     return None

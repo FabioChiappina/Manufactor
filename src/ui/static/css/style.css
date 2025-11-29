@@ -302,6 +302,94 @@ main {
     margin: 8px 0;
 }
 
+/* Commander Card Layout */
+.deck-header-with-commander {
+    display: flex;
+    gap: 20px;
+    margin: 20px 0;
+    align-items: flex-start;
+}
+
+.commander-cards-section {
+    display: flex;
+    flex-direction: row;
+    gap: 16px;
+    flex-shrink: 0;
+}
+
+.commander-card-container {
+    width: 280px;
+    aspect-ratio: 5 / 7; /* Standard Magic card aspect ratio */
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    background: #f5f5f5;
+}
+
+.commander-card-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.commander-card-placeholder {
+    width: 280px;
+    aspect-ratio: 5 / 7;
+    background: linear-gradient(135deg, #e0e0e0 0%, #c0c0c0 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    text-align: center;
+}
+
+.commander-card-placeholder .placeholder-text {
+    color: #666;
+    font-size: 16px;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.deck-info-reduced {
+    flex: 1;
+    margin: 0;
+    /* Match height to commander card(s) - single card is 280px * 7/5 = 392px */
+    /* For multiple commanders side by side, height stays same as one card */
+    height: calc(280px * 7 / 5); /* 392px - matches single card aspect ratio */
+    max-height: calc(280px * 7 / 5);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.deck-info-reduced p {
+    margin: 6px 0;
+    font-size: 24px;
+    line-height: 1.4;
+}
+
+/* Custom scrollbar for deck info */
+.deck-info-reduced::-webkit-scrollbar {
+    width: 8px;
+}
+
+.deck-info-reduced::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.deck-info-reduced::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+}
+
+.deck-info-reduced::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
 /* Card List */
 .card-list {
     margin-top: 40px;
@@ -381,6 +469,7 @@ main {
     aspect-ratio: 5 / 7; /* Standard Magic card aspect ratio */
     overflow: hidden;
     background: #f5f5f5;
+    position: relative;
 }
 
 .card-image {
@@ -388,6 +477,25 @@ main {
     height: 100%;
     object-fit: cover;
     display: block;
+}
+
+.quantity-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: #ffc107;
+    color: #000;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 4px 10px;
+    border-radius: 50%;
+    min-width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    border: 2px solid #fff;
 }
 
 .card-image-placeholder {
@@ -647,5 +755,26 @@ footer p {
 
     .card-grid {
         grid-template-columns: 1fr;
+    }
+
+    .deck-header-with-commander {
+        flex-direction: column;
+    }
+
+    .commander-cards-section {
+        width: 100%;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .commander-card-container,
+    .commander-card-placeholder {
+        width: 100%;
+        max-width: 320px;
+    }
+
+    .deck-info-reduced {
+        height: auto;
+        max-height: none;
     }
 }

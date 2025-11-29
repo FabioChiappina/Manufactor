@@ -10,18 +10,68 @@
 <div class="deck-details">
     <h1>{{ deck.name }}</h1>
 
-    <div class="deck-info-card">
-        <h3>Deck Information</h3>
-        <p><strong>Format:</strong> {{ deck.metadata.format or 'Unknown' }}</p>
-        <p><strong>Total Cards:</strong> {{ deck.cards|length }}</p>
+    {% if deck.metadata.commander %}
+    <!-- Layout with commander cards on the left -->
+    <div class="deck-header-with-commander">
+        <div class="commander-cards-section">
+            {% if deck.metadata.commander is string %}
+                <!-- Single commander -->
+                {% if deck.commander_images and deck.commander_images[0] %}
+                <div class="commander-card-container">
+                    <img src="{{ deck.commander_images[0] }}" alt="{{ deck.metadata.commander }}" class="commander-card-image">
+                </div>
+                {% else %}
+                <div class="commander-card-placeholder">
+                    <div class="placeholder-text">{{ deck.metadata.commander }}</div>
+                </div>
+                {% endif %}
+            {% else %}
+                <!-- Multiple commanders -->
+                {% for commander_name in deck.metadata.commander %}
+                    {% if deck.commander_images and deck.commander_images[loop.index0] %}
+                    <div class="commander-card-container">
+                        <img src="{{ deck.commander_images[loop.index0] }}" alt="{{ commander_name }}" class="commander-card-image">
+                    </div>
+                    {% else %}
+                    <div class="commander-card-placeholder">
+                        <div class="placeholder-text">{{ commander_name }}</div>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        </div>
 
-        {% if deck.metadata.commander %}
+        <div class="deck-info-card deck-info-reduced">
+            <p><strong>Format:</strong> {{ deck.metadata.format or 'Unknown' }}</p>
+            <p><strong>Total Cards:</strong> {{ deck.total_cards }}
+                {% if deck.commander_count > 0 %}
+                    (including {{ deck.commander_count }} commander{% if deck.commander_count > 1 %}s{% endif %})
+                {% endif %}
+            </p>
+            <p><strong>Unique Cards:</strong> {{ deck.unique_cards }}</p>
+
             {% if deck.metadata.commander is string %}
                 <p><strong>Commander:</strong> {{ deck.metadata.commander }}</p>
             {% else %}
                 <p><strong>Commanders:</strong> {{ deck.metadata.commander|join(', ') }}</p>
             {% endif %}
-        {% endif %}
+
+            <p><strong>Status:</strong>
+                {{ '✅ Complete' if deck.metadata.complete else '⏳ Incomplete' }}
+            </p>
+
+            {% if deck.metadata.description %}
+            <p><strong>Description:</strong></p>
+            <p>{{ deck.metadata.description }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <!-- Full-width layout for decks without commanders -->
+    <div class="deck-info-card">
+        <h3>Deck Information</h3>
+        <p><strong>Format:</strong> {{ deck.metadata.format or 'Unknown' }}</p>
+        <p><strong>Total Cards:</strong> {{ deck.cards|length }}</p>
 
         <p><strong>Status:</strong>
             {{ '✅ Complete' if deck.metadata.complete else '⏳ Incomplete' }}
@@ -32,6 +82,7 @@
         <p>{{ deck.metadata.description }}</p>
         {% endif %}
     </div>
+    {% endif %}
 
     <div class="card-list">
         <h3>Cards ({{ deck.cards|length }})</h3>
@@ -42,6 +93,9 @@
                 {% if card_data.image_base64 %}
                 <div class="card-image-container">
                     <img src="{{ card_data.image_base64 }}" alt="{{ card_name }}" class="card-image">
+                    {% if card_data.quantity and card_data.quantity > 1 %}
+                    <div class="quantity-badge">x{{ card_data.quantity }}</div>
+                    {% endif %}
                 </div>
                 {% else %}
                 <div class="card-image-placeholder">

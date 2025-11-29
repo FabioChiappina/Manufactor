@@ -79,7 +79,9 @@ Each deck is shown as a card with:
   - Falls back to the first card in the deck if no commander
   - Supports double-faced cards (uses front face artwork)
 - **Deck Name**: The `deck_name` from metadata (falls back to folder name)
-- **Card Count**: Number of cards in the deck (supports both old and new JSON formats)
+- **Card Count**: Total number of cards in the deck including quantities
+  - Example: A deck with 60 unique cards, some with 4 copies, will show the total count (e.g., 100 cards)
+  - Properly accounts for `quantity` field in card definitions
 - **Format**: Deck format if specified in metadata (e.g., Commander, Standard)
 - **Description**: First 100 characters of the deck description (if available)
 - **Path**: Full path to the deck JSON file (small, de-emphasized text)
@@ -153,18 +155,38 @@ Clicking on a deck card navigates to the deck detail page.
 
 ### Features
 
-#### Deck Information Card
-- Shows deck metadata in a purple gradient card:
+#### Commander Display (Commander Format Only)
+For decks with commanders, the page displays an enhanced header layout:
+- **Commander Card Images**: Full-size commander card(s) displayed on the left side
+  - Shows actual card images from the `Cards/` folder
+  - For single commanders: One large card image (280px wide)
+  - For multiple commanders (e.g., partners): Cards displayed side by side horizontally
+  - Maintains standard Magic card aspect ratio (5:7)
+  - Falls back to placeholder with card name if image not available
+- **Commanders are excluded** from the main card gallery below to avoid duplication
+
+#### Deck Information Banner
+- Shows deck metadata in a purple gradient banner positioned next to commander cards:
+  - **For Commander decks**: Banner appears on the right side, matching height of commander card(s)
+  - **For non-Commander decks**: Full-width banner at the top
   - **Format**: Deck format (Commander, Standard, etc.)
-  - **Total Cards**: Number of cards in the deck
-  - **Commander(s)**: Commander card(s) for Commander format
-  - **Status**: Complete or Incomplete
-  - **Description**: Full deck description
+  - **Total Cards**: Total number of cards including quantities and commanders
+    - Example: "100 (including 1 commander)"
+    - Accounts for card quantities (cards with multiple copies)
+  - **Unique Cards**: Number of distinct cards in the deck
+  - **Commander(s)**: Commander card name(s) for Commander format
+  - **Status**: Complete (✅) or Incomplete (⏳)
+  - **Description**: Full deck description (scrollable if long)
+- **Scrollable Content**: Banner has fixed height matching commander cards with custom scrollbar
+- **Large Text**: 24px font size for better readability
 
 #### Card Gallery
-- Displays all cards in the deck as a visual image gallery
-- Each card shows:
+- Displays all non-commander cards in the deck as a visual image gallery
+- **Each card shows**:
   - **Card Image**: Full card image from the `Cards/` subfolder within the deck folder
+  - **Quantity Badge**: Yellow circular badge (e.g., "x2", "x3") for cards with multiple copies
+    - Positioned at bottom-right corner of card image
+    - Only shown for cards with quantity > 1
   - **Card Name**: Displayed below the image
   - **Card Type**: Type information (Creature, Instant, etc.)
   - **Subtype**: If applicable (e.g., Wizard, Dragon)
@@ -179,9 +201,20 @@ Clicking on a deck card navigates to the deck detail page.
   - Hover effects for better interactivity
 - Click any card to open the card editor
 
+#### Card Quantities
+- The system now properly tracks card quantities:
+  - Total card count includes all copies (e.g., 4x Lightning Bolt = 4 cards)
+  - Unique card count shows distinct cards (e.g., 4x Lightning Bolt = 1 unique card)
+  - Visual quantity badges make it easy to see duplicates
+  - Quantities are stored in the deck JSON with a `quantity` field
+
 #### Navigation
 - "Back to My Decks" link returns to the homepage
 - Click any card image to open the card editor
+
+#### Layout Behavior
+- **Desktop**: Commander cards on left, deck info on right, card gallery below
+- **Mobile** (< 768px): Stacks vertically - commanders on top, deck info below, card gallery at bottom
 
 ---
 
@@ -472,13 +505,20 @@ python3 -m src.cli.build_deck --deck "YourDeck"
 
 ### Current Features
 - **Deck Browser**: View all decks with card artwork backgrounds
+  - Shows total card count including quantities
 - **Deck Details**: Click deck cards to see full deck information
+  - **Commander Display**: Full-size commander card images displayed prominently
+  - **Smart Layout**: Commanders on left, deck info on right (desktop)
+  - **Quantity Tracking**: Accurate total and unique card counts
 - **Card Gallery**: View all cards in a deck as an image gallery with full card images
+  - **Quantity Badges**: Yellow circular badges show duplicate counts (x2, x3, etc.)
+  - **Commander Exclusion**: Commanders not duplicated in main gallery
 - **Card Editor**: Edit all card properties via web interface
 - **Filtering**: Filter decks by completion status
 - **Partner Commanders**: Automatic diagonal split images for partner commanders
 - **Settings Management**: Configure paths and manage common tokens
 - **Token Management**: Add and delete common token definitions
+- **Responsive Design**: Mobile-friendly layout with adaptive stacking
 
 ### Planned Features
 - Generate card images from web interface
