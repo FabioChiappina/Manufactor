@@ -161,17 +161,27 @@ Clicking on a deck card navigates to the deck detail page.
   - **Status**: Complete or Incomplete
   - **Description**: Full deck description
 
-#### Card List
-- Displays all cards in the deck as clickable items
+#### Card Gallery
+- Displays all cards in the deck as a visual image gallery
 - Each card shows:
-  - Card name
-  - Card type
-  - Subtype (if applicable)
-- Click any card to edit its properties
+  - **Card Image**: Full card image from the `Cards/` subfolder within the deck folder
+  - **Card Name**: Displayed below the image
+  - **Card Type**: Type information (Creature, Instant, etc.)
+  - **Subtype**: If applicable (e.g., Wizard, Dragon)
+- **Image Sources**:
+  - Images are loaded from `<deck_path>/<deck_name>/Cards/`
+  - Supports `.jpg`, `.jpeg`, `.png`, and `.gif` formats
+  - Handles double-faced cards (searches for front face if full name not found)
+  - Shows "No Image" placeholder if card image is not found
+- **Gallery Layout**:
+  - Responsive grid that automatically adjusts to screen size
+  - Cards maintain standard Magic card aspect ratio (5:7)
+  - Hover effects for better interactivity
+- Click any card to open the card editor
 
 #### Navigation
 - "Back to My Decks" link returns to the homepage
-- Click any card to open the card editor
+- Click any card image to open the card editor
 
 ---
 
@@ -463,6 +473,7 @@ python3 -m src.cli.build_deck --deck "YourDeck"
 ### Current Features
 - **Deck Browser**: View all decks with card artwork backgrounds
 - **Deck Details**: Click deck cards to see full deck information
+- **Card Gallery**: View all cards in a deck as an image gallery with full card images
 - **Card Editor**: Edit all card properties via web interface
 - **Filtering**: Filter decks by completion status
 - **Partner Commanders**: Automatic diagonal split images for partner commanders

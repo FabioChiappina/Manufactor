@@ -281,6 +281,78 @@ def get_decks_with_metadata(filter_status='all'):
     return result
 
 
+def get_card_image_path(deck_folder_path, card_name):
+    """
+    Get the file path for a card image from the Cards folder.
+
+    Args:
+        deck_folder_path: Path to the deck folder
+        card_name: Name of the card to find image for
+
+    Returns:
+        Path to the card image file or None if not found
+    """
+    if not card_name:
+        return None
+
+    # Look for the card image in the Cards subfolder
+    cards_folder = os.path.join(deck_folder_path, "Cards")
+    if not os.path.isdir(cards_folder):
+        return None
+
+    # List of card names to try (for double-faced cards)
+    names_to_try = [card_name]
+
+    # If it's a double-faced card (contains " / "), try the front face
+    if " / " in card_name:
+        front_face = card_name.split(" / ")[0]
+        names_to_try.append(front_face)
+
+    # Try to find the image file (support common image extensions)
+    for name in names_to_try:
+        for ext in ['.jpg', '.jpeg', '.png', '.gif']:
+            image_path = os.path.join(cards_folder, f"{name}{ext}")
+            if os.path.isfile(image_path):
+                return image_path
+
+    return None
+
+
+def get_card_image_base64(deck_folder_path, card_name):
+    """
+    Get the base64 encoded card image from the Cards folder.
+
+    Args:
+        deck_folder_path: Path to the deck folder
+        card_name: Name of the card to find image for
+
+    Returns:
+        Base64 encoded image string or None if not found
+    """
+    if not card_name:
+        return None
+
+    # Get the card image path
+    image_path = get_card_image_path(deck_folder_path, card_name)
+    if not image_path:
+        return None
+
+    try:
+        with open(image_path, 'rb') as img_file:
+            img_data = img_file.read()
+            # Encode to base64
+            b64_data = base64.b64encode(img_data).decode('utf-8')
+            # Determine MIME type from extension
+            ext = os.path.splitext(image_path)[1].lower()
+            mime_type = f"image/{ext[1:]}"
+            if ext in ['.jpg', '.jpeg']:
+                mime_type = "image/jpeg"
+            return f"data:{mime_type};base64,{b64_data}"
+    except Exception as e:
+        print(f"Error loading card image from {image_path}: {e}")
+        return None
+
+
 def load_deck_by_name(deck_name):
     """
     Load deck data by display name.
@@ -301,13 +373,23 @@ def load_deck_by_name(deck_name):
         display_name = metadata.get('deck_name', folder_name)
 
         if display_name == deck_name:
+            # Get card images from Cards folder
+            cards_with_images = {}
+            for card_name, card_data in deck_data.get('cards', {}).items():
+                # Get the card image (from Cards folder, not Artwork folder)
+                card_image = get_card_image_base64(deck_folder_path, card_name)
+                cards_with_images[card_name] = {
+                    **card_data,
+                    'image_base64': card_image
+                }
+
             return {
                 'name': display_name,
                 'folder_name': folder_name,
                 'folder_path': deck_folder_path,
                 'json_path': json_path,
                 'metadata': metadata,
-                'cards': deck_data.get('cards', {})
+                'cards': cards_with_images
             }
 
     return None

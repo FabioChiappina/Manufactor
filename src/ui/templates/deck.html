@@ -35,15 +35,26 @@
 
     <div class="card-list">
         <h3>Cards ({{ deck.cards|length }})</h3>
-        <div class="card-grid">
+        <div class="card-gallery">
             {% for card_name, card_data in deck.cards.items() %}
             <a href="/deck/{{ deck.name | urlencode }}/card/{{ card_name | urlencode }}/edit"
-               class="card-item">
-                <div class="card-name">{{ card_name }}</div>
-                <div class="card-type">{{ card_data.cardtype }}</div>
-                {% if card_data.subtype %}
-                <div class="card-subtype">{{ card_data.subtype }}</div>
+               class="card-gallery-item">
+                {% if card_data.image_base64 %}
+                <div class="card-image-container">
+                    <img src="{{ card_data.image_base64 }}" alt="{{ card_name }}" class="card-image">
+                </div>
+                {% else %}
+                <div class="card-image-placeholder">
+                    <div class="placeholder-text">No Image</div>
+                </div>
                 {% endif %}
+                <div class="card-gallery-info">
+                    <div class="card-name">{{ card_name }}</div>
+                    <div class="card-type">{{ card_data.cardtype }}</div>
+                    {% if card_data.subtype %}
+                    <div class="card-subtype">{{ card_data.subtype }}</div>
+                    {% endif %}
+                </div>
             </a>
             {% endfor %}
         </div>
