@@ -138,7 +138,19 @@ Real MTG card integration guide:
 
 **Best for**: Mixing real and custom cards in decks
 
-#### 11. README.md
+#### 11. UI_GUIDE.md
+Web interface user guide:
+- Launching the Flask UI
+- Navigating between pages
+- My Decks page features
+- Deck details and card editor
+- Settings and token management
+- Troubleshooting UI issues
+- Keyboard shortcuts and tips
+
+**Best for**: Using the web interface
+
+#### 12. README.md
 Getting started guide with:
 - Prerequisites
 - Virtual environment setup
@@ -194,6 +206,11 @@ Getting started guide with:
 2. ARCHITECTURE.md (section 7: Services Layer)
 3. CODE_EXAMPLES.md (Deck Loading section)
 
+### I want to use the web interface
+1. UI_GUIDE.md (complete web interface guide)
+2. CONFIGURATION.md (for initial path setup)
+3. README.md (for installation and setup)
+
 ---
 
 ## Key Concepts at a Glance
@@ -247,6 +264,7 @@ Utilities (Paths, Config, File Utils)
 - SUBSPELLS.md
 - SUPERTYPES.md
 - REAL_CARDS.md
+- UI_GUIDE.md
 - CONFIGURATION.md
 - REFACTORING_PLAN.md
 - DOCUMENTATION_INDEX.md (this file)

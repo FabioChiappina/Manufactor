@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}My Decks - Manufactor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>My Decks</h2>
+    <p>Click on a deck to view details and manage cards</p>
+</div>
+
+<!-- Filter buttons -->
+<div class="filter-controls">
+    <a href="/?filter=all" class="btn btn-sm {% if filter_status == 'all' %}btn-primary{% endif %}">
+        📚 All Decks
+    </a>
+    <a href="/?filter=complete" class="btn btn-sm {% if filter_status == 'complete' %}btn-primary{% endif %}">
+        ✅ Complete
+    </a>
+    <a href="/?filter=incomplete" class="btn btn-sm {% if filter_status == 'incomplete' %}btn-primary{% endif %}">
+        ⏳ Incomplete
+    </a>
+    <a href="/" class="btn btn-sm">
+        🔄 Refresh
+    </a>
+</div>
+
+<!-- Deck grid -->
+{% if decks %}
+<div class="deck-grid">
+    {% for deck in decks %}
+    <a href="/deck/{{ deck.name | urlencode }}" class="deck-card"
+       {% if deck.artwork_base64 %}style="--bg-image: url('{{ deck.artwork_base64 }}');"{% endif %}>
+        <h3>{{ deck.name }}</h3>
+        <div class="deck-card-info">
+            📦 {{ deck.card_count }} cards
+            {% if deck.format %}
+                • 🎮 {{ deck.format }}
+            {% endif %}
+            • {{ '✅ Complete' if deck.complete else '⏳ Incomplete' }}
+        </div>
+        {% if deck.description %}
+        <div class="deck-card-info">{{ deck.description[:100] }}{% if deck.description|length > 100 %}...{% endif %}</div>
+        {% endif %}
+        <div class="deck-card-path">{{ deck.json_path }}</div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <h3>No Decks Found</h3>
+    <p>No valid deck folders found in your deck path.</p>
+    <p>A valid deck folder must contain a JSON file with the same name as the folder.</p>
+    <p>For example: <code>/Decks/MyDeck/MyDeck.json</code></p>
+    <a href="/settings" class="btn btn-primary">Configure Deck Path</a>
+</div>
+{% endif %}
+{% endblock %}

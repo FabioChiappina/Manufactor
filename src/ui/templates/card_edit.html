@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ card_name }} - Manufactor{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="/">My Decks</a> /
+    <a href="/deck/{{ deck_name | urlencode }}">{{ deck_name }}</a> /
+    {{ card_name }}
+</div>
+
+<div class="card-editor">
+    <h1>Edit Card: {{ card_name }}</h1>
+
+    <form method="POST" action="/deck/{{ deck_name | urlencode }}/card/{{ card_name | urlencode }}/save">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="name">Card Name</label>
+                <input type="text" id="name" name="name" value="{{ card.name }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="cost">Mana Cost</label>
+                <input type="text" id="cost" name="cost" value="{{ card.cost or '' }}" placeholder="{3}{U}{U}">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="cardtype">Card Type</label>
+                <select id="cardtype" name="cardtype">
+                    <option value="Creature" {% if card.cardtype == 'Creature' %}selected{% endif %}>Creature</option>
+                    <option value="Instant" {% if card.cardtype == 'Instant' %}selected{% endif %}>Instant</option>
+                    <option value="Sorcery" {% if card.cardtype == 'Sorcery' %}selected{% endif %}>Sorcery</option>
+                    <option value="Enchantment" {% if card.cardtype == 'Enchantment' %}selected{% endif %}>Enchantment</option>
+                    <option value="Artifact" {% if card.cardtype == 'Artifact' %}selected{% endif %}>Artifact</option>
+                    <option value="Land" {% if card.cardtype == 'Land' %}selected{% endif %}>Land</option>
+                    <option value="Planeswalker" {% if card.cardtype == 'Planeswalker' %}selected{% endif %}>Planeswalker</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="subtype">Subtype</label>
+                <input type="text" id="subtype" name="subtype" value="{{ card.subtype or '' }}" placeholder="e.g., Wizard">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="rules">Rules Text</label>
+            <textarea id="rules" name="rules" rows="5" placeholder="Enter card abilities and rules text">{{ card.rules or '' }}</textarea>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="power">Power</label>
+                <input type="text" id="power" name="power" value="{{ card.power or '' }}" placeholder="*">
+            </div>
+
+            <div class="form-group">
+                <label for="toughness">Toughness</label>
+                <input type="text" id="toughness" name="toughness" value="{{ card.toughness or '' }}" placeholder="*">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="rarity">Rarity</label>
+                <select id="rarity" name="rarity">
+                    <option value="common" {% if card.rarity == 'common' %}selected{% endif %}>Common</option>
+                    <option value="uncommon" {% if card.rarity == 'uncommon' %}selected{% endif %}>Uncommon</option>
+                    <option value="rare" {% if card.rarity == 'rare' %}selected{% endif %}>Rare</option>
+                    <option value="mythic" {% if card.rarity == 'mythic' %}selected{% endif %}>Mythic</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="flavor">Flavor Text</label>
+                <input type="text" id="flavor" name="flavor" value="{{ card.flavor or '' }}" placeholder="Optional flavor text">
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">💾 Save Changes</button>
+            <a href="/deck/{{ deck_name | urlencode }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+
+    <div class="card-info-panel">
+        <h3>Card JSON</h3>
+        <p>Current card data is stored in the deck's JSON file.</p>
+        <p><strong>Deck:</strong> {{ deck_name }}</p>
+        <p><strong>Card:</strong> {{ card_name }}</p>
+    </div>
+</div>
+{% endblock %}

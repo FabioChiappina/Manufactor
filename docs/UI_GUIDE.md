@@ -1,13 +1,14 @@
 # Manufactor Web UI Guide
 
-This guide explains how to use the Gradio-based web interface for Magic Card Manufactor.
+This guide explains how to use the Flask-based web interface for Magic Card Manufactor.
 
 ## Table of Contents
 - [Getting Started](#getting-started)
 - [Navigating the Interface](#navigating-the-interface)
-- [My Decks Tab](#my-decks-tab)
-- [Settings Tab](#settings-tab)
-- [About Tab](#about-tab)
+- [My Decks Page](#my-decks-page)
+- [Deck Details Page](#deck-details-page)
+- [Card Editor](#card-editor)
+- [Settings Page](#settings-page)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -27,8 +28,7 @@ This guide explains how to use the Gradio-based web interface for Magic Card Man
    ```
 
 3. **Access the interface**:
-   - Gradio will display a URL in the terminal (usually `http://localhost:7860`)
-   - If port 7860 is in use, it will automatically find another port (e.g., 7861, 7862)
+   - Flask will display a URL in the terminal (usually `http://localhost:7860`)
    - Open this URL in your web browser
    - The interface should load automatically
 
@@ -39,7 +39,7 @@ This guide explains how to use the Gradio-based web interface for Magic Card Man
 ### First-Time Setup
 
 When you first launch the UI, you should:
-1. Navigate to the **Settings** tab
+1. Click **Settings** in the navigation menu
 2. Configure your **Deck Path** (where your deck files are stored)
 3. Configure your **Cockatrice Path** (if you use Cockatrice)
 4. Click **Save Settings**
@@ -48,20 +48,20 @@ When you first launch the UI, you should:
 
 ## Navigating the Interface
 
-The UI uses a tabbed interface with three main sections:
+The UI uses a multi-page interface with navigation links:
 
-### Tab Navigation
+### Navigation
 - **My Decks**: Browse and manage your card decks
 - **Settings**: Configure paths and common tokens
 - **About**: Project information and help
 
-Simply click on any tab to switch views.
+Click on any navigation link to switch pages. Each deck card and card item is clickable and will navigate to its detail page.
 
 ---
 
-## My Decks Tab
+## My Decks Page
 
-The My Decks tab displays all your available decks in a card-based grid layout.
+The My Decks page (homepage) displays all your available decks in a card-based grid layout.
 
 ### Features
 
@@ -145,24 +145,69 @@ If the deck path doesn't exist, the tab will show:
 If no valid decks are found, the tab will show:
 - A message explaining what makes a valid deck folder
 
-### Deck Details (Coming Soon)
-- Currently, clicking on a deck card shows an alert message
-- Future versions will navigate to a deck detail page showing:
-  - Full deck information
-  - Card list
-  - Deck statistics
-  - Image generation options
-  - Export to Cockatrice button
+---
+
+## Deck Details Page
+
+Clicking on a deck card navigates to the deck detail page.
+
+### Features
+
+#### Deck Information Card
+- Shows deck metadata in a purple gradient card:
+  - **Format**: Deck format (Commander, Standard, etc.)
+  - **Total Cards**: Number of cards in the deck
+  - **Commander(s)**: Commander card(s) for Commander format
+  - **Status**: Complete or Incomplete
+  - **Description**: Full deck description
+
+#### Card List
+- Displays all cards in the deck as clickable items
+- Each card shows:
+  - Card name
+  - Card type
+  - Subtype (if applicable)
+- Click any card to edit its properties
+
+#### Navigation
+- "Back to My Decks" link returns to the homepage
+- Click any card to open the card editor
 
 ---
 
-## Settings Tab
+## Card Editor
 
-The Settings tab provides configuration management for Manufactor.
+The card editor allows you to edit all properties of a card.
+
+### Features
+
+#### Editable Fields
+- **Card Name**: The name of the card
+- **Mana Cost**: Mana cost using MTG notation (e.g., {3}{U}{U})
+- **Card Type**: Dropdown selection (Creature, Instant, Sorcery, etc.)
+- **Subtype**: Card subtype (e.g., Wizard, Dragon)
+- **Rules Text**: Card abilities and rules text
+- **Power/Toughness**: For creatures
+- **Rarity**: Dropdown selection (Common, Uncommon, Rare, Mythic)
+- **Flavor Text**: Optional flavor text
+
+#### Actions
+- **Save Changes**: Saves the card data back to the deck's JSON file
+- **Cancel**: Returns to the deck details page without saving
+
+#### Navigation
+- Breadcrumb trail shows: My Decks / Deck Name / Card Name
+- Click any breadcrumb link to navigate back
+
+---
+
+## Settings Page
+
+The Settings page provides configuration management for Manufactor.
 
 ### Path Configuration
 
-Located at the top of the Settings tab.
+Located at the top of the Settings page.
 
 #### Deck Path
 - **Purpose**: Where your deck folders and card files are stored
@@ -194,7 +239,7 @@ Located at the top of the Settings tab.
 
 ### Common Token Definitions
 
-Located below Path Configuration in the Settings tab.
+Located below Path Configuration in the Settings page.
 
 Common tokens are predefined token cards (like Treasure, Clue, Food) that can be automatically generated when building decks.
 
@@ -294,30 +339,20 @@ The token table displays all configured tokens with these columns:
 
 ---
 
-## About Tab
-
-The About tab provides:
-- Project overview
-- List of upcoming features
-- Technology stack information
-- Current development phase
-
----
-
 ## Troubleshooting
 
 ### UI Won't Start
 
-**Error**: `ModuleNotFoundError: No module named 'gradio'`
+**Error**: `ModuleNotFoundError: No module named 'flask'`
 - **Solution**: Activate virtual environment and install dependencies
   ```bash
   source venv/bin/activate
   pip install -r requirements.txt
   ```
 
-**Error**: `OSError: Cannot find empty port in range: 7860-7860`
-- **Solution**: Port is already in use. Gradio will automatically try other ports (7861, 7862, etc.)
-- Check terminal output for the actual URL to open
+**Error**: Port already in use
+- **Solution**: Kill the process using port 7860 or change the port in `src/ui/app.py`
+- Check terminal output for any error messages
 
 ### Settings Not Saving
 
@@ -343,7 +378,7 @@ The About tab provides:
 
 ### Browser Compatibility
 
-Gradio works best with modern browsers:
+Flask works with all modern browsers:
 - ✅ Chrome/Chromium (recommended)
 - ✅ Firefox
 - ✅ Safari
@@ -352,7 +387,7 @@ Gradio works best with modern browsers:
 If you experience issues, try:
 1. Clearing browser cache
 2. Using a different browser
-3. Opening in an incognito/private window
+3. Hard refreshing the page (Cmd+Shift+R or Ctrl+Shift+R)
 
 ### Performance
 
@@ -369,12 +404,15 @@ If you experience issues, try:
 
 ### General
 - `Ctrl+C` (in terminal): Stop the server
-- `Ctrl+R` (in browser): Refresh the page
+- `Cmd+R` or `Ctrl+R` (in browser): Refresh the page
 - `Tab`: Navigate between form fields
+- `Enter`: Submit forms
 
-### Tab Navigation
-- Click tab names to switch views
-- Gradio doesn't support keyboard tab switching currently
+### Navigation
+- Click navigation links in header to switch pages
+- Click deck cards to view deck details
+- Click card items to edit cards
+- Use browser back button to navigate backward
 
 ---
 
@@ -391,10 +429,11 @@ If you experience issues, try:
 3. **Empty for defaults**: Leave Colors and Frame empty unless you need custom values
 
 ### Workflow
-1. Configure paths first (Settings tab)
+1. Configure paths first (Settings page)
 2. Set up common tokens for your project
-3. Use CLI or future UI features to build decks
-4. Tokens will be automatically generated based on rules text
+3. Browse your decks on the My Decks page
+4. Click on decks to view details and edit cards
+5. Use the card editor to modify card properties
 
 ---
 
@@ -405,9 +444,10 @@ If you experience issues, try:
 - [REFACTORING_PLAN.md](REFACTORING_PLAN.md) - Development roadmap
 - [CONFIGURATION.md](CONFIGURATION.md) - Configuration system details
 
-### Issues
-- Report bugs: https://github.com/anthropics/claude-code/issues
-- Check existing issues before creating new ones
+### Support
+- Refer to the documentation in the `docs/` folder
+- Check the UI_GUIDE.md for interface-related questions
+- See CONFIGURATION.md for setup help
 
 ### CLI Alternative
 If the UI isn't working, you can still use the CLI:
@@ -418,28 +458,23 @@ python3 -m src.cli.build_deck --deck "YourDeck"
 
 ---
 
-## Future Features
+## Features Summary
 
-The following features are planned for the UI:
+### Current Features
+- **Deck Browser**: View all decks with card artwork backgrounds
+- **Deck Details**: Click deck cards to see full deck information
+- **Card Editor**: Edit all card properties via web interface
+- **Filtering**: Filter decks by completion status
+- **Partner Commanders**: Automatic diagonal split images for partner commanders
+- **Settings Management**: Configure paths and manage common tokens
+- **Token Management**: Add and delete common token definitions
 
-### My Decks Tab
-- Deck browser with thumbnail previews
-- Create new deck button
-- Edit deck properties
-- Generate images for entire deck
-- Progress bar for batch operations
-- Export to Cockatrice
+### Planned Features
+- Generate card images from web interface
+- Live preview while editing cards
+- Batch operations (render all cards, export deck)
+- Export to Cockatrice directly from UI
+- Image gallery viewer
+- Deck creation and management
 
-### Card Editor
-- Full card creation form
-- Live preview of card image
-- Validation and error checking
-- Template selection
-
-### Image Gallery
-- View generated card images
-- Zoom and pan
-- Download individual cards
-- Bulk export options
-
-See [REFACTORING_PLAN.md](REFACTORING_PLAN.md) for the complete roadmap.
+For the complete development roadmap, see [REFACTORING_PLAN.md](REFACTORING_PLAN.md).

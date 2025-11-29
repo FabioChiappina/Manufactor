@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}About - Manufactor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>About Manufactor</h2>
+</div>
+
+<div class="about-content">
+    <p>A Python-based tool for creating custom Magic: The Gathering cards with automated image generation and Cockatrice integration.</p>
+
+    <h3>Features</h3>
+    <ul>
+        <li>Card creation and editing via web interface</li>
+        <li>Deck management with clickable navigation</li>
+        <li>Image generation for custom cards</li>
+        <li>Cockatrice export functionality</li>
+        <li>Common token management</li>
+    </ul>
+
+    <h3>Built With</h3>
+    <ul>
+        <li>Python 3.7+</li>
+        <li>Pillow for image processing</li>
+        <li>Flask for web interface</li>
+    </ul>
+
+    <h3>Current Status</h3>
+    <p>Phase 8 - Flask Migration Complete</p>
+    <p>The UI has been migrated from Gradio to Flask, enabling true multi-page navigation and clickable deck cards.</p>
+
+    <h3>Documentation</h3>
+    <p>For more information, see the documentation in the <code>docs/</code> folder:</p>
+    <ul>
+        <li>UI_GUIDE.md - User interface guide</li>
+        <li>FLASK_MIGRATION_GUIDE.md - Migration documentation</li>
+        <li>README.md - Main project documentation</li>
+    </ul>
+</div>
+{% endblock %}

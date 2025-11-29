@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}{{ deck.name }} - Manufactor{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="/">← Back to My Decks</a>
+</div>
+
+<div class="deck-details">
+    <h1>{{ deck.name }}</h1>
+
+    <div class="deck-info-card">
+        <h3>Deck Information</h3>
+        <p><strong>Format:</strong> {{ deck.metadata.format or 'Unknown' }}</p>
+        <p><strong>Total Cards:</strong> {{ deck.cards|length }}</p>
+
+        {% if deck.metadata.commander %}
+            {% if deck.metadata.commander is string %}
+                <p><strong>Commander:</strong> {{ deck.metadata.commander }}</p>
+            {% else %}
+                <p><strong>Commanders:</strong> {{ deck.metadata.commander|join(', ') }}</p>
+            {% endif %}
+        {% endif %}
+
+        <p><strong>Status:</strong>
+            {{ '✅ Complete' if deck.metadata.complete else '⏳ Incomplete' }}
+        </p>
+
+        {% if deck.metadata.description %}
+        <p><strong>Description:</strong></p>
+        <p>{{ deck.metadata.description }}</p>
+        {% endif %}
+    </div>
+
+    <div class="card-list">
+        <h3>Cards ({{ deck.cards|length }})</h3>
+        <div class="card-grid">
+            {% for card_name, card_data in deck.cards.items() %}
+            <a href="/deck/{{ deck.name | urlencode }}/card/{{ card_name | urlencode }}/edit"
+               class="card-item">
+                <div class="card-name">{{ card_name }}</div>
+                <div class="card-type">{{ card_data.cardtype }}</div>
+                {% if card_data.subtype %}
+                <div class="card-subtype">{{ card_data.subtype }}</div>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

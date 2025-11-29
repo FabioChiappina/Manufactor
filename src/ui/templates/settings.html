@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Manufactor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Settings</h2>
+    <p>Configure paths and manage common tokens</p>
+</div>
+
+<!-- Path Configuration -->
+<div class="settings-section">
+    <h3>Path Configuration</h3>
+    <form method="POST" action="/settings/save">
+        <div class="form-group">
+            <label for="deck_path">Deck Path</label>
+            <p class="form-help">Location where your deck folders and card files are stored.</p>
+            <input type="text" id="deck_path" name="deck_path" value="{{ deck_path or '' }}" placeholder="/path/to/your/Decks">
+        </div>
+
+        <div class="form-group">
+            <label for="cockatrice_path">Cockatrice Path</label>
+            <p class="form-help">Root folder of your Cockatrice installation.</p>
+            <input type="text" id="cockatrice_path" name="cockatrice_path" value="{{ cockatrice_path or '' }}" placeholder="~/Library/Application Support/Cockatrice/Cockatrice">
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">💾 Save Settings</button>
+        </div>
+    </form>
+</div>
+
+<!-- Common Tokens -->
+<div class="settings-section">
+    <h3>Common Token Definitions</h3>
+    <p>Manage predefined tokens (Treasure, Clue, Food, etc.) that can be automatically generated.</p>
+
+    {% if tokens %}
+    <div class="tokens-table-wrapper">
+        <table class="tokens-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Card Type</th>
+                    <th>Subtype</th>
+                    <th>Rules Text</th>
+                    <th>Colors</th>
+                    <th>Frame</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for name, data in tokens.items() %}
+                <tr>
+                    <td><strong>{{ name }}</strong></td>
+                    <td>{{ data.cardtype }}</td>
+                    <td>{{ data.subtype }}</td>
+                    <td>{{ data.rules }}</td>
+                    <td>{{ data.colors|join(', ') if data.colors else '' }}</td>
+                    <td>{{ data.frame or '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty-message">No tokens defined yet.</p>
+    {% endif %}
+
+    <!-- Add Token Form -->
+    <div class="token-form">
+        <h4>Add New Token</h4>
+        <form method="POST" action="/settings/tokens/add">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="token_name">Token Name</label>
+                    <input type="text" id="token_name" name="token_name" placeholder="e.g., Treasure" required>
+                </div>
+                <div class="form-group">
+                    <label for="token_cardtype">Card Type</label>
+                    <input type="text" id="token_cardtype" name="token_cardtype" placeholder="e.g., Artifact">
+                </div>
+                <div class="form-group">
+                    <label for="token_subtype">Subtype</label>
+                    <input type="text" id="token_subtype" name="token_subtype" placeholder="e.g., Treasure">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="token_rules">Rules Text</label>
+                <textarea id="token_rules" name="token_rules" rows="2" placeholder="e.g., {T}, Sacrifice this artifact: Add one mana of any color."></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="token_colors">Colors (comma-separated)</label>
+                    <input type="text" id="token_colors" name="token_colors" placeholder="e.g., W, U or leave empty for colorless">
+                </div>
+                <div class="form-group">
+                    <label for="token_frame">Frame (optional)</label>
+                    <input type="text" id="token_frame" name="token_frame" placeholder="Leave empty for default">
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-secondary">Add Token</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Delete Token Form -->
+    <div class="token-form">
+        <h4>Delete Token</h4>
+        <form method="POST" action="/settings/tokens/delete">
+            <div class="form-group">
+                <label for="delete_token_name">Token Name to Delete</label>
+                <input type="text" id="delete_token_name" name="delete_token_name" placeholder="e.g., Treasure" required>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-danger">Delete Token</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
