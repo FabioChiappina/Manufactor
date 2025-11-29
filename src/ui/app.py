@@ -56,6 +56,40 @@ def deck_details(deck_name):
     return render_template('deck.html', deck=deck_data)
 
 
+@app.route('/deck/<deck_name>/toggle-complete', methods=['POST'])
+def toggle_complete(deck_name):
+    """Toggle deck completion status."""
+    # Decode URL-encoded deck name
+    deck_name = unquote(deck_name)
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        flash(f'Deck "{deck_name}" not found', 'error')
+        return redirect(url_for('index'))
+
+    # Load the deck JSON
+    json_path = deck_data['json_path']
+    with open(json_path, 'r') as f:
+        full_deck_data = json.load(f)
+
+    # Toggle the complete status
+    current_status = full_deck_data.get('metadata', {}).get('complete', 0)
+    new_status = 0 if current_status else 1
+
+    if 'metadata' not in full_deck_data:
+        full_deck_data['metadata'] = {}
+
+    full_deck_data['metadata']['complete'] = new_status
+
+    # Save back to JSON
+    with open(json_path, 'w') as f:
+        json.dump(full_deck_data, f, indent=2)
+
+    status_text = "complete" if new_status else "incomplete"
+    flash(f'Deck "{deck_name}" marked as {status_text}!', 'success')
+    return redirect(url_for('deck_details', deck_name=deck_name))
+
+
 @app.route('/deck/<deck_name>/card/<card_name>/edit')
 def card_editor(deck_name, card_name):
     """Card editor page."""

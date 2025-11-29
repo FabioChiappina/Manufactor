@@ -8,7 +8,18 @@
 </div>
 
 <div class="deck-details">
-    <h1>{{ deck.name }}</h1>
+    <div class="deck-header">
+        <h1>{{ deck.name }}</h1>
+        <form action="/deck/{{ deck.name | urlencode }}/toggle-complete" method="POST" style="display: inline;">
+            <button type="submit" class="btn btn-toggle-complete {% if deck.metadata.complete %}btn-complete{% else %}btn-incomplete{% endif %}">
+                {% if deck.metadata.complete %}
+                    ✅ Complete
+                {% else %}
+                    ⏳ Mark Complete
+                {% endif %}
+            </button>
+        </form>
+    </div>
 
     {% if deck.metadata.commander %}
     <!-- Layout with commander cards on the left -->
@@ -50,16 +61,6 @@
             </p>
             <p><strong>Unique Cards:</strong> {{ deck.unique_cards }}</p>
 
-            {% if deck.metadata.commander is string %}
-                <p><strong>Commander:</strong> {{ deck.metadata.commander }}</p>
-            {% else %}
-                <p><strong>Commanders:</strong> {{ deck.metadata.commander|join(', ') }}</p>
-            {% endif %}
-
-            <p><strong>Status:</strong>
-                {{ '✅ Complete' if deck.metadata.complete else '⏳ Incomplete' }}
-            </p>
-
             {% if deck.metadata.description %}
             <p><strong>Description:</strong></p>
             <p>{{ deck.metadata.description }}</p>
@@ -73,10 +74,6 @@
         <p><strong>Format:</strong> {{ deck.metadata.format or 'Unknown' }}</p>
         <p><strong>Total Cards:</strong> {{ deck.cards|length }}</p>
 
-        <p><strong>Status:</strong>
-            {{ '✅ Complete' if deck.metadata.complete else '⏳ Incomplete' }}
-        </p>
-
         {% if deck.metadata.description %}
         <p><strong>Description:</strong></p>
         <p>{{ deck.metadata.description }}</p>
@@ -85,7 +82,7 @@
     {% endif %}
 
     <div class="card-list">
-        <h3>Cards ({{ deck.cards|length }})</h3>
+        <h3>Cards ({{ deck.total_cards - deck.commander_count }})</h3>
         <div class="card-gallery">
             {% for card_name, card_data in deck.cards.items() %}
             <a href="/deck/{{ deck.name | urlencode }}/card/{{ card_name | urlencode }}/edit"
@@ -100,6 +97,9 @@
                 {% else %}
                 <div class="card-image-placeholder">
                     <div class="placeholder-text">No Image</div>
+                    {% if card_data.quantity and card_data.quantity > 1 %}
+                    <div class="quantity-badge">x{{ card_data.quantity }}</div>
+                    {% endif %}
                 </div>
                 {% endif %}
                 <div class="card-gallery-info">
