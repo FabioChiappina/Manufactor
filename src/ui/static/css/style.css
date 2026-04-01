@@ -439,10 +439,71 @@ main {
     margin-top: 40px;
 }
 
-.card-list h3 {
-    font-size: 24px;
+.card-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
     margin-bottom: 20px;
+}
+
+.card-list-header h3 {
+    font-size: 24px;
     color: #333;
+    margin-bottom: 0;
+}
+
+.card-controls {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.control-group label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #555;
+    white-space: nowrap;
+}
+
+.control-group select {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #333;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.control-group select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+/* Card Groups (used when grouping is active) */
+.card-group {
+    margin-bottom: 36px;
+}
+
+.card-group-header {
+    font-size: 18px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e0e0e0;
+    text-transform: capitalize;
 }
 
 .card-grid {

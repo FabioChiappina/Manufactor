@@ -82,11 +82,36 @@
     {% endif %}
 
     <div class="card-list">
-        <h3>Cards ({{ deck.total_cards - deck.commander_count }})</h3>
+        <div class="card-list-header">
+            <h3>Cards ({{ deck.total_cards - deck.commander_count }})</h3>
+            <div class="card-controls">
+                <div class="control-group">
+                    <label for="sort-select">Sort by</label>
+                    <select id="sort-select">
+                        <option value="alpha">Alphabetical</option>
+                        <option value="mana" selected>Mana Value</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="group-select">Group by</label>
+                    <select id="group-select">
+                        <option value="none">None</option>
+                        <option value="type" selected>Card Type</option>
+                        <option value="landnonland">Land / Nonland</option>
+                        <option value="tag">Tag</option>
+                    </select>
+                </div>
+            </div>
+        </div>
         <div class="card-gallery">
             {% for card_name, card_data in deck.cards.items() %}
             <a href="/deck/{{ deck.name | urlencode }}/card/{{ card_name | urlencode }}/edit"
-               class="card-gallery-item">
+               class="card-gallery-item"
+               data-name="{{ card_name }}"
+               data-cost="{{ card_data.cost or card_data.front.mana or '' }}"
+               data-cardtype="{{ card_data.cardtype or card_data.front.cardtype or '' }}"
+               data-tags="{{ card_data.tags | join(',') if card_data.tags is not string and card_data.tags else (card_data.tags or '') }}"
+               data-quantity="{{ card_data.quantity or 1 }}">
                 {% if card_data.image_base64 %}
                 <div class="card-image-container">
                     <img src="{{ card_data.image_base64 }}" alt="{{ card_name }}" class="card-image">
@@ -104,9 +129,9 @@
                 {% endif %}
                 <div class="card-gallery-info">
                     <div class="card-name">{{ card_name }}</div>
-                    <div class="card-type">{{ card_data.cardtype }}</div>
-                    {% if card_data.subtype %}
-                    <div class="card-subtype">{{ card_data.subtype }}</div>
+                    <div class="card-type">{{ card_data.cardtype or card_data.front.cardtype or '' }}</div>
+                    {% if card_data.subtype or card_data.front.subtype %}
+                    <div class="card-subtype">{{ card_data.subtype or card_data.front.subtype }}</div>
                     {% endif %}
                 </div>
             </a>
