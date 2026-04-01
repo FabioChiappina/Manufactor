@@ -29,7 +29,7 @@ deactivate
 
 ### Creating the Virtual Environment (First-Time Setup)
 
-If you need to recreate the virtual environment from scratch, follow these steps:
+If you need to recreate the virtual environment from scratch:
 
 1. **Create a new virtual environment:**
    ```bash
@@ -53,20 +53,27 @@ If you need to recreate the virtual environment from scratch, follow these steps
 
 ### Required Packages
 
-This project requires the following Python packages:
-
-- **Pillow** (>=10.0.0) - Image processing library for creating card images
-- **num2words** (>=0.5.12) - Converts numbers to words for card text generation
+- **Pillow** (>=10.0.0) - Image processing for card rendering
+- **num2words** (>=0.5.12) - Number-to-word conversion for card text
+- **Flask** (>=3.0.0) - Web framework for the UI
 
 All dependencies are listed in `requirements.txt`.
 
 ## Project Structure
 
-This project has been refactored into a modular structure to prepare for GUI development. See [REFACTORING_PLAN.md](REFACTORING_PLAN.md) for detailed progress.
+The project is organized into a modular, three-layer architecture:
 
-### New Modular Structure (`src/`)
+```
+UI Layer (Flask templates/routes)
+    ↓
+Services Layer (CardBuilder, ImageGenerator, DeckManager, etc.)
+    ↓
+Core Layer (Card, Deck, Mana, CardSet, Ability)
+    ↓
+Specialized Layers (Rendering, Token Generation, Integration, Utils)
+```
 
-The project is organized into clear, focused modules:
+### Module Overview (`src/`)
 
 - **`src/core/`** - Game logic and data models
   - `mana.py` - Mana cost parsing and color identity
@@ -88,31 +95,34 @@ The project is organized into clear, focused modules:
 - **`src/cli/`** - Command-line interface tools
   - `build_deck.py` - Main deck building script
   - `prepare_reprints.py` - Reprint preparation utility
+  - `configure.py` - Configuration management CLI
 
 - **`src/utils/`** - Shared utilities
   - `paths.py` - Path configurations
   - `file_utils.py` - File system utilities
 
-- **`src/services/`** - Business logic layer
+- **`src/services/`** - Business logic layer (bridge between UI and core)
+  - `card_builder.py` - Card creation from form data
   - `image_generator.py` - Card image generation service
   - `deck_manager.py` - Deck loading and statistics
   - `cockatrice_exporter.py` - Cockatrice export service
+  - `settings_manager.py` - Configuration management
 
-- **`src/ui/`** - GUI components (future)
+- **`src/ui/`** - Flask web interface
+  - `app.py` - Flask application and routes
+  - `helpers.py` - UI helper functions (image encoding, deck loading, etc.)
+  - `templates/` - HTML templates
+  - `static/` - CSS and JavaScript assets
 
-See [src/README.md](src/README.md) for detailed module documentation.
-
-**Note**: Legacy files (build_deck.py, build_card.py, game_elements.py, paths.py) have been removed. All functionality is now in the modular `src/` structure.
+See [src/README.md](src/README.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed module documentation.
 
 ## Configuration
 
 ### First-Time Setup
 
-When you first run Manufactor, a `config.json` file will be automatically created in the project root with default paths. You should update these paths to match your local system.
+When you first run Manufactor, a `config.json` file will be automatically created in `config/` with default paths. You should update these paths to match your local system.
 
-### Configuration File (`config.json`)
-
-The configuration file stores local system paths:
+### Configuration File (`config/config.json`)
 
 ```json
 {
@@ -123,17 +133,15 @@ The configuration file stores local system paths:
 }
 ```
 
-**Important Notes:**
-- The `config.json` file is user-specific and is not tracked by git (it's in `.gitignore`)
-- A `config.example.json` file is provided as a template
-- The `deck_path` is where all your deck folders and card files will be saved
-- The `cockatrice_path` should point to your Cockatrice installation folder
+**Notes:**
+- `config/config.json` is user-specific and not tracked by git (see `.gitignore`)
+- `config/config.example.json` is provided as a template
+- `deck_path` is where all your deck folders and card files will be saved
+- `cockatrice_path` should point to your Cockatrice installation folder
 
 ### Managing Configuration
 
 #### Using the CLI Tool
-
-The easiest way to manage configuration is with the built-in CLI tool:
 
 ```bash
 # Show current configuration
@@ -152,24 +160,19 @@ python -m src.cli.configure --set-cockatrice-path "~/Library/Application Support
 python -m src.cli.configure --reset
 ```
 
-#### Programmatically (for GUI/scripts)
-
-You can also manage settings programmatically:
+#### Programmatically (for scripts)
 
 ```python
 from src.services.settings_manager import SettingsManager
 
 settings = SettingsManager()
 
-# Get current paths
 deck_path = settings.get_deck_path()
 cockatrice_path = settings.get_cockatrice_path()
 
-# Set new paths
 settings.set_deck_path("/new/path/to/Decks")
 settings.set_cockatrice_path("/new/path/to/Cockatrice")
 
-# Validate paths
 validation = settings.validate_paths()
 errors = settings.get_validation_errors()
 ```
@@ -183,47 +186,37 @@ errors = settings.get_validation_errors()
 
 ## Usage
 
-### Using the Web UI (NEW!)
+### Using the Web UI
 
-The easiest way to use Manufactor is with the new Gradio-based web interface:
+The primary way to use Manufactor is the Flask-based web interface:
 
 ```bash
-# IMPORTANT: Activate virtual environment first
+# Activate virtual environment first
 source venv/bin/activate
 
 # Launch the web UI
 python3 -m src.ui.app
 
-# The UI will open in your browser at http://localhost:7860
-# (or another port if 7860 is in use - check terminal output)
-
-# When done, press Ctrl+C to stop the server
-# Then deactivate the virtual environment
+# The UI will open at http://127.0.0.1:7860
+# Press Ctrl+C to stop the server
 deactivate
 ```
 
-**UI Features**:
-- **My Decks**: Browse and manage your decks
-  - Card-based grid view of all available decks
-  - Beautiful card artwork backgrounds (auto-selects commander or featured card)
-  - Special diagonal split display for partner commander decks
-  - Shows deck name, card count, format, and description
-  - Refresh button to reload deck list
-  - Click on decks for details (coming soon)
-- **Settings**: Configure paths and manage common tokens
-  - Set deck path and Cockatrice path
-  - Add, view, and delete common token definitions
-  - All changes save to config files automatically
-- **About**: Project information and help
+**Pages:**
+- **My Decks** (`/`) - Grid view of all your decks with artwork backgrounds, completion status badges, and filter controls (All / Complete / Incomplete)
+- **Deck Details** (`/deck/<name>`) - Commander card display, card image gallery with quantity badges, and a toggle to mark the deck complete
+- **Card Editor** (`/deck/<name>/card/<card>/edit`) - Edit all card properties (name, cost, type, rules, power/toughness, etc.) and save back to the deck JSON
+- **Settings** (`/settings`) - Configure deck path and Cockatrice path; manage common token definitions
+- **About** (`/about`) - Project info, feature list, documentation links
 
-For detailed UI documentation, see [docs/UI_GUIDE.md](docs/UI_GUIDE.md).
+For full UI documentation, see [docs/UI_GUIDE.md](docs/UI_GUIDE.md).
 
-### Using the Modular CLI
+### Using the CLI
 
-You can also use Manufactor via the command line:
+You can also use Manufactor from the command line:
 
 ```bash
-# IMPORTANT: Activate virtual environment first
+# Activate virtual environment first
 source venv/bin/activate
 
 # Build a deck (from project root)
@@ -235,36 +228,57 @@ python3 -m src.cli.build_deck --deck "YourDeckName" --automatic-tokens 1
 # Prepare reprints
 python3 -m src.cli.prepare_reprints "OutputDirectoryName"
 
-# When done, deactivate the virtual environment
 deactivate
 ```
 
-**Important**: Both UI and CLI require the virtual environment to be activated to access dependencies (Pillow, num2words, Gradio).
+## Documentation
+
+Detailed documentation lives in [docs/](docs/):
+
+| File | Description |
+|------|-------------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, data models, rendering workflow |
+| [ARCHITECTURE_QUICK_REFERENCE.md](docs/ARCHITECTURE_QUICK_REFERENCE.md) | API reference tables |
+| [CODE_EXAMPLES.md](docs/CODE_EXAMPLES.md) | Practical usage examples |
+| [REFACTORING_PLAN.md](docs/REFACTORING_PLAN.md) | Development roadmap and phase history |
+| [CONFIGURATION.md](docs/CONFIGURATION.md) | Setup and path configuration details |
+| [JSON_FORMAT.md](docs/JSON_FORMAT.md) | Deck and card JSON schema reference |
+| [DOUBLE_FACED_CARDS.md](docs/DOUBLE_FACED_CARDS.md) | Transform / MDFC support |
+| [SUBSPELLS.md](docs/SUBSPELLS.md) | Adventure and Omen card support |
+| [SUPERTYPES.md](docs/SUPERTYPES.md) | Legendary, Basic, Snow fields |
+| [REAL_CARDS.md](docs/REAL_CARDS.md) | Integration with real MTG cards |
+| [UI_GUIDE.md](docs/UI_GUIDE.md) | Web interface user guide |
+| [DOCUMENTATION_INDEX.md](docs/DOCUMENTATION_INDEX.md) | Navigation guide for all docs |
+
+## Features
+
+- **Card Rendering** — 76+ frame templates covering all colors and card types, with automatic frame selection based on card properties
+- **Double-Faced Cards** — Full support for transform and modal double-faced cards (MDFC)
+- **Adventure / Omen Cards** — Subspell layout support
+- **Token Generation** — Automatic token detection from rules text; configurable common token library
+- **Deck Management** — JSON-based storage with card quantities, metadata, and statistics
+- **Commander Support** — Single commander and partner commander (diagonal split image) display
+- **Cockatrice Integration** — Export decks and card images to Cockatrice format
+- **Web UI** — Multi-page Flask application with responsive design and artwork integration
+- **Configuration** — User-specific settings with CLI and programmatic management
 
 ## Troubleshooting
 
 ### Virtual Environment Issues
 
-If you encounter issues with the virtual environment:
-
-1. Delete the existing `venv` folder:
-   ```bash
-   rm -rf venv
-   ```
-
-2. Follow the "Creating the Virtual Environment" steps above to recreate it.
+```bash
+# Delete and recreate the venv
+rm -rf venv
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
 ### Package Installation Issues
 
-If package installation fails:
-
-1. Update pip:
-   ```bash
-   pip install --upgrade pip
-   ```
-
-2. Try installing packages individually:
-   ```bash
-   pip install Pillow
-   pip install num2words
-   ```
+```bash
+pip install --upgrade pip
+pip install Pillow
+pip install num2words
+pip install flask
+```
