@@ -26,7 +26,7 @@
     </div>
 
     {% if deck.metadata.commander %}
-    <!-- Layout with commander cards on the left -->
+    <!-- Layout with commander cards on the left, charts on the right -->
     <div class="deck-header-with-commander">
         <div class="commander-cards-section">
             {% if deck.metadata.commander is string %}
@@ -56,12 +56,27 @@
             {% endif %}
         </div>
 
-        {% if deck.metadata.description %}
-        <div class="deck-info-card deck-info-reduced">
-            <p>{{ deck.metadata.description }}</p>
+        <!-- Two bar charts: mana curve (left) and type breakdown (right) -->
+        <div class="deck-charts-panel">
+            <div class="deck-chart-box">
+                <div class="deck-chart-title">Mana Curve</div>
+                <div class="deck-chart-canvas-wrap">
+                    <canvas id="manaCurveChart"></canvas>
+                </div>
+            </div>
+            <div class="deck-chart-box">
+                <div class="deck-chart-title">Card Types</div>
+                <div class="deck-chart-canvas-wrap">
+                    <canvas id="typeBreakdownChart"></canvas>
+                </div>
+            </div>
         </div>
-        {% endif %}
     </div>
+    {% if deck.metadata.description %}
+    <div class="deck-info-card deck-description-full">
+        <p>{{ deck.metadata.description }}</p>
+    </div>
+    {% endif %}
     {% else %}
     <!-- Full-width layout for decks without commanders -->
     {% if deck.metadata.description %}

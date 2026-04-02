@@ -514,6 +514,56 @@ main {
     background: rgba(255, 255, 255, 0.5);
 }
 
+/* Full-width description below commander section */
+.deck-description-full {
+    margin: 0 0 0 0;
+}
+
+/* Deck Charts Panel */
+.deck-charts-panel {
+    flex: 1;
+    display: flex;
+    gap: 16px;
+    height: calc(280px * 7 / 5);
+    min-width: 0;
+}
+
+.deck-chart-box {
+    flex: 1;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 14px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.deck-chart-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #666;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+}
+
+.deck-chart-canvas-wrap {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+
+.deck-chart-canvas-wrap canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+}
+
 /* Card List */
 .card-list {
     margin-top: 40px;
@@ -1013,6 +1063,16 @@ footer p {
     .deck-info-reduced {
         height: auto;
         max-height: none;
+    }
+
+    .deck-charts-panel {
+        height: auto;
+        flex-direction: column;
+    }
+
+    .deck-chart-box {
+        height: 220px;
+        flex: none;
     }
 }
 

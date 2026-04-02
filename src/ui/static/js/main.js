@@ -30,6 +30,11 @@ document.addEventListener('DOMContentLoaded', function() {
         applyCardControls();
     }
 
+    // Render deck charts if present (deferred so layout is settled)
+    if (document.getElementById('manaCurveChart') || document.getElementById('typeBreakdownChart')) {
+        requestAnimationFrame(function() { renderDeckCharts(); });
+    }
+
     // Floating scroll navigation buttons
     const scrollTopBtn = document.getElementById('scroll-top-btn');
     const scrollNextGroupBtn = document.getElementById('scroll-next-group-btn');
@@ -336,4 +341,296 @@ function applyCardControls() {
 
         cardList.appendChild(groupEl);
     });
+}
+
+// ─── Deck Charts ──────────────────────────────────────────────────────────────
+
+var _chartResizeTimer = null;
+window.addEventListener('resize', function() {
+    clearTimeout(_chartResizeTimer);
+    _chartResizeTimer = setTimeout(renderDeckCharts, 150);
+});
+
+function renderDeckCharts() {
+    var manaCurveCanvas = document.getElementById('manaCurveChart');
+    var typeCanvas = document.getElementById('typeBreakdownChart');
+    if (!manaCurveCanvas && !typeCanvas) return;
+
+    // Use canonical items so we always see the full deck regardless of filters
+    var items = getCanonicalItems();
+
+    var manaCurve = {}; // { mv: { permanents: N, spells: N } }
+    var typeCounts = {
+        'Creature': 0, 'Artifact': 0, 'Enchantment': 0,
+        'Instant': 0, 'Sorcery': 0, 'Planeswalker': 0,
+        'Land': 0, 'Other': 0
+    };
+
+    items.forEach(function(item) {
+        var cost    = item.dataset.cost     || '';
+        var cardtype = item.dataset.cardtype || '';
+        var qty     = parseInt(item.dataset.quantity, 10) || 1;
+        var ct      = cardtype.toLowerCase();
+
+        var isCreature     = ct.includes('creature');
+        var isArtifact     = ct.includes('artifact');
+        var isEnchantment  = ct.includes('enchantment');
+        var isInstant      = ct.includes('instant');
+        var isSorcery      = ct.includes('sorcery');
+        var isPlaneswalker = ct.includes('planeswalker');
+        var isLand         = ct.includes('land');
+        var isBattle       = ct.includes('battle');
+
+        // Type counts — a card can appear in multiple bars
+        if (isCreature)     typeCounts['Creature']     += qty;
+        if (isArtifact)     typeCounts['Artifact']     += qty;
+        if (isEnchantment)  typeCounts['Enchantment']  += qty;
+        if (isInstant)      typeCounts['Instant']      += qty;
+        if (isSorcery)      typeCounts['Sorcery']      += qty;
+        if (isPlaneswalker) typeCounts['Planeswalker'] += qty;
+        if (isLand)         typeCounts['Land']         += qty;
+        if (!isCreature && !isArtifact && !isEnchantment && !isInstant &&
+            !isSorcery && !isPlaneswalker && !isLand) {
+            typeCounts['Other'] += qty;
+        }
+
+        // Mana curve: lands excluded
+        if (isLand) return;
+
+        var mv = getManaValue(cost);
+        if (!manaCurve[mv]) manaCurve[mv] = { permanents: 0, spells: 0 };
+
+        // Classify as permanent if any permanent supertype present
+        var isPermanent = isCreature || isArtifact || isEnchantment || isPlaneswalker || isBattle;
+        if (isPermanent) {
+            manaCurve[mv].permanents += qty;
+        } else {
+            manaCurve[mv].spells += qty;
+        }
+    });
+
+    if (manaCurveCanvas) _renderManaCurveChart(manaCurveCanvas, manaCurve);
+    if (typeCanvas)      _renderTypeBreakdownChart(typeCanvas, typeCounts);
+}
+
+function _setupCanvas(canvas) {
+    var wrap = canvas.parentElement; // .deck-chart-canvas-wrap
+    var w = wrap.offsetWidth;
+    var h = wrap.offsetHeight;
+    if (w <= 0 || h <= 0) return null;
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width  = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.width  = w + 'px';
+    canvas.style.height = h + 'px';
+    var ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    return { ctx: ctx, w: w, h: h };
+}
+
+function _barLabel(ctx, count, cx, segTop, segH) {
+    // Draw count label on or above a bar segment
+    if (count === 0) return;
+    ctx.textAlign = 'center';
+    if (segH >= 16) {
+        ctx.fillStyle = '#111';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.fillText(count, cx, segTop + segH / 2 + 4);
+    } else if (segH > 0) {
+        ctx.fillStyle = '#333';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.fillText(count, cx, segTop - 2);
+    }
+}
+
+function _renderManaCurveChart(canvas, manaCurve) {
+    var setup = _setupCanvas(canvas);
+    if (!setup) return;
+    var ctx = setup.ctx, w = setup.w, h = setup.h;
+
+    var mvKeys = Object.keys(manaCurve).map(Number).sort(function(a, b) { return a - b; });
+    if (!mvKeys.length) return;
+
+    var maxMv = mvKeys[mvKeys.length - 1];
+    var allMVs = [];
+    for (var i = 0; i <= maxMv; i++) allMVs.push(i);
+
+    var rawMax = 0;
+    allMVs.forEach(function(mv) {
+        var d = manaCurve[mv] || { permanents: 0, spells: 0 };
+        var t = d.permanents + d.spells;
+        if (t > rawMax) rawMax = t;
+    });
+    if (rawMax === 0) return;
+
+    var gridStep = 10;
+    var yMax = Math.ceil(rawMax / gridStep) * gridStep || gridStep;
+
+    var ML = 26, MR = 8, MT = 12, MB = 52;
+    var cW = w - ML - MR;
+    var cH = h - MT - MB;
+    var bot = MT + cH;
+    var barW = cW / allMVs.length;
+    var pad  = Math.max(barW * 0.13, 2);
+
+    var PERM_COLOR  = '#f59e0b'; // amber  – permanents (bottom)
+    var SPELL_COLOR = '#818cf8'; // indigo – spells (top)
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Grid lines + y-axis labels (drawn first, behind bars)
+    for (var v = gridStep; v <= yMax; v += gridStep) {
+        var gy = bot - (v / yMax) * cH;
+        ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(ML, gy);
+        ctx.lineTo(ML + cW, gy);
+        ctx.stroke();
+        ctx.fillStyle = '#aaa';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(v, ML - 3, gy + 3);
+    }
+
+    // Y-axis line + baseline
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(ML, MT);
+    ctx.lineTo(ML, bot);
+    ctx.moveTo(ML, bot);
+    ctx.lineTo(ML + cW, bot);
+    ctx.stroke();
+
+    // Bars
+    allMVs.forEach(function(mv, idx) {
+        var d      = manaCurve[mv] || { permanents: 0, spells: 0 };
+        var bx     = ML + idx * barW + pad;
+        var bw     = barW - 2 * pad;
+        var permH  = (d.permanents / yMax) * cH;
+        var spellH = (d.spells     / yMax) * cH;
+
+        // Permanents: bottom segment
+        if (permH > 0) {
+            ctx.fillStyle = PERM_COLOR;
+            ctx.fillRect(bx, bot - permH, bw, permH);
+        }
+        // Spells: top segment (stacked above permanents)
+        if (spellH > 0) {
+            ctx.fillStyle = SPELL_COLOR;
+            ctx.fillRect(bx, bot - permH - spellH, bw, spellH);
+        }
+
+        var cx = bx + bw / 2;
+        _barLabel(ctx, d.permanents, cx, bot - permH,               permH);
+        _barLabel(ctx, d.spells,     cx, bot - permH - spellH, spellH);
+
+        // X-axis MV label
+        ctx.fillStyle = '#444';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(mv, ML + (idx + 0.5) * barW, bot + 14);
+    });
+
+    // Legend
+    var legY = bot + 30;
+    var legX = w / 2 - 88;
+
+    ctx.fillStyle = PERM_COLOR;
+    ctx.fillRect(legX, legY, 12, 12);
+    ctx.fillStyle = '#444';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Permanents', legX + 16, legY + 10);
+
+    ctx.fillStyle = SPELL_COLOR;
+    ctx.fillRect(legX + 98, legY, 12, 12);
+    ctx.fillStyle = '#444';
+    ctx.fillText('Spells', legX + 114, legY + 10);
+}
+
+function _renderTypeBreakdownChart(canvas, typeCounts) {
+    var setup = _setupCanvas(canvas);
+    if (!setup) return;
+    var ctx = setup.ctx, w = setup.w, h = setup.h;
+
+    var ALL_TYPES  = ['Creature', 'Artifact', 'Enchantment', 'Instant', 'Sorcery', 'Planeswalker', 'Land', 'Other'];
+    var ALL_COLORS = ['#ef4444',  '#8b5cf6',  '#10b981',     '#3b82f6', '#f97316', '#ec4899',      '#6b7280', '#d97706'];
+
+    // Only draw bars for types that have at least one card
+    var bars = [];
+    for (var i = 0; i < ALL_TYPES.length; i++) {
+        if (typeCounts[ALL_TYPES[i]] > 0) {
+            bars.push({ type: ALL_TYPES[i], count: typeCounts[ALL_TYPES[i]], color: ALL_COLORS[i] });
+        }
+    }
+    if (!bars.length) return;
+
+    var rawMax = 0;
+    bars.forEach(function(b) { if (b.count > rawMax) rawMax = b.count; });
+
+    var gridStep = 10;
+    var yMax = Math.ceil(rawMax / gridStep) * gridStep || gridStep;
+
+    // Full labels unless >= 7 non-zero bars, then abbreviate Creature/Enchantment/Planeswalker
+    var ABBREV = { 'Creature': 'Creat.', 'Enchantment': 'Ench.', 'Planeswalker': 'PW' };
+    var useAbbrev = bars.length >= 7;
+
+    var ML = 26, MR = 8, MT = 12, MB = 34;
+    var cW = w - ML - MR;
+    var cH = h - MT - MB;
+    var bot = MT + cH;
+    var barW = cW / bars.length;
+    var pad  = Math.max(barW * 0.13, 2);
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Grid lines + y-axis labels (drawn first, behind bars)
+    for (var v = gridStep; v <= yMax; v += gridStep) {
+        var gy = bot - (v / yMax) * cH;
+        ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(ML, gy);
+        ctx.lineTo(ML + cW, gy);
+        ctx.stroke();
+        ctx.fillStyle = '#aaa';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(v, ML - 3, gy + 3);
+    }
+
+    // Y-axis line + baseline
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(ML, MT);
+    ctx.lineTo(ML, bot);
+    ctx.moveTo(ML, bot);
+    ctx.lineTo(ML + cW, bot);
+    ctx.stroke();
+
+    // Bars + labels
+    bars.forEach(function(bar, idx) {
+        var bx   = ML + idx * barW + pad;
+        var bw   = barW - 2 * pad;
+        var barH = (bar.count / yMax) * cH;
+
+        ctx.fillStyle = bar.color;
+        ctx.fillRect(bx, bot - barH, bw, barH);
+        _barLabel(ctx, bar.count, bx + bw / 2, bot - barH, barH);
+
+        var label = useAbbrev ? (ABBREV[bar.type] || bar.type) : bar.type;
+        ctx.fillStyle = '#555';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, ML + (idx + 0.5) * barW, bot + 14);
+    });
+
+    // Footnote
+    ctx.fillStyle = '#bbb';
+    ctx.font = '9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Cards may count in multiple bars', w / 2, h - 4);
 }
