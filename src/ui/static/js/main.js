@@ -37,12 +37,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Floating scroll navigation buttons
     const scrollTopBtn = document.getElementById('scroll-top-btn');
+    const scrollPrevGroupBtn = document.getElementById('scroll-prev-group-btn');
     const scrollNextGroupBtn = document.getElementById('scroll-next-group-btn');
     const scrollBottomBtn = document.getElementById('scroll-bottom-btn');
 
     if (scrollTopBtn) {
         scrollTopBtn.addEventListener('click', function() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
+    if (scrollPrevGroupBtn) {
+        scrollPrevGroupBtn.addEventListener('click', function() {
+            const headers = Array.from(document.querySelectorAll('.card-group-header'));
+            if (!headers.length) return;
+            const prev = headers.slice().reverse().find(function(h) {
+                return h.getBoundingClientRect().top < -10;
+            });
+            if (prev) {
+                prev.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
         });
     }
     if (scrollNextGroupBtn) {
