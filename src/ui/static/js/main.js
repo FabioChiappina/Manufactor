@@ -159,12 +159,10 @@ function getColorsFromCost(cost) {
 }
 
 function normalizeCardType(cardtype) {
-    if (!cardtype) return 'Other';
+    if (!cardtype) return ['Other'];
     const ct = cardtype.toLowerCase();
-    for (const t of TYPE_ORDER) {
-        if (ct.includes(t.toLowerCase())) return t;
-    }
-    return 'Other';
+    const matches = TYPE_ORDER.filter(function(t) { return ct.includes(t.toLowerCase()); });
+    return matches.length > 0 ? matches : ['Other'];
 }
 
 function matchesManaFilter(item, op, value) {
@@ -268,7 +266,7 @@ function applyCardControls() {
     filteredItems.forEach(function(item) {
         let keys;
         if (groupBy === 'type') {
-            keys = [normalizeCardType(item.dataset.cardtype)];
+            keys = normalizeCardType(item.dataset.cardtype);
         } else if (groupBy === 'landnonland') {
             const ct = (item.dataset.cardtype || '').toLowerCase();
             keys = [ct.includes('land') ? 'Land' : 'Nonland'];
@@ -284,7 +282,7 @@ function applyCardControls() {
 
         keys.forEach(function(key, i) {
             if (!groupMap.has(key)) groupMap.set(key, []);
-            // Clone the element when a card belongs to multiple tag groups
+            // Clone the element when a card belongs to multiple groups
             const el = (i < keys.length - 1) ? item.cloneNode(true) : item;
             groupMap.get(key).push(el);
         });
