@@ -60,6 +60,65 @@ function getManaValue(cost) {
 
 const TYPE_ORDER = ['Creature', 'Planeswalker', 'Instant', 'Sorcery', 'Enchantment', 'Artifact', 'Land', 'Battle', 'Other'];
 
+// --- Color grouping helpers ---
+
+const WUBRG_LETTERS = ['W', 'U', 'B', 'R', 'G'];
+
+// Maps WUBRG-sorted color key → display name.
+// Keys are ordered from fewest to most colors, then WUBRG within each tier.
+const COLOR_NAMES = {
+    '':      'Colorless',
+    'W':     'White',
+    'U':     'Blue',
+    'B':     'Black',
+    'R':     'Red',
+    'G':     'Green',
+    'WU':    'Azorius',
+    'WB':    'Orzhov',
+    'WR':    'Boros',
+    'WG':    'Selesnya',
+    'UB':    'Dimir',
+    'UR':    'Izzet',
+    'UG':    'Simic',
+    'BR':    'Rakdos',
+    'BG':    'Golgari',
+    'RG':    'Gruul',
+    'WUB':   'Esper',
+    'WUR':   'Jeskai',
+    'WUG':   'Bant',
+    'WBR':   'Mardu',
+    'WBG':   'Abzan',
+    'WRG':   'Naya',
+    'UBR':   'Grixis',
+    'UBG':   'Sultai',
+    'URG':   'Temur',
+    'BRG':   'Jund',
+    'WUBR':  'Yore-Tiller',
+    'WUBG':  'Witch-Maw',
+    'WURG':  'Ink-Treader',
+    'WBRG':  'Dune-Brood',
+    'UBRG':  'Glint-Eye',
+    'WUBRG': 'Five-Color'
+};
+
+const COLOR_KEY_ORDER = Object.keys(COLOR_NAMES);
+
+function getColorsFromCost(cost) {
+    if (!cost) return [];
+    const found = new Set();
+    const matches = cost.match(/\{([^}]+)\}/g) || [];
+    for (const sym of matches) {
+        const inner = sym.slice(1, -1).toUpperCase();
+        // Handle hybrid {W/U}, phyrexian {W/P}, and two-cost {2/W}
+        const parts = inner.includes('/') ? inner.split('/') : [inner];
+        for (const p of parts) {
+            if (WUBRG_LETTERS.includes(p)) found.add(p);
+        }
+    }
+    // Return in WUBRG order
+    return WUBRG_LETTERS.filter(function(c) { return found.has(c); });
+}
+
 function normalizeCardType(cardtype) {
     if (!cardtype) return 'Other';
     const ct = cardtype.toLowerCase();
@@ -117,6 +176,9 @@ function applyCardControls() {
         } else if (groupBy === 'landnonland') {
             const ct = (item.dataset.cardtype || '').toLowerCase();
             keys = [ct.includes('land') ? 'Land' : 'Nonland'];
+        } else if (groupBy === 'color') {
+            // Key is the WUBRG-sorted color string ('WU', 'R', '' for colorless, etc.)
+            keys = [getColorsFromCost(item.dataset.cost).join('')];
         } else {
             // tag
             const tagStr = (item.dataset.tags || '').trim();
@@ -143,6 +205,14 @@ function applyCardControls() {
     } else if (groupBy === 'landnonland') {
         // Nonland first, Land second
         groupKeys.sort(function(a) { return a === 'Nonland' ? -1 : 1; });
+    } else if (groupBy === 'color') {
+        groupKeys.sort(function(a, b) {
+            if (a === '' && b !== '') return 1;   // Colorless always last
+            if (b === '' && a !== '') return -1;
+            const ia = COLOR_KEY_ORDER.indexOf(a);
+            const ib = COLOR_KEY_ORDER.indexOf(b);
+            return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+        });
     } else {
         groupKeys.sort(function(a, b) {
             if (a === 'Untagged') return 1;
@@ -160,9 +230,12 @@ function applyCardControls() {
         const totalQty = items.reduce(function(sum, item) {
             return sum + parseInt(item.dataset.quantity || '1', 10);
         }, 0);
+        const displayKey = (groupBy === 'color')
+            ? (COLOR_NAMES[key] !== undefined ? COLOR_NAMES[key] : key || 'Colorless')
+            : key;
         const header = document.createElement('h4');
         header.className = 'card-group-header';
-        header.textContent = key + ' (' + totalQty + ')';
+        header.textContent = displayKey + ' (' + totalQty + ')';
         groupEl.appendChild(header);
 
         const gallery = document.createElement('div');
