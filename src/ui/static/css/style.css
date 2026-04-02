@@ -540,6 +540,29 @@ main {
     box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
 }
 
+.control-group input[type="number"] {
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+    width: 60px;
+    transition: border-color 0.2s;
+    -moz-appearance: textfield;
+}
+
+.control-group input[type="number"]::-webkit-outer-spin-button,
+.control-group input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.control-group input[type="number"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
 /* Card Groups (used when grouping is active) */
 .card-group {
     margin-bottom: 36px;

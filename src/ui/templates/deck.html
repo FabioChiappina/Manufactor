@@ -79,23 +79,50 @@
 
     <div class="card-list">
         <div class="card-list-header">
-            <h3>Cards ({{ deck.total_cards - deck.commander_count }})</h3>
+            <h3 id="cards-count-header">Cards ({{ deck.total_cards - deck.commander_count }})</h3>
             <div class="card-controls">
                 <div class="control-group">
-                    <label for="sort-select">Sort by</label>
+                    <label for="sort-select">Sort By</label>
                     <select id="sort-select">
                         <option value="alpha">Alphabetical</option>
                         <option value="mana" selected>Mana Value</option>
                     </select>
                 </div>
                 <div class="control-group">
-                    <label for="group-select">Group by</label>
+                    <label for="group-select">Group By</label>
                     <select id="group-select">
                         <option value="none">None</option>
                         <option value="type" selected>Card Type</option>
                         <option value="landnonland">Land / Nonland</option>
                         <option value="color">Color</option>
                         <option value="tag">Tag</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Mana Value</label>
+                    <select id="mv-op-select">
+                        <option value="any">Any</option>
+                        <option value="lt">&lt;</option>
+                        <option value="eq">=</option>
+                        <option value="gt">&gt;</option>
+                    </select>
+                    <input type="number" id="mv-value-input" min="0" placeholder="#">
+                </div>
+                <div class="control-group">
+                    <label for="type-filter-select">Card Type</label>
+                    <select id="type-filter-select">
+                        <option value="any">Any</option>
+                        <option value="creature">Creature</option>
+                        <option value="artifact">Artifact</option>
+                        <option value="enchantment">Enchantment</option>
+                        <option value="land">Land</option>
+                        <option value="instant">Instant</option>
+                        <option value="sorcery">Sorcery</option>
+                        <option value="instant-sorcery">Instant/Sorcery</option>
+                        <option value="planeswalker">Planeswalker</option>
+                        <option value="nonland">Nonland</option>
+                        <option value="noncreature-nonland">Noncreature/Nonland</option>
+                        <option value="other">Other</option>
                     </select>
                 </div>
             </div>
