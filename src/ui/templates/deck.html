@@ -5,16 +5,24 @@
 {% block content %}
 <div class="deck-details">
     <div class="deck-header">
-        <h1>{{ deck.name }}</h1>
-        <form action="/deck/{{ deck.name | urlencode }}/toggle-complete" method="POST" style="display: inline;">
-            <button type="submit" class="btn btn-toggle-complete {% if deck.metadata.complete %}btn-complete{% else %}btn-incomplete{% endif %}">
-                {% if deck.metadata.complete %}
-                    ✅ Complete
-                {% else %}
-                    ⏳ Mark Complete
-                {% endif %}
-            </button>
-        </form>
+        <div class="deck-title-row">
+            <h1>{{ deck.name }}</h1>
+            {% if deck.metadata.format %}
+            <span class="deck-format-badge">{{ deck.metadata.format }}</span>
+            {% endif %}
+        </div>
+        <div class="deck-header-right">
+            <span class="deck-card-count">{{ deck.total_cards }} Cards ({{ deck.unique_cards }} Unique)</span>
+            <form action="/deck/{{ deck.name | urlencode }}/toggle-complete" method="POST" style="display: inline;">
+                <button type="submit" class="btn btn-toggle-complete {% if deck.metadata.complete %}btn-complete{% else %}btn-incomplete{% endif %}">
+                    {% if deck.metadata.complete %}
+                        ✅ Complete
+                    {% else %}
+                        ⏳ Mark Complete
+                    {% endif %}
+                </button>
+            </form>
+        </div>
     </div>
 
     {% if deck.metadata.commander %}
@@ -48,33 +56,19 @@
             {% endif %}
         </div>
 
+        {% if deck.metadata.description %}
         <div class="deck-info-card deck-info-reduced">
-            <p><strong>Format:</strong> {{ deck.metadata.format or 'Unknown' }}</p>
-            <p><strong>Total Cards:</strong> {{ deck.total_cards }}
-                {% if deck.commander_count > 0 %}
-                    (including {{ deck.commander_count }} commander{% if deck.commander_count > 1 %}s{% endif %})
-                {% endif %}
-            </p>
-            <p><strong>Unique Cards:</strong> {{ deck.unique_cards }}</p>
-
-            {% if deck.metadata.description %}
-            <p><strong>Description:</strong></p>
             <p>{{ deck.metadata.description }}</p>
-            {% endif %}
         </div>
+        {% endif %}
     </div>
     {% else %}
     <!-- Full-width layout for decks without commanders -->
+    {% if deck.metadata.description %}
     <div class="deck-info-card">
-        <h3>Deck Information</h3>
-        <p><strong>Format:</strong> {{ deck.metadata.format or 'Unknown' }}</p>
-        <p><strong>Total Cards:</strong> {{ deck.cards|length }}</p>
-
-        {% if deck.metadata.description %}
-        <p><strong>Description:</strong></p>
         <p>{{ deck.metadata.description }}</p>
-        {% endif %}
     </div>
+    {% endif %}
     {% endif %}
 
     <div class="card-list">
