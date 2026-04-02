@@ -13,6 +13,47 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 from src.services.settings_manager import SettingsManager
 from src.utils.paths import PROJECT_ROOT
+from src.core.mana import Mana
+
+# CSS background colors for each MTG color (used in deck color banner)
+_COLOR_BANNER_CSS = {
+    'w': '#f5f0d8',
+    'u': '#1565a8',
+    'b': '#1a1a1a',
+    'r': '#cc2b28',
+    'g': '#1a7835',
+}
+_GOLD_BANNER_CSS = '#e0b832'
+_COLORLESS_BANNER_CSS = '#8a8a8a'
+
+
+def _get_deck_colors(cards_dict, metadata):
+    """Return deck colors in WUBRG order, derived from metadata or card costs."""
+    meta_colors = metadata.get('colors', [])
+    if meta_colors:
+        return Mana.colors_to_wubrg_order([c.lower() for c in meta_colors])
+    all_colors = set()
+    for card_data in cards_dict.values():
+        if isinstance(card_data, dict):
+            # mana is nested under 'front' for standard cards
+            cost = card_data.get('front', {}).get('mana', '') or card_data.get('mana', '')
+            if cost:
+                all_colors.update(Mana.get_colors(cost))
+    return Mana.colors_to_wubrg_order(list(all_colors))
+
+
+def _get_banner_style(colors):
+    """Return CSS background style string for the deck color banner."""
+    if len(colors) == 0:
+        return f'background: {_COLORLESS_BANNER_CSS};'
+    elif len(colors) == 1:
+        return f'background: {_COLOR_BANNER_CSS.get(colors[0], _COLORLESS_BANNER_CSS)};'
+    elif len(colors) == 2:
+        c1 = _COLOR_BANNER_CSS.get(colors[0], _COLORLESS_BANNER_CSS)
+        c2 = _COLOR_BANNER_CSS.get(colors[1], _COLORLESS_BANNER_CSS)
+        return f'background: linear-gradient(to bottom, {c1} 50%, {c2} 50%);'
+    else:
+        return f'background: {_GOLD_BANNER_CSS};'
 
 
 def get_available_decks():
@@ -273,6 +314,9 @@ def get_decks_with_metadata(filter_status='all'):
             else:
                 total_card_count += 1
 
+        colors_wubrg = _get_deck_colors(cards_dict, metadata)
+        banner_style = _get_banner_style(colors_wubrg)
+
         result.append({
             'name': display_name,
             'folder_name': folder_name,
@@ -283,7 +327,9 @@ def get_decks_with_metadata(filter_status='all'):
             'complete': deck_complete,
             'artwork_base64': bg_image_data,
             'json_path': json_path,
-            'folder_path': deck_folder_path
+            'folder_path': deck_folder_path,
+            'colors_wubrg': colors_wubrg,
+            'banner_style': banner_style,
         })
 
     return result
