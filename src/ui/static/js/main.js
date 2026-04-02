@@ -35,6 +35,11 @@ document.addEventListener('DOMContentLoaded', function() {
         requestAnimationFrame(function() { renderDeckCharts(); });
     }
 
+    // Compute mana production breakdown if present
+    if (document.getElementById('mbc-w')) {
+        requestAnimationFrame(function() { computeManaBreakdown(); });
+    }
+
     // Floating scroll navigation buttons
     const scrollTopBtn = document.getElementById('scroll-top-btn');
     const scrollPrevGroupBtn = document.getElementById('scroll-prev-group-btn');
@@ -671,7 +676,101 @@ function _renderTypeBreakdownChart(canvas, typeCounts) {
 
     // Footnote
     ctx.fillStyle = '#bbb';
-    ctx.font = '9px sans-serif';
+    ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('Cards may count in multiple bars', w / 2, h - 4);
+}
+
+// ─── Mana Production Breakdown ───────────────────────────────────────────────
+
+function getPipCountsFromCost(cost) {
+    var counts = { w: 0, u: 0, b: 0, r: 0, g: 0, c: 0 };
+    if (!cost) return counts;
+    var matches = cost.match(/\{([^}]+)\}/g) || [];
+    for (var i = 0; i < matches.length; i++) {
+        var inner = matches[i].slice(1, -1).toLowerCase();
+        // Skip generic numeric, variable, snow, energy, tap/untap symbols
+        if (/^\d+$/.test(inner)) continue;
+        if (inner === 'x' || inner === 'y' || inner === 'z') continue;
+        if (inner === 's' || inner === 'e' || inner === 't' || inner === 'q') continue;
+        if (inner.includes('/')) {
+            // Hybrid / phyrexian / colorless-hybrid: count each color component
+            var parts = inner.split('/');
+            for (var j = 0; j < parts.length; j++) {
+                var p = parts[j];
+                if (p === 'w') counts.w += 1;
+                else if (p === 'u') counts.u += 1;
+                else if (p === 'b') counts.b += 1;
+                else if (p === 'r') counts.r += 1;
+                else if (p === 'g') counts.g += 1;
+                else if (p === 'c') counts.c += 1;
+                // numeric '2' in {2/W} and phyrexian 'p' are ignored
+            }
+        } else {
+            if (inner === 'w') counts.w += 1;
+            else if (inner === 'u') counts.u += 1;
+            else if (inner === 'b') counts.b += 1;
+            else if (inner === 'r') counts.r += 1;
+            else if (inner === 'g') counts.g += 1;
+            else if (inner === 'c') counts.c += 1;
+        }
+    }
+    return counts;
+}
+
+function computeManaBreakdown() {
+    if (!document.getElementById('mbc-w')) return;
+
+    var items = getCanonicalItems();
+    var COLORS = ['w', 'u', 'b', 'r', 'g', 'c'];
+
+    var cardCounts = { w: 0, u: 0, b: 0, r: 0, g: 0, c: 0 };
+    var totalNonLand = 0;
+    var pipCounts = { w: 0, u: 0, b: 0, r: 0, g: 0, c: 0 };
+    var totalPips = 0;
+
+    items.forEach(function(item) {
+        var cost = item.dataset.cost || '';
+        var cardtype = (item.dataset.cardtype || '').toLowerCase();
+        var qty = parseInt(item.dataset.quantity || '1', 10) || 1;
+        var isLand = cardtype.includes('land');
+
+        if (!isLand) {
+            var cardColors = getColorsFromCost(cost); // returns uppercase ['W','U',...]
+            if (cardColors.length === 0) {
+                cardCounts.c += qty;
+            } else {
+                for (var i = 0; i < cardColors.length; i++) {
+                    cardCounts[cardColors[i].toLowerCase()] += qty;
+                }
+            }
+            totalNonLand += qty;
+        }
+
+        var pips = getPipCountsFromCost(cost);
+        for (var k = 0; k < COLORS.length; k++) {
+            var added = pips[COLORS[k]] * qty;
+            pipCounts[COLORS[k]] += added;
+            totalPips += added;
+        }
+    });
+
+    COLORS.forEach(function(color) {
+        var cardsEl = document.getElementById('mb-cards-' + color);
+        var pipsEl  = document.getElementById('mb-pips-'  + color);
+        var colorEl = document.getElementById('mbc-' + color);
+        if (!colorEl) return;
+
+        var cardPct = totalNonLand > 0 ? (cardCounts[color] / totalNonLand * 100) : 0;
+        var pipPct  = totalPips   > 0 ? (pipCounts[color]  / totalPips   * 100) : 0;
+
+        if (cardsEl) cardsEl.textContent = cardPct.toFixed(0) + '%';
+        if (pipsEl)  pipsEl.textContent  = pipPct.toFixed(0)  + '%';
+
+        if (cardCounts[color] === 0) {
+            colorEl.classList.add('mana-color-absent');
+        } else {
+            colorEl.classList.remove('mana-color-absent');
+        }
+    });
 }

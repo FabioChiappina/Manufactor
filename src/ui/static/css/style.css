@@ -519,6 +519,80 @@ main {
     margin: 0 0 0 0;
 }
 
+/* Mana Production Breakdown */
+.mana-breakdown {
+    background: white;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 16px 0 0;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+.mana-breakdown-inner {
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.mana-breakdown-color {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    padding: 12px 4px;
+    border-radius: 8px;
+    transition: opacity 0.3s, filter 0.3s;
+}
+
+.mana-symbol-large {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+}
+
+.mana-color-name {
+    font-size: 11px;
+    font-weight: 700;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.mana-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 100%;
+    align-items: center;
+}
+
+.mana-stat-row {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    font-size: 12px;
+}
+
+.mana-stat-label {
+    color: #aaa;
+    min-width: 30px;
+    text-align: right;
+}
+
+.mana-stat-value {
+    color: #222;
+    font-weight: 700;
+    min-width: 38px;
+    text-align: left;
+}
+
+.mana-color-absent {
+    opacity: 0.3;
+    filter: grayscale(70%);
+}
+
 /* Deck Charts Panel */
 .deck-charts-panel {
     flex: 1;

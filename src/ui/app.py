@@ -4,11 +4,12 @@ Main UI application for Magic Card Manufactor.
 This module provides the Flask-based web interface for the card creation tool.
 """
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory
 import json
 import os
 from urllib.parse import unquote
 from src.services.settings_manager import SettingsManager
+from src.utils.paths import SYMBOL_PATH
 from src.ui.helpers import (
     get_available_decks,
     get_decks_with_metadata,
@@ -19,6 +20,12 @@ from src.ui.helpers import (
 
 app = Flask(__name__)
 app.secret_key = 'manufactor-secret-key-change-in-production'
+
+
+@app.route('/symbols/<filename>')
+def serve_symbol(filename):
+    """Serve mana symbol images from Assets/Symbols/."""
+    return send_from_directory(SYMBOL_PATH, filename)
 
 
 @app.route('/')

@@ -86,6 +86,28 @@
     {% endif %}
     {% endif %}
 
+    <!-- Mana Production Breakdown -->
+    <div class="mana-breakdown">
+        <div class="mana-breakdown-inner">
+            {% for color_code, color_name, symbol_file in [('w','White','w.png'), ('u','Blue','u.png'), ('b','Black','b.png'), ('r','Red','r.png'), ('g','Green','g.png'), ('c','Colorless','c.png')] %}
+            <div class="mana-breakdown-color" id="mbc-{{ color_code }}">
+                <img src="/symbols/{{ symbol_file }}" alt="{{ color_name }}" class="mana-symbol-large">
+                <div class="mana-color-name">{{ color_name }}</div>
+                <div class="mana-stats">
+                    <div class="mana-stat-row">
+                        <span class="mana-stat-label">Cards</span>
+                        <span class="mana-stat-value" id="mb-cards-{{ color_code }}">—</span>
+                    </div>
+                    <div class="mana-stat-row">
+                        <span class="mana-stat-label">Pips</span>
+                        <span class="mana-stat-value" id="mb-pips-{{ color_code }}">—</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
     <div class="card-list">
         <div class="card-list-header">
             <h3 id="cards-count-header">Cards ({{ deck.total_cards - deck.commander_count }})</h3>
