@@ -364,6 +364,10 @@ function renderDeckCharts() {
         'Land': 0, 'Other': 0
     };
 
+    var totalCardCount = 0;
+    var nonLandCount   = 0;
+    var totalMV        = 0;
+
     items.forEach(function(item) {
         var cost    = item.dataset.cost     || '';
         var cardtype = item.dataset.cardtype || '';
@@ -378,6 +382,8 @@ function renderDeckCharts() {
         var isPlaneswalker = ct.includes('planeswalker');
         var isLand         = ct.includes('land');
         var isBattle       = ct.includes('battle');
+
+        totalCardCount += qty;
 
         // Type counts — a card can appear in multiple bars
         if (isCreature)     typeCounts['Creature']     += qty;
@@ -396,6 +402,9 @@ function renderDeckCharts() {
         if (isLand) return;
 
         var mv = getManaValue(cost);
+        nonLandCount += qty;
+        totalMV      += mv * qty;
+
         if (!manaCurve[mv]) manaCurve[mv] = { permanents: 0, spells: 0 };
 
         // Classify as permanent if any permanent supertype present
@@ -407,7 +416,13 @@ function renderDeckCharts() {
         }
     });
 
-    if (manaCurveCanvas) _renderManaCurveChart(manaCurveCanvas, manaCurve);
+    var mvStats = {
+        totalMV:    totalMV,
+        avgAll:     totalCardCount > 0 ? totalMV / totalCardCount : 0,
+        avgNonLand: nonLandCount   > 0 ? totalMV / nonLandCount   : 0
+    };
+
+    if (manaCurveCanvas) _renderManaCurveChart(manaCurveCanvas, manaCurve, mvStats);
     if (typeCanvas)      _renderTypeBreakdownChart(typeCanvas, typeCounts);
 }
 
@@ -441,7 +456,7 @@ function _barLabel(ctx, count, cx, segTop, segH) {
     }
 }
 
-function _renderManaCurveChart(canvas, manaCurve) {
+function _renderManaCurveChart(canvas, manaCurve, mvStats) {
     var setup = _setupCanvas(canvas);
     if (!setup) return;
     var ctx = setup.ctx, w = setup.w, h = setup.h;
@@ -531,14 +546,14 @@ function _renderManaCurveChart(canvas, manaCurve) {
         ctx.fillText(mv, ML + (idx + 0.5) * barW, bot + 14);
     });
 
-    // Legend
+    // Legend (left-aligned) + stats (right-aligned) on the same row
     var legY = bot + 30;
-    var legX = w / 2 - 88;
+    var legX = ML;
 
     ctx.fillStyle = PERM_COLOR;
     ctx.fillRect(legX, legY, 12, 12);
     ctx.fillStyle = '#444';
-    ctx.font = '11px sans-serif';
+    ctx.font = '12px sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText('Permanents', legX + 16, legY + 10);
 
@@ -546,6 +561,19 @@ function _renderManaCurveChart(canvas, manaCurve) {
     ctx.fillRect(legX + 98, legY, 12, 12);
     ctx.fillStyle = '#444';
     ctx.fillText('Spells', legX + 114, legY + 10);
+
+    // MV stats right-aligned on the same row as the legend
+    if (mvStats) {
+        var avgAllStr     = mvStats.avgAll.toFixed(2);
+        var avgNonLandStr = mvStats.avgNonLand.toFixed(2);
+        ctx.fillStyle = '#666';
+        ctx.font = '13px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(
+            'Mean: ' + avgAllStr + ' (' + avgNonLandStr + ' excl. lands)   Total: ' + mvStats.totalMV,
+            w - MR, legY + 10
+        );
+    }
 }
 
 function _renderTypeBreakdownChart(canvas, typeCounts) {
