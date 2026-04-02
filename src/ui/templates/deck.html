@@ -3,10 +3,6 @@
 {% block title %}{{ deck.name }} - Manufactor{% endblock %}
 
 {% block content %}
-<div class="breadcrumb">
-    <a href="/">← Back to My Decks</a>
-</div>
-
 <div class="deck-details">
     <div class="deck-header">
         <h1>{{ deck.name }}</h1>
@@ -122,19 +118,13 @@
                 </div>
                 {% else %}
                 <div class="card-image-placeholder">
+                    <div class="placeholder-text">{{ card_name }}</div>
                     <div class="placeholder-text">No Image</div>
                     {% if card_data.quantity and card_data.quantity > 1 %}
                     <div class="quantity-badge">x{{ card_data.quantity }}</div>
                     {% endif %}
                 </div>
                 {% endif %}
-                <div class="card-gallery-info">
-                    <div class="card-name">{{ card_name }}</div>
-                    <div class="card-type">{{ card_data.cardtype or card_data.front.cardtype or '' }}</div>
-                    {% if card_data.subtype or card_data.front.subtype %}
-                    <div class="card-subtype">{{ card_data.subtype or card_data.front.subtype }}</div>
-                    {% endif %}
-                </div>
             </a>
             {% endfor %}
         </div>
