@@ -87,7 +87,7 @@
     {% endif %}
 
     <!-- Mana Production Breakdown -->
-    <div class="mana-breakdown">
+    <div class="mana-breakdown" data-deck-name="{{ deck.name }}">
         <div class="mana-breakdown-inner">
             {% for color_code, color_name, symbol_file in [('w','White','w.png'), ('u','Blue','u.png'), ('b','Black','b.png'), ('r','Red','r.png'), ('g','Green','g.png'), ('c','Colorless','c.png')] %}
             <div class="mana-breakdown-color" id="mbc-{{ color_code }}">
@@ -101,6 +101,14 @@
                     <div class="mana-stat-row">
                         <span class="mana-stat-label">Pips</span>
                         <span class="mana-stat-value" id="mb-pips-{{ color_code }}">—</span>
+                    </div>
+                    <div class="mana-stat-row mana-basics-row">
+                        <button class="mana-remove-basic-btn" data-color="{{ color_code }}" title="Remove basic land">−</button>
+                        <span class="mana-basics-text">
+                            <span class="mana-stat-label">Basics</span>
+                            <span class="mana-stat-value" id="mb-basics-{{ color_code }}">—</span>
+                        </span>
+                        <button class="mana-add-basic-btn" data-color="{{ color_code }}" title="Add basic land">+</button>
                     </div>
                 </div>
             </div>
@@ -165,6 +173,8 @@
                data-name="{{ card_name }}"
                data-cost="{{ card_data.cost or card_data.front.mana or '' }}"
                data-cardtype="{{ card_data.cardtype or card_data.front.cardtype or '' }}"
+               data-subtype="{{ card_data.subtype or card_data.front.subtype or '' }}"
+               data-basic="{{ card_data.basic or card_data.front.basic or '' }}"
                data-tags="{{ card_data.tags | join(',') if card_data.tags is not string and card_data.tags else (card_data.tags or '') }}"
                data-quantity="{{ card_data.quantity or 1 }}">
                 {% if card_data.image_base64 %}

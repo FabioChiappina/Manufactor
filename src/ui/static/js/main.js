@@ -35,9 +35,23 @@ document.addEventListener('DOMContentLoaded', function() {
         requestAnimationFrame(function() { renderDeckCharts(); });
     }
 
-    // Compute mana production breakdown if present
+    // Compute mana production breakdown and wire +/− buttons
     if (document.getElementById('mbc-w')) {
-        requestAnimationFrame(function() { computeManaBreakdown(); });
+        requestAnimationFrame(function() {
+            computeManaBreakdown();
+            document.querySelectorAll('.mana-add-basic-btn').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    _doBasicAction(btn.dataset.color, 'add-basic', btn);
+                });
+            });
+            document.querySelectorAll('.mana-remove-basic-btn').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    _doBasicAction(btn.dataset.color, 'remove-basic', btn);
+                });
+            });
+        });
     }
 
     // Floating scroll navigation buttons
@@ -718,25 +732,30 @@ function getPipCountsFromCost(cost) {
     return counts;
 }
 
+var BASIC_SUBTYPES = { w: 'plains', u: 'island', b: 'swamp', r: 'mountain', g: 'forest', c: 'wastes' };
+
 function computeManaBreakdown() {
     if (!document.getElementById('mbc-w')) return;
 
     var items = getCanonicalItems();
     var COLORS = ['w', 'u', 'b', 'r', 'g', 'c'];
 
-    var cardCounts = { w: 0, u: 0, b: 0, r: 0, g: 0, c: 0 };
+    var cardCounts  = { w: 0, u: 0, b: 0, r: 0, g: 0, c: 0 };
     var totalNonLand = 0;
-    var pipCounts = { w: 0, u: 0, b: 0, r: 0, g: 0, c: 0 };
-    var totalPips = 0;
+    var pipCounts   = { w: 0, u: 0, b: 0, r: 0, g: 0, c: 0 };
+    var totalPips   = 0;
+    var basicCounts = { w: 0, u: 0, b: 0, r: 0, g: 0, c: 0 };
 
     items.forEach(function(item) {
-        var cost = item.dataset.cost || '';
+        var cost     = item.dataset.cost    || '';
         var cardtype = (item.dataset.cardtype || '').toLowerCase();
-        var qty = parseInt(item.dataset.quantity || '1', 10) || 1;
-        var isLand = cardtype.includes('land');
+        var subtype  = (item.dataset.subtype  || '').toLowerCase();
+        var isBasic  = !!(item.dataset.basic  && item.dataset.basic !== '0' && item.dataset.basic !== '');
+        var qty      = parseInt(item.dataset.quantity || '1', 10) || 1;
+        var isLand   = cardtype.includes('land');
 
         if (!isLand) {
-            var cardColors = getColorsFromCost(cost); // returns uppercase ['W','U',...]
+            var cardColors = getColorsFromCost(cost);
             if (cardColors.length === 0) {
                 cardCounts.c += qty;
             } else {
@@ -753,24 +772,122 @@ function computeManaBreakdown() {
             pipCounts[COLORS[k]] += added;
             totalPips += added;
         }
+
+        // Basic land: flagged via data-basic (front.basic=1) or subtype matches a basic type
+        if (isBasic && isLand) {
+            for (var b = 0; b < COLORS.length; b++) {
+                if (subtype.includes(BASIC_SUBTYPES[COLORS[b]])) {
+                    basicCounts[COLORS[b]] += qty;
+                }
+            }
+        }
     });
 
     COLORS.forEach(function(color) {
-        var cardsEl = document.getElementById('mb-cards-' + color);
-        var pipsEl  = document.getElementById('mb-pips-'  + color);
-        var colorEl = document.getElementById('mbc-' + color);
+        var cardsEl  = document.getElementById('mb-cards-'  + color);
+        var pipsEl   = document.getElementById('mb-pips-'   + color);
+        var basicsEl = document.getElementById('mb-basics-' + color);
+        var colorEl  = document.getElementById('mbc-' + color);
         if (!colorEl) return;
 
         var cardPct = totalNonLand > 0 ? (cardCounts[color] / totalNonLand * 100) : 0;
-        var pipPct  = totalPips   > 0 ? (pipCounts[color]  / totalPips   * 100) : 0;
+        var pipPct  = totalPips    > 0 ? (pipCounts[color]  / totalPips    * 100) : 0;
 
-        if (cardsEl) cardsEl.textContent = cardPct.toFixed(0) + '%';
-        if (pipsEl)  pipsEl.textContent  = pipPct.toFixed(0)  + '%';
+        if (cardsEl)  cardsEl.textContent  = cardPct.toFixed(0) + '%';
+        if (pipsEl)   pipsEl.textContent   = pipPct.toFixed(0)  + '%';
+        if (basicsEl) basicsEl.textContent = basicCounts[color];
 
-        if (cardCounts[color] === 0) {
+        if (cardCounts[color] === 0 && basicCounts[color] === 0) {
             colorEl.classList.add('mana-color-absent');
         } else {
             colorEl.classList.remove('mana-color-absent');
         }
     });
+
+}
+
+function _updateBasicCard(color, newQty, isAdd) {
+    var basicSubtype = BASIC_SUBTYPES[color];
+    if (!_canonicalCardItems) return;
+
+    var matchingItem = null;
+    for (var i = 0; i < _canonicalCardItems.length; i++) {
+        var item = _canonicalCardItems[i];
+        if (item.dataset.basic && item.dataset.basic !== '0' && item.dataset.basic !== '' &&
+            (item.dataset.subtype || '').toLowerCase().includes(basicSubtype)) {
+            matchingItem = item;
+            break;
+        }
+    }
+
+    if (!matchingItem) {
+        // Card not yet in the DOM — reload to show the newly-added basic land
+        if (isAdd) location.reload();
+        return;
+    }
+
+    if (newQty <= 0) {
+        // Remove from canonical list and DOM, then rebuild gallery grouping
+        _canonicalCardItems = _canonicalCardItems.filter(function(i) { return i !== matchingItem; });
+        matchingItem.remove();
+        applyCardControls();
+        return;
+    }
+
+    // Update cached dataset so applyCardControls counts correctly
+    matchingItem.dataset.quantity = newQty;
+
+    // Update the yellow quantity badge
+    var container = matchingItem.querySelector('.card-image-container') ||
+                    matchingItem.querySelector('.card-image-placeholder');
+    if (container) {
+        var badge = container.querySelector('.quantity-badge');
+        if (newQty > 1) {
+            if (badge) {
+                badge.textContent = 'x' + newQty;
+            } else {
+                var newBadge = document.createElement('div');
+                newBadge.className = 'quantity-badge';
+                newBadge.textContent = 'x' + newQty;
+                container.appendChild(newBadge);
+            }
+        } else {
+            if (badge) badge.remove();
+        }
+    }
+
+    // Refresh the "Cards (N)" header count
+    applyCardControls();
+}
+
+function _doBasicAction(color, action, btn) {
+    var breakdownEl = document.querySelector('.mana-breakdown');
+    var deckName = breakdownEl ? breakdownEl.dataset.deckName : '';
+    if (!deckName || !color) return;
+
+    btn.disabled = true;
+    fetch('/deck/' + encodeURIComponent(deckName) + '/' + action + '/' + color, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.error) { btn.disabled = false; return; }
+
+        var basicsEl = document.getElementById('mb-basics-' + color);
+        if (basicsEl) basicsEl.textContent = data.quantity;
+
+        var countEl = document.querySelector('.deck-card-count');
+        if (countEl && data.total_cards !== undefined) {
+            countEl.textContent = countEl.textContent.replace(/^\d+/, data.total_cards);
+        }
+
+        _updateBasicCard(color, data.quantity, action === 'add-basic');
+
+        var colorEl = document.getElementById('mbc-' + color);
+        if (colorEl && data.quantity > 0) colorEl.classList.remove('mana-color-absent');
+
+        btn.disabled = false;
+    })
+    .catch(function() { btn.disabled = false; });
 }

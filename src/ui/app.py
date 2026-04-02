@@ -4,7 +4,7 @@ Main UI application for Magic Card Manufactor.
 This module provides the Flask-based web interface for the card creation tool.
 """
 
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, jsonify
 import json
 import os
 from urllib.parse import unquote
@@ -95,6 +95,143 @@ def toggle_complete(deck_name):
     status_text = "complete" if new_status else "incomplete"
     flash(f'Deck "{deck_name}" marked as {status_text}!', 'success')
     return redirect(url_for('deck_details', deck_name=deck_name))
+
+
+@app.route('/deck/<deck_name>/add-basic/<color>', methods=['POST'])
+def add_basic(deck_name, color):
+    """Add one basic land of the given color to the deck."""
+    deck_name = unquote(deck_name)
+
+    BASIC_MAP = {
+        'w': {'name': 'Plains',   'cardtype': 'Basic Land', 'subtype': 'Plains'},
+        'u': {'name': 'Island',   'cardtype': 'Basic Land', 'subtype': 'Island'},
+        'b': {'name': 'Swamp',    'cardtype': 'Basic Land', 'subtype': 'Swamp'},
+        'r': {'name': 'Mountain', 'cardtype': 'Basic Land', 'subtype': 'Mountain'},
+        'g': {'name': 'Forest',   'cardtype': 'Basic Land', 'subtype': 'Forest'},
+        'c': {'name': 'Wastes',   'cardtype': 'Basic Land', 'subtype': 'Wastes'},
+    }
+
+    if color not in BASIC_MAP:
+        return jsonify({'error': 'Invalid color'}), 400
+
+    basic_info = BASIC_MAP[color]
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    json_path = deck_data['json_path']
+    with open(json_path, 'r') as f:
+        full_deck_data = json.load(f)
+
+    cards = full_deck_data.setdefault('cards', {})
+
+    # Find existing basic land of this subtype.
+    # Real basics use front.basic=1 and front.subtype; custom basics may use top-level cardtype.
+    target_subtype = basic_info['subtype'].lower()
+    found_name = None
+    for card_name, card_data in cards.items():
+        if not isinstance(card_data, dict):
+            continue
+        front = card_data.get('front', {})
+        # Real basic: front.basic flag set and front.subtype matches
+        if front.get('basic') and target_subtype in front.get('subtype', '').lower():
+            found_name = card_name
+            break
+        # Custom basic: top-level cardtype contains "basic land" and subtype matches
+        ct = card_data.get('cardtype', '').lower()
+        st = card_data.get('subtype', '').lower()
+        if 'basic' in ct and 'land' in ct and target_subtype in st:
+            found_name = card_name
+            break
+
+    if found_name:
+        cards[found_name]['quantity'] = cards[found_name].get('quantity', 1) + 1
+        new_qty = cards[found_name]['quantity']
+    else:
+        # Create a new basic land in the real-card format
+        cards[basic_info['name']] = {
+            'front': {
+                'name': basic_info['name'],
+                'cardtype': 'Land',
+                'subtype': basic_info['subtype'],
+                'basic': 1,
+            },
+            'quantity': 1,
+            'real': 1,
+        }
+        new_qty = 1
+
+    with open(json_path, 'w') as f:
+        json.dump(full_deck_data, f, indent=2)
+
+    total_cards = sum(
+        c.get('quantity', 1) if isinstance(c, dict) else 1
+        for c in cards.values()
+    )
+    return jsonify({'quantity': new_qty, 'total_cards': total_cards})
+
+
+@app.route('/deck/<deck_name>/remove-basic/<color>', methods=['POST'])
+def remove_basic(deck_name, color):
+    """Remove one basic land of the given color from the deck."""
+    deck_name = unquote(deck_name)
+
+    SUBTYPE_MAP = {
+        'w': 'plains', 'u': 'island', 'b': 'swamp',
+        'r': 'mountain', 'g': 'forest', 'c': 'wastes',
+    }
+
+    if color not in SUBTYPE_MAP:
+        return jsonify({'error': 'Invalid color'}), 400
+
+    target_subtype = SUBTYPE_MAP[color]
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    json_path = deck_data['json_path']
+    with open(json_path, 'r') as f:
+        full_deck_data = json.load(f)
+
+    cards = full_deck_data.setdefault('cards', {})
+
+    found_name = None
+    for card_name, card_data in cards.items():
+        if not isinstance(card_data, dict):
+            continue
+        front = card_data.get('front', {})
+        if front.get('basic') and target_subtype in front.get('subtype', '').lower():
+            found_name = card_name
+            break
+        ct = card_data.get('cardtype', '').lower()
+        st = card_data.get('subtype', '').lower()
+        if 'basic' in ct and 'land' in ct and target_subtype in st:
+            found_name = card_name
+            break
+
+    if not found_name:
+        total_cards = sum(
+            c.get('quantity', 1) if isinstance(c, dict) else 1 for c in cards.values()
+        )
+        return jsonify({'quantity': 0, 'total_cards': total_cards})
+
+    current_qty = cards[found_name].get('quantity', 1)
+    if current_qty <= 1:
+        del cards[found_name]
+        new_qty = 0
+    else:
+        cards[found_name]['quantity'] = current_qty - 1
+        new_qty = current_qty - 1
+
+    with open(json_path, 'w') as f:
+        json.dump(full_deck_data, f, indent=2)
+
+    total_cards = sum(
+        c.get('quantity', 1) if isinstance(c, dict) else 1 for c in cards.values()
+    )
+    return jsonify({'quantity': new_qty, 'total_cards': total_cards})
 
 
 @app.route('/deck/<deck_name>/card/<card_name>/edit')
