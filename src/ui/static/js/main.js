@@ -23,6 +23,34 @@ document.addEventListener('DOMContentLoaded', function() {
         // Apply defaults immediately on page load
         applyCardControls();
     }
+
+    // Floating scroll navigation buttons
+    const scrollTopBtn = document.getElementById('scroll-top-btn');
+    const scrollNextGroupBtn = document.getElementById('scroll-next-group-btn');
+    const scrollBottomBtn = document.getElementById('scroll-bottom-btn');
+
+    if (scrollTopBtn) {
+        scrollTopBtn.addEventListener('click', function() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
+    if (scrollNextGroupBtn) {
+        scrollNextGroupBtn.addEventListener('click', function() {
+            const headers = Array.from(document.querySelectorAll('.card-group-header'));
+            if (!headers.length) return;
+            const next = headers.find(function(h) {
+                return h.getBoundingClientRect().top > 10;
+            });
+            if (next) {
+                next.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    }
+    if (scrollBottomBtn) {
+        scrollBottomBtn.addEventListener('click', function() {
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        });
+    }
 });
 
 // --- Card Sort & Group ---
