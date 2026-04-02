@@ -469,12 +469,16 @@ def load_deck_by_name(deck_name):
             # Calculate total card count including commanders and quantities
             total_cards = 0
             unique_cards = 0
+            custom_cards = 0
             for card_name, card_data in deck_data.get('cards', {}).items():
                 unique_cards += 1
                 if isinstance(card_data, dict):
                     total_cards += card_data.get('quantity', 1)
+                    if not card_data.get('real', 0):
+                        custom_cards += 1
                 else:
                     total_cards += 1
+                    custom_cards += 1
 
             commander_count = len(commander_names)
 
@@ -488,6 +492,7 @@ def load_deck_by_name(deck_name):
                 'commander_images': commander_images if commander_images else None,
                 'total_cards': total_cards,
                 'unique_cards': unique_cards,
+                'custom_cards': custom_cards,
                 'commander_count': commander_count
             }
 

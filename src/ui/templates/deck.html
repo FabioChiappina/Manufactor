@@ -12,7 +12,7 @@
             {% endif %}
         </div>
         <div class="deck-header-right">
-            <span class="deck-card-count">{{ deck.total_cards }} Cards ({{ deck.unique_cards }} Unique)</span>
+            <span class="deck-card-count">{{ deck.total_cards }} Cards / {{ deck.unique_cards }} Unique / {{ deck.custom_cards }} Custom</span>
             <form action="/deck/{{ deck.name | urlencode }}/toggle-complete" method="POST" style="display: inline;">
                 <button type="submit" class="btn btn-toggle-complete {% if deck.metadata.complete %}btn-complete{% else %}btn-incomplete{% endif %}">
                     {% if deck.metadata.complete %}
