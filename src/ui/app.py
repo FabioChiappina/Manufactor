@@ -301,7 +301,89 @@ def card_data(deck_name):
     if back_name:
         card_json['back_image_base64'] = get_card_image_base64(deck_data['folder_path'], back_name)
 
+    # Include deck-level tag list for the tag picker
+    card_json['_deck_tags'] = sorted(deck_data['metadata'].get('tags', []))
+
     return jsonify(card_json)
+
+
+@app.route('/deck/<deck_name>/add-card-tag', methods=['POST'])
+def add_card_tag(deck_name):
+    """Add a tag to a card and ensure it exists in deck metadata."""
+    deck_name = unquote(deck_name)
+    card_name = request.args.get('name', '')
+    data = request.get_json() or {}
+    tag = (data.get('tag') or '').strip()
+    if not card_name or not tag:
+        return jsonify({'error': 'Card name and tag required'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    card = raw_deck.get('cards', {}).get(card_name)
+    if not isinstance(card, dict):
+        return jsonify({'error': 'Card not found'}), 404
+
+    card_tags = list(card.get('tags') or [])
+    if tag not in card_tags:
+        card_tags.append(tag)
+    raw_deck['cards'][card_name]['tags'] = card_tags
+
+    meta_tags = list(raw_deck.get('metadata', {}).get('tags') or [])
+    if tag not in meta_tags:
+        meta_tags.append(tag)
+        meta_tags.sort()
+    raw_deck.setdefault('metadata', {})['tags'] = meta_tags
+
+    with open(deck_data['json_path'], 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    return jsonify({'card_tags': card_tags, 'deck_tags': meta_tags})
+
+
+@app.route('/deck/<deck_name>/remove-card-tag', methods=['POST'])
+def remove_card_tag(deck_name):
+    """Remove a tag from a card; remove from deck metadata if no longer used."""
+    deck_name = unquote(deck_name)
+    card_name = request.args.get('name', '')
+    data = request.get_json() or {}
+    tag = (data.get('tag') or '').strip()
+    if not card_name or not tag:
+        return jsonify({'error': 'Card name and tag required'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    card = raw_deck.get('cards', {}).get(card_name)
+    if not isinstance(card, dict):
+        return jsonify({'error': 'Card not found'}), 404
+
+    card_tags = [t for t in (card.get('tags') or []) if t != tag]
+    raw_deck['cards'][card_name]['tags'] = card_tags
+
+    # Remove from deck metadata if no other card uses this tag
+    tag_still_used = any(
+        tag in (c.get('tags') or [])
+        for n, c in raw_deck.get('cards', {}).items()
+        if isinstance(c, dict) and n != card_name
+    )
+    meta_tags = list(raw_deck.get('metadata', {}).get('tags') or [])
+    if not tag_still_used and tag in meta_tags:
+        meta_tags.remove(tag)
+    raw_deck.setdefault('metadata', {})['tags'] = meta_tags
+
+    with open(deck_data['json_path'], 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    return jsonify({'card_tags': card_tags, 'deck_tags': meta_tags})
 
 
 @app.route('/card-frames')

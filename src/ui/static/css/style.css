@@ -1420,7 +1420,7 @@ footer p {
 .card-editor-panel {
     display: flex;
     flex-direction: column;
-    min-height: 80vh;
+    min-height: 95vh;
 }
 
 .editor-panel-header {
@@ -1561,6 +1561,130 @@ footer p {
 .artwork-status--missing {
     background: #fff3cd;
     color: #856404;
+}
+
+/* ── Editor Tags Section ─────────────────────────────────────────────────── */
+
+.editor-tags-section {
+    margin-top: 14px;
+    position: relative;
+}
+
+.editor-tags-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.editor-tags-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+}
+
+.btn-tag-add {
+    font-size: 11px;
+    padding: 2px 8px;
+    border: 1px solid #c8c8d0;
+    border-radius: 4px;
+    background: #f5f5f8;
+    color: #555;
+    cursor: pointer;
+    line-height: 1.6;
+}
+
+.btn-tag-add:hover {
+    background: #eaeaf0;
+    border-color: #aaa;
+}
+
+.editor-tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    min-height: 24px;
+}
+
+.editor-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #e8eaf6;
+    color: #3949ab;
+    font-size: 11px;
+    padding: 2px 6px 2px 8px;
+    border-radius: 12px;
+    line-height: 1.6;
+    max-width: 100%;
+    word-break: break-all;
+}
+
+.editor-tag-remove {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    color: #7986cb;
+    flex-shrink: 0;
+}
+
+.editor-tag-remove:hover {
+    color: #c62828;
+}
+
+.tag-picker {
+    margin-top: 6px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    overflow: hidden;
+}
+
+.tag-picker-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 10px;
+    border: none;
+    border-bottom: 1px solid #e8e8e8;
+    font-size: 13px;
+    outline: none;
+}
+
+.tag-picker-options {
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.tag-picker-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 7px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #333;
+}
+
+.tag-picker-option:hover {
+    background: #f0f2ff;
+}
+
+.tag-picker-option--new {
+    color: #2e7d32;
+    font-style: italic;
+    border-top: 1px solid #eee;
+}
+
+.tag-picker-option--new:hover {
+    background: #f1f8f2;
 }
 
 /* ── Editor Panel Body (split layout) ───────────────────────────────────── */

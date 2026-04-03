@@ -920,6 +920,8 @@ function _doBasicAction(color, action, btn) {
     var _currentFace     = 'front';  // 'front' | 'back'
     var _faceCache       = { front: {}, back: {} };
     var _serverData      = null;
+    var _currentTags     = [];   // tags on the current card
+    var _deckTags        = [];   // all tags in the deck
 
     // ── Tiny helpers ──────────────────────────────────────────────────────────
     function $id(id) { return document.getElementById(id); }
@@ -1052,6 +1054,9 @@ function _doBasicAction(color, action, btn) {
                 populateForm(data);
                 updateArtworkStatus(data._artwork_found, data._artwork_hint);
                 updatePreview(data.image_base64);
+                _currentTags = Array.isArray(data.tags) ? data.tags.slice() : [];
+                _deckTags    = Array.isArray(data._deck_tags) ? data._deck_tags.slice() : [];
+                renderTags();
                 updateButtonStates();
             })
             .catch(function () { setArtworkStatus('missing', 'Failed to load card'); });
@@ -1088,6 +1093,10 @@ function _doBasicAction(color, action, btn) {
         _serverData      = null;
 
         // Clear stale data so the next opened card doesn't briefly flash old content
+        _currentTags = [];
+        _deckTags    = [];
+        renderTags();
+        closeTagPicker();
         updatePreview(null);
         setArtworkStatus('', '');
         $id('editor-card-title').textContent = '';
@@ -1283,6 +1292,117 @@ function _doBasicAction(color, action, btn) {
         }
     }
 
+    // ── Tags ──────────────────────────────────────────────────────────────────
+
+    function renderTags() {
+        var list = $id('editor-tag-list');
+        if (!list) return;
+        list.innerHTML = '';
+        _currentTags.forEach(function (tag) {
+            var chip = document.createElement('span');
+            chip.className = 'editor-tag-chip';
+            chip.textContent = tag;
+            var x = document.createElement('button');
+            x.className = 'editor-tag-remove';
+            x.type = 'button';
+            x.textContent = '×';
+            x.title = 'Remove tag';
+            x.addEventListener('click', function () { doRemoveTag(tag); });
+            chip.appendChild(x);
+            list.appendChild(chip);
+        });
+    }
+
+    function openTagPicker() {
+        var picker = $id('tag-picker');
+        var input  = $id('tag-picker-input');
+        if (!picker || !input) return;
+        picker.style.display = '';
+        input.value = '';
+        renderTagOptions('');
+        input.focus();
+    }
+
+    function closeTagPicker() {
+        var picker = $id('tag-picker');
+        if (picker) picker.style.display = 'none';
+    }
+
+    function renderTagOptions(filter) {
+        var opts = $id('tag-picker-options');
+        if (!opts) return;
+        opts.innerHTML = '';
+        var q = filter.trim().toLowerCase();
+        var candidates = _deckTags.filter(function (t) {
+            return !_currentTags.includes(t) && (!q || t.toLowerCase().includes(q));
+        });
+        candidates.forEach(function (tag) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'tag-picker-option';
+            btn.textContent = tag;
+            btn.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+                doAddTag(tag);
+            });
+            opts.appendChild(btn);
+        });
+        // "Create new" option when typed text is non-empty and not an exact existing match
+        if (filter.trim() && !_deckTags.map(function (t) { return t.toLowerCase(); }).includes(filter.trim().toLowerCase())) {
+            var newBtn = document.createElement('button');
+            newBtn.type = 'button';
+            newBtn.className = 'tag-picker-option tag-picker-option--new';
+            newBtn.textContent = 'Create new tag: "' + filter.trim() + '"';
+            newBtn.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+                doAddTag(filter.trim());
+            });
+            opts.appendChild(newBtn);
+        }
+    }
+
+    function _updateGalleryItemTags(cardName, tags) {
+        var item = document.querySelector('.card-gallery-item[data-card-name="' + CSS.escape(cardName) + '"]');
+        if (item) item.dataset.tags = tags.join(',');
+    }
+
+    function doAddTag(tag) {
+        if (!tag || !_currentCardName) return;
+        closeTagPicker();
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/add-card-tag?name=' + encodeURIComponent(_currentCardName), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tag: tag })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) return;
+            _currentTags = data.card_tags;
+            _deckTags    = data.deck_tags;
+            renderTags();
+            _updateGalleryItemTags(_currentCardName, _currentTags);
+        })
+        .catch(function () {});
+    }
+
+    function doRemoveTag(tag) {
+        if (!tag || !_currentCardName) return;
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/remove-card-tag?name=' + encodeURIComponent(_currentCardName), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tag: tag })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) return;
+            _currentTags = data.card_tags;
+            _deckTags    = data.deck_tags;
+            renderTags();
+            _updateGalleryItemTags(_currentCardName, _currentTags);
+        })
+        .catch(function () {});
+    }
+
     // ── Forge (stub — Phase 3 adds real POST) ─────────────────────────────────
     function onForgeClick(closeAfter) {
         _editorIsDirty = false;
@@ -1352,6 +1472,39 @@ function _doBasicAction(color, action, btn) {
                 })
                 .catch(function () { /* silently ignore */ });
         }
+
+        // Tag add button + picker
+        var tagAddBtn = $id('tag-add-btn');
+        if (tagAddBtn) tagAddBtn.addEventListener('click', openTagPicker);
+        var tagInput = $id('tag-picker-input');
+        if (tagInput) {
+            tagInput.addEventListener('input', function () { renderTagOptions(tagInput.value); });
+            tagInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') { closeTagPicker(); return; }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    var val = tagInput.value.trim();
+                    if (!val) return;
+                    // If there's exactly one visible option, use it; else create new
+                    var visible = $id('tag-picker-options').querySelectorAll('.tag-picker-option:not(.tag-picker-option--new)');
+                    if (visible.length === 1 && visible[0].textContent.toLowerCase() === val.toLowerCase()) {
+                        doAddTag(visible[0].textContent);
+                    } else {
+                        doAddTag(val);
+                    }
+                }
+            });
+        }
+        // Close picker when clicking outside
+        document.addEventListener('click', function (e) {
+            var picker = $id('tag-picker');
+            var btn    = $id('tag-add-btn');
+            if (picker && picker.style.display !== 'none') {
+                if (!picker.contains(e.target) && e.target !== btn) {
+                    closeTagPicker();
+                }
+            }
+        });
 
         // Forge buttons
         var forgeBtn = $id('forge-btn');
