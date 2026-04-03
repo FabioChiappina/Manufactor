@@ -231,19 +231,26 @@
         <!-- ── Inline Card Editor Panel ─────────────────────────────── -->
         <div id="card-editor-panel" class="card-editor-panel" style="display:none;">
             <div class="editor-panel-header">
-                <button id="editor-back-btn" class="btn btn-secondary btn-sm">← Cards</button>
+                <div class="editor-mode-toggle">
+                    <button class="editor-mode-btn editor-mode-btn--active" data-mode="form">Form</button>
+                    <button class="editor-mode-btn" data-mode="json">JSON</button>
+                </div>
                 <span id="editor-card-title" class="editor-card-title"></span>
                 <div class="editor-panel-actions">
-                    <span id="artwork-status" class="artwork-status"></span>
                     <button id="forge-btn" class="btn btn-forge" disabled>Forge</button>
-                    <button id="close-forge-btn" class="btn btn-secondary btn-sm">✕ Close &amp; Forge</button>
                     <button id="publish-btn" class="btn btn-publish" disabled>Publish Assembly Line</button>
+                    <button id="close-forge-btn" class="btn btn-close-forge">✕ Close &amp; Forge</button>
+                    <button id="editor-back-btn" class="btn btn-editor-close">✕ Close</button>
                 </div>
             </div>
 
             <div class="editor-panel-body">
                 <!-- Left: card image preview -->
                 <div class="editor-preview-pane">
+                    <div class="editor-face-tabs" id="editor-face-tabs">
+                        <button class="editor-face-tab editor-face-tab--active" data-face="front">Front</button>
+                        <button class="editor-face-tab" data-face="back">Back</button>
+                    </div>
                     <div class="editor-preview-container">
                         <img id="editor-card-preview" src="" alt="" class="editor-card-image" style="display:none;">
                         <div id="editor-card-placeholder" class="editor-card-placeholder">
@@ -251,15 +258,11 @@
                             <span class="editor-placeholder-sub">Forge to generate</span>
                         </div>
                     </div>
+                    <span id="artwork-status" class="artwork-status"></span>
                 </div>
 
                 <!-- Right: editor controls -->
                 <div class="editor-form-pane">
-                    <div class="editor-mode-toggle">
-                        <button class="editor-mode-btn editor-mode-btn--active" data-mode="form">Form</button>
-                        <button class="editor-mode-btn" data-mode="json">JSON</button>
-                    </div>
-
                     <!-- Form mode -->
                     <div id="editor-form-mode" class="editor-mode-content">
                         <div class="editor-form-fields">
@@ -270,32 +273,28 @@
                                 </div>
                                 <div class="ef-group">
                                     <label class="ef-label">Mana Cost</label>
-                                    <input type="text" id="ef-mana" class="ef-input" placeholder="{2}{u}{r} · hybrid: {w/u} · phyrexian: {g/p}">
+                                    <input type="text" id="ef-mana" class="ef-input" placeholder="{2}{u}{r}  •  hybrid: {w/u}  •  phyrexian: {g/p}">
                                 </div>
                             </div>
-                            <div class="ef-row">
+                            <div class="ef-row--type-line">
+                                <div class="ef-group ef-group--supertypes">
+                                    <label class="ef-label">Supertypes</label>
+                                    <div class="ef-checkboxes-inline">
+                                        <label class="ef-checkbox-label"><input type="checkbox" id="ef-legendary"> Legendary</label>
+                                        <label class="ef-checkbox-label"><input type="checkbox" id="ef-basic"> Basic</label>
+                                        <label class="ef-checkbox-label"><input type="checkbox" id="ef-snow"> Snow</label>
+                                    </div>
+                                </div>
                                 <div class="ef-group">
                                     <label class="ef-label">Card Type</label>
-                                    <select id="ef-cardtype" class="ef-input">
-                                        <option value="Creature">Creature</option>
-                                        <option value="Instant">Instant</option>
-                                        <option value="Sorcery">Sorcery</option>
-                                        <option value="Enchantment">Enchantment</option>
-                                        <option value="Artifact">Artifact</option>
-                                        <option value="Land">Land</option>
-                                        <option value="Planeswalker">Planeswalker</option>
-                                    </select>
+                                    <input type="text" id="ef-cardtype" class="ef-input" placeholder="Creature, Artifact Creature…">
                                 </div>
                                 <div class="ef-group">
                                     <label class="ef-label">Subtype</label>
                                     <input type="text" id="ef-subtype" class="ef-input" placeholder="e.g. Human Wizard">
                                 </div>
                             </div>
-                            <div class="ef-group ef-group--full">
-                                <label class="ef-label">Rules Text</label>
-                                <textarea id="ef-rules" class="ef-input ef-textarea" rows="6" placeholder="Mana symbols use {u}{r} notation"></textarea>
-                            </div>
-                            <div class="ef-row">
+                            <div class="ef-row ef-row--three">
                                 <div class="ef-group">
                                     <label class="ef-label">Power</label>
                                     <input type="text" id="ef-power" class="ef-input" placeholder="*">
@@ -315,14 +314,12 @@
                                 </div>
                             </div>
                             <div class="ef-group ef-group--full">
-                                <label class="ef-label">Flavor Text</label>
-                                <input type="text" id="ef-flavor" class="ef-input" placeholder="Optional flavor text">
+                                <label class="ef-label">Rules Text</label>
+                                <textarea id="ef-rules" class="ef-input ef-textarea" rows="6" placeholder="Mana symbols use {w}{u}{b}{r}{g}{c} notation. Tap: {t}. Untap: {q}. <i>Italics</i>"></textarea>
                             </div>
-                            <div class="ef-checkboxes">
-                                <label class="ef-checkbox-label"><input type="checkbox" id="ef-legendary"> Legendary</label>
-                                <label class="ef-checkbox-label"><input type="checkbox" id="ef-basic"> Basic</label>
-                                <label class="ef-checkbox-label"><input type="checkbox" id="ef-snow"> Snow</label>
-                                <label class="ef-checkbox-label"><input type="checkbox" id="ef-token"> Token</label>
+                            <div class="ef-group ef-group--full">
+                                <label class="ef-label">Flavor Text — Optional</label>
+                                <input type="text" id="ef-flavor" class="ef-input" placeholder="Optional flavor text">
                             </div>
                         </div>
                     </div><!-- #editor-form-mode -->

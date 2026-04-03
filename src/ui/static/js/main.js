@@ -917,6 +917,9 @@ function _doBasicAction(color, action, btn) {
     var _editorMode      = 'form';
     var _cmEditor        = null;
     var _stagedCount     = 0;
+    var _currentFace     = 'front';  // 'front' | 'back'
+    var _faceCache       = { front: {}, back: {} };
+    var _serverData      = null;
 
     // ── Tiny helpers ──────────────────────────────────────────────────────────
     function $id(id) { return document.getElementById(id); }
@@ -929,6 +932,52 @@ function _doBasicAction(color, action, btn) {
     function setCheck(id, checked) {
         var el = $id(id);
         if (el) el.checked = !!checked;
+    }
+
+    // ── Face data helpers ─────────────────────────────────────────────────────
+    var _FACE_STR_FIELDS  = ['name', 'mana', 'cardtype', 'subtype', 'rules', 'power', 'toughness', 'flavor'];
+    var _FACE_BOOL_FIELDS = ['legendary', 'basic', 'snow'];
+
+    function buildFaceDict(faceData) {
+        var f = faceData || {};
+        var result = {};
+        _FACE_STR_FIELDS.forEach(function (k)  { if (f[k]) result[k] = f[k]; });
+        _FACE_BOOL_FIELDS.forEach(function (k) { if (f[k]) result[k] = 1; });
+        return result;
+    }
+
+    function populateFaceForm(faceDict) {
+        var f = faceDict || {};
+        _FACE_STR_FIELDS.forEach(function (k)  { setVal('ef-' + k, f[k] || ''); });
+        _FACE_BOOL_FIELDS.forEach(function (k) { setCheck('ef-' + k, f[k]); });
+    }
+
+    function captureCurrentFace() {
+        var raw = {};
+        _FACE_STR_FIELDS.forEach(function (k) {
+            var el = $id('ef-' + k);
+            if (el) raw[k] = el.value;
+        });
+        _FACE_BOOL_FIELDS.forEach(function (k) {
+            var el = $id('ef-' + k);
+            if (el) raw[k] = el.checked ? 1 : 0;
+        });
+        return buildFaceDict(raw);
+    }
+
+    function updateFaceTabs() {
+        document.querySelectorAll('.editor-face-tab').forEach(function (btn) {
+            btn.classList.toggle('editor-face-tab--active', btn.dataset.face === _currentFace);
+        });
+    }
+
+    function switchFace(face) {
+        if (face === _currentFace) return;
+        _faceCache[_currentFace] = captureCurrentFace();
+        _currentFace = face;
+        if (_editorMode === 'form') populateFaceForm(_faceCache[_currentFace]);
+        updateFaceTabs();
+        onFormChange();
     }
 
     // ── Tab Switching ─────────────────────────────────────────────────────────
@@ -969,6 +1018,9 @@ function _doBasicAction(color, action, btn) {
         _currentCardName = cardName;
         _isNewCard       = false;
         _editorIsDirty   = false;
+        _currentFace     = 'front';
+        _faceCache       = { front: {}, back: {} };
+        _serverData      = null;
 
         $id('editor-card-title').textContent = cardName;
         $id('cards-tab-main').style.display  = 'none';
@@ -988,6 +1040,7 @@ function _doBasicAction(color, action, btn) {
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data.error) { setArtworkStatus('missing', 'Error: ' + data.error); return; }
+                _serverData   = data;
                 _originalJson = JSON.stringify(normaliseCard(data));
                 populateForm(data);
                 updateArtworkStatus(data._artwork_found, data._artwork_hint);
@@ -1002,6 +1055,9 @@ function _doBasicAction(color, action, btn) {
         _isNewCard       = true;
         _editorIsDirty   = true;
         _originalJson    = '';
+        _currentFace     = 'front';
+        _faceCache       = { front: {}, back: {} };
+        _serverData      = null;
 
         $id('editor-card-title').textContent  = 'New Card';
         $id('cards-tab-main').style.display   = 'none';
@@ -1020,6 +1076,9 @@ function _doBasicAction(color, action, btn) {
         _currentCardName = null;
         _isNewCard       = false;
         _editorIsDirty   = false;
+        _currentFace     = 'front';
+        _faceCache       = { front: {}, back: {} };
+        _serverData      = null;
 
         // Clear stale data so the next opened card doesn't briefly flash old content
         updatePreview(null);
@@ -1034,63 +1093,63 @@ function _doBasicAction(color, action, btn) {
 
     // ── Form Population ───────────────────────────────────────────────────────
     function populateForm(data) {
-        var f = data.front || {};
-        setVal('ef-name',      f.name      || data.name      || '');
-        setVal('ef-mana',      f.mana      || data.cost      || '');
-        setVal('ef-subtype',   f.subtype   || data.subtype   || '');
-        setVal('ef-rules',     f.rules     || data.rules     || '');
-        setVal('ef-power',     f.power     || data.power     || '');
-        setVal('ef-toughness', f.toughness || data.toughness || '');
-        setVal('ef-flavor',    f.flavor    || data.flavor    || '');
-        setCheck('ef-legendary', f.legendary || data.legendary);
-        setCheck('ef-basic',     f.basic     || data.basic);
-        setCheck('ef-snow',      f.snow      || data.snow);
-        setCheck('ef-token',     f.token     || data.token);
-
-        // Card type dropdown — case-insensitive match
-        var ctEl = $id('ef-cardtype');
-        if (ctEl) {
-            var ct = (f.cardtype || data.cardtype || 'Creature').toLowerCase();
-            var matched = false;
-            for (var i = 0; i < ctEl.options.length; i++) {
-                if (ctEl.options[i].value.toLowerCase() === ct) { ctEl.selectedIndex = i; matched = true; break; }
-            }
-            if (!matched) ctEl.value = 'Creature';
+        var frontFace;
+        if (data.front) {
+            frontFace = buildFaceDict(data.front);
+        } else {
+            frontFace = buildFaceDict({
+                name: data.name, mana: data.cost, cardtype: data.cardtype,
+                subtype: data.subtype, rules: data.rules, power: data.power,
+                toughness: data.toughness, flavor: data.flavor,
+                legendary: data.legendary, basic: data.basic, snow: data.snow
+            });
         }
-
+        _faceCache   = { front: frontFace, back: buildFaceDict(data.back || {}) };
+        _currentFace = 'front';
         var rarEl = $id('ef-rarity');
         if (rarEl) rarEl.value = (data.rarity || 'common').toLowerCase();
+        populateFaceForm(frontFace);
+        updateFaceTabs();
     }
 
     // ── Serialise form → card JSON ────────────────────────────────────────────
     function serializeForm() {
-        var front = {};
-        var fields = ['name', 'mana', 'cardtype', 'subtype', 'rules', 'power', 'toughness', 'flavor'];
-        fields.forEach(function (k) {
-            var el = $id('ef-' + k);
-            if (el && el.value) front[k] = el.value;
-        });
-        ['legendary', 'basic', 'snow', 'token'].forEach(function (k) {
-            var el = $id('ef-' + k);
-            if (el && el.checked) front[k] = 1;
-        });
+        _faceCache[_currentFace] = captureCurrentFace();
         var rarEl = $id('ef-rarity');
-        return { front: front, rarity: rarEl ? rarEl.value : 'common', quantity: 1 };
+        var result = {
+            front:    _faceCache.front,
+            rarity:   rarEl ? rarEl.value : 'common',
+            quantity: 1
+        };
+        if (_faceCache.back && Object.keys(_faceCache.back).length > 0) {
+            result.back = _faceCache.back;
+        }
+        if (_serverData && _serverData.double_faced_type) {
+            result.double_faced_type = _serverData.double_faced_type;
+        }
+        return result;
     }
 
     // Normalise server card dict into canonical shape for dirty comparison
     function normaliseCard(data) {
-        var f = data.front || {};
-        var front = {};
-        var strFields = { name: 1, mana: 1, cardtype: 1, subtype: 1, rules: 1, power: 1, toughness: 1, flavor: 1 };
-        Object.keys(strFields).forEach(function (k) {
-            var v = f[k] || (k === 'mana' ? data.cost : data[k]) || '';
-            if (v) front[k] = v;
-        });
-        ['legendary', 'basic', 'snow', 'token'].forEach(function (k) {
-            if (f[k] || data[k]) front[k] = 1;
-        });
-        return { front: front, rarity: (data.rarity || 'common').toLowerCase(), quantity: 1 };
+        var frontFace;
+        if (data.front) {
+            frontFace = buildFaceDict(data.front);
+        } else {
+            frontFace = buildFaceDict({
+                name: data.name, mana: data.cost, cardtype: data.cardtype,
+                subtype: data.subtype, rules: data.rules, power: data.power,
+                toughness: data.toughness, flavor: data.flavor,
+                legendary: data.legendary, basic: data.basic, snow: data.snow
+            });
+        }
+        var result = { front: frontFace, rarity: (data.rarity || 'common').toLowerCase(), quantity: 1 };
+        if (data.back) {
+            var backFace = buildFaceDict(data.back);
+            if (Object.keys(backFace).length > 0) result.back = backFace;
+        }
+        if (data.double_faced_type) result.double_faced_type = data.double_faced_type;
+        return result;
     }
 
     // ── Change Detection ──────────────────────────────────────────────────────
@@ -1243,6 +1302,11 @@ function _doBasicAction(color, action, btn) {
         var backBtn = $id('editor-back-btn');
         if (backBtn) backBtn.addEventListener('click', function () { closeCardEditor(true); });
 
+        // Face tabs
+        document.querySelectorAll('.editor-face-tab').forEach(function (btn) {
+            btn.addEventListener('click', function () { switchFace(btn.dataset.face); });
+        });
+
         // Mode toggle
         document.querySelectorAll('.editor-mode-btn').forEach(function (btn) {
             btn.addEventListener('click', function () { switchEditorMode(btn.dataset.mode); });
@@ -1251,7 +1315,7 @@ function _doBasicAction(color, action, btn) {
         // Form field change detection
         ['ef-name', 'ef-mana', 'ef-cardtype', 'ef-subtype', 'ef-rules',
          'ef-power', 'ef-toughness', 'ef-rarity', 'ef-flavor',
-         'ef-legendary', 'ef-basic', 'ef-snow', 'ef-token'].forEach(function (id) {
+         'ef-legendary', 'ef-basic', 'ef-snow'].forEach(function (id) {
             var el = $id(id);
             if (!el) return;
             el.addEventListener('input', onFormChange);

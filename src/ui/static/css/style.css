@@ -1502,12 +1502,55 @@ footer p {
     transform: translateY(-1px);
 }
 
+/* Close & Forge button — warm muted rust, halfway between Forge and Close */
+.btn-close-forge {
+    background: linear-gradient(135deg, #b06045 0%, #8a4040 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.2s, transform 0.1s;
+}
+
+.btn-close-forge:hover {
+    filter: brightness(1.12);
+    transform: translateY(-1px);
+}
+
+/* Close button — dull greyish dark reddish */
+.btn-editor-close {
+    background: #5a3c3c;
+    color: #d4b8b8;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.2s, transform 0.1s;
+}
+
+.btn-editor-close:hover {
+    filter: brightness(1.18);
+    transform: translateY(-1px);
+}
+
 /* Artwork status indicator */
 .artwork-status {
     font-size: 13px;
     padding: 4px 10px;
     border-radius: 4px;
     font-weight: 500;
+}
+
+/* Artwork status below the preview image */
+.editor-preview-pane .artwork-status {
+    display: block;
+    text-align: center;
+    margin-top: 10px;
 }
 
 .artwork-status--found {
@@ -1532,11 +1575,11 @@ footer p {
 /* Left pane: card image */
 .editor-preview-pane {
     flex: 0 0 auto;
-    width: 280px;
+    width: 336px;
 }
 
 .editor-preview-container {
-    width: 280px;
+    width: 336px;
     aspect-ratio: 5 / 7;
     border-radius: 10px;
     overflow: hidden;
@@ -1575,6 +1618,44 @@ footer p {
     font-weight: 400;
 }
 
+/* ── Editor Face Tabs ────────────────────────────────────────────────────── */
+
+.editor-face-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.editor-face-tab {
+    flex: 1;
+    padding: 7px 0;
+    border: none;
+    background: white;
+    color: #777;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.editor-face-tab:not(:last-child) {
+    border-right: 1px solid #ddd;
+}
+
+.editor-face-tab--active {
+    background: #667eea;
+    color: white;
+}
+
+.editor-face-tab:not(.editor-face-tab--active):hover {
+    background: #f5f5f5;
+    color: #444;
+}
+
 /* Right pane: editor */
 .editor-form-pane {
     flex: 1;
@@ -1588,7 +1669,8 @@ footer p {
 .editor-mode-toggle {
     display: flex;
     gap: 0;
-    margin-bottom: 16px;
+    flex-shrink: 0;
+    margin-bottom: 0;
     border: 1px solid #ddd;
     border-radius: 6px;
     overflow: hidden;
@@ -1638,6 +1720,10 @@ footer p {
     gap: 12px;
 }
 
+.ef-row--three {
+    grid-template-columns: 90px 90px 1fr;
+}
+
 .ef-row .ef-group:only-child {
     grid-column: 1 / -1;
 }
@@ -1683,6 +1769,31 @@ footer p {
     min-height: 120px;
     line-height: 1.5;
     font-family: inherit;
+}
+
+/* Combined supertype-checkbox + card-type + subtype row */
+.ef-row--type-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.ef-group--supertypes {
+    flex-shrink: 0;
+}
+
+.ef-checkboxes-inline {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 7px 0;
+    min-height: 36px;
+}
+
+.ef-row--type-line .ef-group:not(.ef-group--supertypes) {
+    flex: 1;
+    min-width: 0;
 }
 
 .ef-checkboxes {
