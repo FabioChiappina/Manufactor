@@ -2,7 +2,7 @@
 
 ## Context
 
-The Manufactor web UI supports browsing decks, viewing card galleries with charts/stats, basic land management, and now a full tab-based card-editing workflow. The goal is to complete the Forge → Assembly Line → Publish pipeline.
+The Manufactor web UI supports browsing decks, viewing card galleries with charts/stats, basic land management, and a full tab-based card-editing workflow. The goal is to complete the Forge → Assembly Line → Publish pipeline.
 
 ---
 
@@ -62,15 +62,22 @@ Stored at `DECK_PATH/<FolderName>/<FolderName>_staging.json`.
 
 ## ✅ Phase 2 — JSON / Form Toggle Editor
 
-**Files changed:** `deck.html`, `style.css`, `main.js`
+**Files changed:** `deck.html`, `style.css`, `main.js`, `app.py`
 
 ### Completed
-- Form mode: Name, Mana Cost (plain text with brace-notation placeholder), Card Type dropdown, Subtype, Rules textarea, Power, Toughness, Rarity dropdown, Flavor, Legendary/Basic/Snow/Token checkboxes
+- Form mode fields:
+  - **Row 1:** Name (wide), Mana Cost (medium), Rarity dropdown (narrow auto-width)
+  - **Row 2:** Supertypes (Legendary / Basic / Snow checkboxes), Card Type, Subtype
+  - **Row 3:** Power (90px), Toughness (90px), Frame Filename (fill, with `<datalist>` autocomplete from `Assets/CardFrames/`), Double Faced Type dropdown (None / Transform / MDFC)
+  - **Row 4:** Rules Text (6-row textarea)
+  - **Row 5:** Flavor Text (2-row textarea)
 - JSON mode: CodeMirror 5 loaded from CDN, lazy-initialized on first switch
 - Form↔JSON sync in both directions (JSON→Form validates before switching)
 - Change detection: `_originalJson` snapshot on editor open; dirty flag enables Forge button (amber→red gradient)
 - Forge is a **stub** for now (marks not-dirty, optionally closes editor) — real implementation in Phase 3
 - Publish button disabled until `staged_count > 0`
+- `/card-frames` endpoint returns sorted list of `.jpg` filenames from `Assets/CardFrames/` for autocomplete
+- `frame` and `double_faced_type` top-level fields serialized/deserialized in both form and JSON modes
 
 ---
 
@@ -82,6 +89,22 @@ Stored at `DECK_PATH/<FolderName>/<FolderName>_staging.json`.
 - "Card Legitimacy" dropdown in Cards tab toolbar: **Any / Only Real / Only Custom**
 - Filters by `data-real` attribute (already present on card gallery items)
 - Wired into `applyCardControls` alongside existing MV and type filters
+
+---
+
+## ✅ Phase 12 — Inline Tag Editing *(implemented early)*
+
+**Files changed:** `deck.html`, `style.css`, `main.js`, `app.py`
+
+### Completed
+- Tag chips with `×` remove button displayed in editor left pane (below artwork status)
+- "+ Add Tag" opens an inline picker: filter input + scrollable list of existing deck tags not on this card
+- Typing filters the list; unmatched non-empty input shows a *"Create new tag: …"* option
+- `POST /deck/<name>/add-card-tag?name=<card>` — adds tag to card and to `metadata.tags` if new
+- `POST /deck/<name>/remove-card-tag?name=<card>` — removes tag from card; removes from `metadata.tags` if no other card uses it
+- Both endpoints persist changes immediately to the deck JSON file
+- Gallery item `data-tags` attribute updated in-place so group-by-tag still works without a page reload
+- `card-data` endpoint now also returns `_deck_tags` (sorted list of all deck-level tags)
 
 ---
 
@@ -110,6 +133,7 @@ Stored at `DECK_PATH/<FolderName>/<FolderName>_staging.json`.
 - Investigate `image_generator.py` to find the right entry point for single-card rendering
 - Staging folder (`Staging/`) should be created if it doesn't exist
 - The forge endpoint should work for both existing cards (update) and new cards (create placeholder in deck JSON with `complete: 0`)
+- The `frame` override field should be respected when building the `Card` object
 
 ---
 
@@ -193,18 +217,52 @@ POST /deck/<name>/forge-all                  → forge every card into staging
 
 ## ⬜ Phase 8 — Advanced Card Types
 
-**Files to change:** `deck.html`, `main.js`, `app.py`
+**Files to change:** `deck.html`, `main.js`, `app.py`, `style.css`
 
-### 8a. Double-faced cards
-- "Flip" button in editor header when `double_faced_type` is set
-- Toggles between front/back face fields; preview updates accordingly
-- JSON: `{ "front": {...}, "back": {...}, "double_faced_type": "transform|mdfc" }`
+### ✅ 8a. Double-faced cards (partially done)
 
-### 8b. Subspells (Adventures, Omens)
+**What's implemented:**
+- Front/Back face tabs visible in the editor left pane (always present)
+- Switching face tabs updates both the form fields AND the preview image
+- Preview shows the back card's `Cards/<BackName>.jpg` when on the Back tab; placeholder if no image exists
+- `double_faced_type` dropdown in the form (None / Transform / MDFC) — maps to top-level JSON field
+- Back face data serialized/deserialized in both form and JSON modes
+- `card-data` endpoint returns `back_image_base64` by looking up the back face's `name` in `Cards/`
+
+**What remains:**
+- When editing the back face of a card that has no back face yet (single-faced), the double faced type dropdown should automatically choose transform as the double faced type.
+- The double-faced type dropdown should always have the same value for both sides of a card, since it's a card-level attribute in the JSON (e.g., "double_faced_type" is at the same level as fields like "complete", "tags", "front", "back", ...). So editing the value of the dropdown on one face should cause the other face's value to update too, and forging that card should then cause BOTH the front and back face to be re-rendered.
+- Creating a brand-new back face from scratch (typing a back name for the first time) is untested — confirm the round-trip works correctly through Forge.
+- The `double_faced_type` value set in the UI should be passed through to the `Card` object during Forge so the renderer picks the correct MDFC/Transform frame automatically (Phase 3 dependency).
+
+---
+
+### ⬜ 8b. Multi-section rules text (Sagas, Planeswalkers, and similar)
+
+Some card types use multiple named rules-text keys instead of a single `"rules"` field:
+
+| Card type | JSON keys used | Description |
+|---|---|---|
+| **Saga** | `rules1`, `rules2`, `rules3` (+ more) | Each chapter (I, II, III…) has its own rules text; the renderer maps chapter number → rules key |
+| **Planeswalker** | `rules1`, `rules2`, `rules3` (+ loyalty costs) | Each loyalty ability is a separate field; loyalty cost (e.g. `+1`, `-2`, `-8`) is stored alongside each rules section |
+| **Class** | `rules1`, `rules2`, `rules3` | Each level-up tier has its own text block |
+
+**What needs to happen in the UI:**
+- When the card type is Saga, Planeswalker, or Class, the single Rules Text textarea should be replaced by a **dynamic multi-section editor**: one text area per chapter/ability, with `+` / `−` buttons to add or remove sections.
+- For Sagas specifically, the chapter label (I, II, III, …) should be shown automatically.
+- For Planeswalkers, each section needs an additional loyalty-cost input field (e.g. `"+1"`, `"−3"`, `"−8"`).
+- The form serializer/deserializer must map between `rules1`/`rules2`/etc. and the multi-section UI.
+- The renderer (`card_renderer.py`) already handles `rules1`/`rules2` for Sagas; check whether Planeswalker rendering is stubbed or fully absent before planning that sub-task.
+
+**Note:** Full Planeswalker support also requires new Photoshop frame assets and updated rendering code — treat this as a separate sub-epic within Phase 8. Sagas and Classes are lower-hanging fruit since frame assets exist.
+
+---
+
+### ⬜ 8c. Subspells (Adventures, Omens)
 - "Add Subspell" toggle expands: Subspell Name, Mana (plain text), Type, Subtype, Rules
 - Maps to `card["subspell"]` — renderer already handles this
 
-### 8c. Token flag
+### ⬜ 8d. Token flag
 - "This is a Token" checkbox already in form → sets `front.token: 1`
 - Token cards already show "TOKEN" badge in gallery grid (implemented)
 
@@ -226,12 +284,13 @@ Covered by Phase 5 return payload. Display as a persistent toast/banner with `ca
 - Set name auto-computation
 - Assembly line discard
 - Token association detection
+- Tag add/remove endpoints (card and deck-level cleanup)
 
 ---
 
 ## Not in scope (future work)
-- **Planeswalker creation**: New Photoshop frames + new rendering code needed. Separate epic.
 - **Artwork upload/crop in UI**: File upload endpoint + PIL crop. Nice-to-have later.
+- **Planeswalker frame assets**: New Photoshop frames needed before full PW rendering is possible. Blocked on art assets, not code.
 
 ---
 
@@ -239,10 +298,10 @@ Covered by Phase 5 return payload. Display as a persistent toast/banner with `ca
 
 | File | Role |
 |---|---|
-| `src/ui/templates/deck.html` | Tab system, editor panel, token gallery ✅ |
-| `src/ui/static/js/main.js` | Tab switching, editor, filters, Forge/Publish ✅ (Forge stub) |
+| `src/ui/templates/deck.html` | Tab system, editor panel, tag section, token gallery ✅ |
+| `src/ui/static/js/main.js` | Tab switching, editor, filters, tag editing, Forge/Publish ✅ (Forge stub) |
 | `src/ui/static/css/style.css` | All new styles ✅ |
-| `src/ui/app.py` | Routes: card_data ✅, forge 🔲, discard 🔲, publish 🔲, assembly-line-data 🔲, forge-all 🔲 |
+| `src/ui/app.py` | Routes: card_data ✅, card-frames ✅, add/remove-card-tag ✅, forge 🔲, discard 🔲, publish 🔲, assembly-line-data 🔲, forge-all 🔲 |
 | `src/ui/helpers.py` | Staging helpers ✅, compute_setname ⬜ |
 | `src/services/image_generator.py` | Single-card render for Forge 🔲 |
 | `src/services/cockatrice_exporter.py` | Called from Publish — verify standalone 🔲 |
@@ -264,6 +323,7 @@ Covered by Phase 5 return payload. Display as a persistent toast/banner with `ca
 - Look at `src/services/image_generator.py` to find the right method for single-card rendering
 - Check how `CardBuilder` or `Deck.from_json` builds a `Card` object from a raw dict
 - Confirm `ImageGenerator` can accept a custom save path
+- Verify that `frame` (custom frame override) and `double_faced_type` from the form are passed through correctly when constructing the `Card` object
 
 **Then implement**:
 1. `POST /deck/<name>/card/<card>/forge` in `app.py`
