@@ -20,12 +20,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const mvOpSelect = document.getElementById('mv-op-select');
     const mvValueInput = document.getElementById('mv-value-input');
     const typeFilterSelect = document.getElementById('type-filter-select');
+    const legitimacyFilterSelect = document.getElementById('legitimacy-filter-select');
     if (sortSelect && groupSelect) {
         sortSelect.addEventListener('change', applyCardControls);
         groupSelect.addEventListener('change', applyCardControls);
         if (mvOpSelect) mvOpSelect.addEventListener('change', applyCardControls);
         if (mvValueInput) mvValueInput.addEventListener('input', applyCardControls);
         if (typeFilterSelect) typeFilterSelect.addEventListener('change', applyCardControls);
+        if (legitimacyFilterSelect) legitimacyFilterSelect.addEventListener('change', applyCardControls);
         // Apply defaults immediately on page load
         applyCardControls();
     }
@@ -107,7 +109,10 @@ let _canonicalCardItems = null;
 
 function getCanonicalItems() {
     if (!_canonicalCardItems) {
-        _canonicalCardItems = Array.from(document.querySelectorAll('.card-gallery-item'));
+        // Scope to #cards-tab-main so token gallery items in the Tokens tab
+        // are never captured and moved into the cards list by applyCardControls.
+        var cardsList = document.getElementById('cards-tab-main') || document;
+        _canonicalCardItems = Array.from(cardsList.querySelectorAll('.card-gallery-item'));
     }
     return _canonicalCardItems;
 }
@@ -247,9 +252,11 @@ function applyCardControls() {
     const mvOpEl = document.getElementById('mv-op-select');
     const mvValEl = document.getElementById('mv-value-input');
     const typeFilterEl = document.getElementById('type-filter-select');
+    const legitimacyEl = document.getElementById('legitimacy-filter-select');
     const mvOp = mvOpEl ? mvOpEl.value : 'any';
     const mvValue = mvValEl ? mvValEl.value : '';
     const typeFilter = typeFilterEl ? typeFilterEl.value : 'any';
+    const legitimacyFilter = legitimacyEl ? legitimacyEl.value : 'any';
 
     // Always work from the canonical snapshot, not whatever is currently in the DOM
     // (tag grouping leaves clones in the DOM that would inflate counts otherwise)
@@ -258,7 +265,11 @@ function applyCardControls() {
 
     // Apply filters
     const filteredItems = allItems.filter(function(item) {
-        return matchesManaFilter(item, mvOp, mvValue) && matchesTypeFilter(item, typeFilter);
+        if (!matchesManaFilter(item, mvOp, mvValue)) return false;
+        if (!matchesTypeFilter(item, typeFilter)) return false;
+        if (legitimacyFilter === 'real'   && !(parseInt(item.dataset.real, 10) === 1)) return false;
+        if (legitimacyFilter === 'custom' &&   parseInt(item.dataset.real, 10) === 1)  return false;
+        return true;
     });
 
     // Update the "Cards (N)" header to reflect filtered count
@@ -891,3 +902,361 @@ function _doBasicAction(color, action, btn) {
     })
     .catch(function() { btn.disabled = false; });
 }
+
+// ─── Deck Tab System + Inline Card Editor (Phase 1 & 2) ──────────────────────
+
+(function () {
+    'use strict';
+
+    // ── State ──────────────────────────────────────────────────────────────────
+    var _deckName        = '';
+    var _currentCardName = null;
+    var _isNewCard       = false;
+    var _originalJson    = '';
+    var _editorIsDirty   = false;
+    var _editorMode      = 'form';
+    var _cmEditor        = null;
+    var _stagedCount     = 0;
+
+    // ── Tiny helpers ──────────────────────────────────────────────────────────
+    function $id(id) { return document.getElementById(id); }
+
+    function setVal(id, val) {
+        var el = $id(id);
+        if (el) el.value = (val !== undefined && val !== null) ? String(val) : '';
+    }
+
+    function setCheck(id, checked) {
+        var el = $id(id);
+        if (el) el.checked = !!checked;
+    }
+
+    // ── Tab Switching ─────────────────────────────────────────────────────────
+    function switchTab(tabName, pushHash) {
+        document.querySelectorAll('.deck-tab').forEach(function (btn) {
+            btn.classList.toggle('deck-tab--active', btn.dataset.tab === tabName);
+        });
+        ['cards', 'tokens', 'assembly'].forEach(function (key) {
+            var pane = $id('tab-' + key);
+            if (!pane) return;
+            var show = (key === tabName);
+            pane.style.display = show ? '' : 'none';
+            pane.classList.toggle('tab-pane--active', show);
+        });
+        if (pushHash) history.replaceState(null, '', '#' + tabName);
+    }
+
+    function handleHash(hash) {
+        if (!hash || hash === '#' || hash === '#cards') { switchTab('cards', false); return; }
+        if (hash === '#tokens')   { switchTab('tokens', false);   return; }
+        if (hash === '#assembly') { switchTab('assembly', false); return; }
+        if (hash.startsWith('#edit/')) {
+            var cardName = decodeURIComponent(hash.slice(6));
+            switchTab('cards', false);
+            openCardEditor(cardName);
+            return;
+        }
+        if (hash === '#new-card') {
+            switchTab('cards', false);
+            openNewCardEditor();
+            return;
+        }
+        switchTab('cards', false);
+    }
+
+    // ── Open / Close Editor ───────────────────────────────────────────────────
+    function openCardEditor(cardName) {
+        _currentCardName = cardName;
+        _isNewCard       = false;
+        _editorIsDirty   = false;
+
+        $id('editor-card-title').textContent = cardName;
+        $id('cards-tab-main').style.display  = 'none';
+        $id('card-editor-panel').style.display = '';
+
+        switchEditorMode('form', /* silent */ true);
+        history.replaceState(null, '', '#edit/' + encodeURIComponent(cardName));
+
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/card/' + encodeURIComponent(cardName) + '/data')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) { setArtworkStatus('missing', 'Error: ' + data.error); return; }
+                _originalJson = JSON.stringify(normaliseCard(data));
+                populateForm(data);
+                updateArtworkStatus(data._artwork_found, data._artwork_hint);
+                updatePreview(data.image_base64);
+                updateButtonStates();
+            })
+            .catch(function () { setArtworkStatus('missing', 'Failed to load card'); });
+    }
+
+    function openNewCardEditor() {
+        _currentCardName = null;
+        _isNewCard       = true;
+        _editorIsDirty   = true;
+        _originalJson    = '';
+
+        $id('editor-card-title').textContent  = 'New Card';
+        $id('cards-tab-main').style.display   = 'none';
+        $id('card-editor-panel').style.display = '';
+
+        switchEditorMode('form', true);
+        history.replaceState(null, '', '#new-card');
+
+        populateForm({ front: { name: '', mana: '', cardtype: 'Creature', subtype: '', rules: '', power: '', toughness: '' }, rarity: 'common', quantity: 1 });
+        setArtworkStatus('', '');
+        updatePreview(null);
+        updateButtonStates();
+    }
+
+    function closeCardEditor(updateHash) {
+        _currentCardName = null;
+        _isNewCard       = false;
+        _editorIsDirty   = false;
+
+        $id('card-editor-panel').style.display = 'none';
+        $id('cards-tab-main').style.display    = '';
+
+        if (updateHash !== false) history.replaceState(null, '', '#cards');
+    }
+
+    // ── Form Population ───────────────────────────────────────────────────────
+    function populateForm(data) {
+        var f = data.front || {};
+        setVal('ef-name',      f.name      || data.name      || '');
+        setVal('ef-mana',      f.mana      || data.cost      || '');
+        setVal('ef-subtype',   f.subtype   || data.subtype   || '');
+        setVal('ef-rules',     f.rules     || data.rules     || '');
+        setVal('ef-power',     f.power     || data.power     || '');
+        setVal('ef-toughness', f.toughness || data.toughness || '');
+        setVal('ef-flavor',    f.flavor    || data.flavor    || '');
+        setCheck('ef-legendary', f.legendary || data.legendary);
+        setCheck('ef-basic',     f.basic     || data.basic);
+        setCheck('ef-snow',      f.snow      || data.snow);
+        setCheck('ef-token',     f.token     || data.token);
+
+        // Card type dropdown — case-insensitive match
+        var ctEl = $id('ef-cardtype');
+        if (ctEl) {
+            var ct = (f.cardtype || data.cardtype || 'Creature').toLowerCase();
+            var matched = false;
+            for (var i = 0; i < ctEl.options.length; i++) {
+                if (ctEl.options[i].value.toLowerCase() === ct) { ctEl.selectedIndex = i; matched = true; break; }
+            }
+            if (!matched) ctEl.value = 'Creature';
+        }
+
+        var rarEl = $id('ef-rarity');
+        if (rarEl) rarEl.value = (data.rarity || 'common').toLowerCase();
+    }
+
+    // ── Serialise form → card JSON ────────────────────────────────────────────
+    function serializeForm() {
+        var front = {};
+        var fields = ['name', 'mana', 'cardtype', 'subtype', 'rules', 'power', 'toughness', 'flavor'];
+        fields.forEach(function (k) {
+            var el = $id('ef-' + k);
+            if (el && el.value) front[k] = el.value;
+        });
+        ['legendary', 'basic', 'snow', 'token'].forEach(function (k) {
+            var el = $id('ef-' + k);
+            if (el && el.checked) front[k] = 1;
+        });
+        var rarEl = $id('ef-rarity');
+        return { front: front, rarity: rarEl ? rarEl.value : 'common', quantity: 1 };
+    }
+
+    // Normalise server card dict into canonical shape for dirty comparison
+    function normaliseCard(data) {
+        var f = data.front || {};
+        var front = {};
+        var strFields = { name: 1, mana: 1, cardtype: 1, subtype: 1, rules: 1, power: 1, toughness: 1, flavor: 1 };
+        Object.keys(strFields).forEach(function (k) {
+            var v = f[k] || (k === 'mana' ? data.cost : data[k]) || '';
+            if (v) front[k] = v;
+        });
+        ['legendary', 'basic', 'snow', 'token'].forEach(function (k) {
+            if (f[k] || data[k]) front[k] = 1;
+        });
+        return { front: front, rarity: (data.rarity || 'common').toLowerCase(), quantity: 1 };
+    }
+
+    // ── Change Detection ──────────────────────────────────────────────────────
+    function onFormChange() {
+        if (!_currentCardName && !_isNewCard) return;
+        _editorIsDirty = _isNewCard || (JSON.stringify(serializeForm()) !== _originalJson);
+        updateButtonStates();
+    }
+
+    function onJsonChange() {
+        if (!_currentCardName && !_isNewCard) return;
+        var raw = _cmEditor ? _cmEditor.getValue() : (($id('editor-json-textarea') || {}).value || '{}');
+        try {
+            _editorIsDirty = _isNewCard || (JSON.stringify(normaliseCard(JSON.parse(raw))) !== _originalJson);
+        } catch (e) { /* invalid JSON — preserve state */ }
+        updateButtonStates();
+    }
+
+    function updateButtonStates() {
+        var forgeBtn = $id('forge-btn');
+        if (forgeBtn) {
+            var active = _editorIsDirty || _isNewCard;
+            forgeBtn.disabled = !active;
+            forgeBtn.classList.toggle('btn-forge--active', active);
+        }
+        var publishBtn = $id('publish-btn');
+        if (publishBtn) publishBtn.disabled = (_stagedCount === 0);
+    }
+
+    // ── Editor Mode Toggle ────────────────────────────────────────────────────
+    function switchEditorMode(mode, silent) {
+        var jsonErr = $id('editor-json-error');
+        if (jsonErr) { jsonErr.style.display = 'none'; jsonErr.textContent = ''; }
+
+        if (mode === 'json') {
+            // Sync form → JSON text
+            if (!silent || _editorMode !== 'json') {
+                var jsonStr = JSON.stringify(serializeForm(), null, 2);
+                if (_cmEditor) {
+                    _cmEditor.setValue(jsonStr);
+                } else {
+                    var ta = $id('editor-json-textarea');
+                    if (ta) ta.value = jsonStr;
+                }
+            }
+            // Lazy-init CodeMirror on first switch
+            if (!_cmEditor && window.CodeMirror) {
+                var ta2 = $id('editor-json-textarea');
+                if (ta2) {
+                    var existing = ta2.value;
+                    _cmEditor = window.CodeMirror.fromTextArea(ta2, {
+                        mode: 'application/json',
+                        lineNumbers: true,
+                        matchBrackets: true,
+                        theme: 'default',
+                        lineWrapping: true
+                    });
+                    _cmEditor.setValue(existing);
+                    _cmEditor.on('change', onJsonChange);
+                }
+            }
+            $id('editor-form-mode').style.display = 'none';
+            $id('editor-json-mode').style.display = '';
+            if (_cmEditor) setTimeout(function () { _cmEditor.refresh(); }, 10);
+
+        } else {
+            // Sync JSON → form (unless silent)
+            if (!silent && _editorMode === 'json') {
+                var raw = _cmEditor ? _cmEditor.getValue() : (($id('editor-json-textarea') || {}).value || '{}');
+                try {
+                    populateForm(JSON.parse(raw));
+                } catch (e) {
+                    if (jsonErr) { jsonErr.textContent = 'Invalid JSON — fix before switching: ' + e.message; jsonErr.style.display = ''; }
+                    return;
+                }
+            }
+            $id('editor-form-mode').style.display = '';
+            $id('editor-json-mode').style.display = 'none';
+        }
+
+        _editorMode = mode;
+        document.querySelectorAll('.editor-mode-btn').forEach(function (btn) {
+            btn.classList.toggle('editor-mode-btn--active', btn.dataset.mode === mode);
+        });
+    }
+
+    // ── Artwork & Preview ─────────────────────────────────────────────────────
+    function updateArtworkStatus(found, hint) {
+        var el = $id('artwork-status');
+        if (!el) return;
+        if (found) {
+            el.textContent = '\u2713 Artwork: ' + hint;
+            el.className   = 'artwork-status artwork-status--found';
+        } else {
+            el.textContent = '\u26a0 No artwork';
+            el.className   = 'artwork-status artwork-status--missing';
+        }
+    }
+
+    function setArtworkStatus(type, msg) {
+        var el = $id('artwork-status');
+        if (!el) return;
+        el.textContent = msg;
+        el.className   = 'artwork-status' + (type ? ' artwork-status--' + type : '');
+    }
+
+    function updatePreview(base64) {
+        var img = $id('editor-card-preview');
+        var ph  = $id('editor-card-placeholder');
+        if (base64) {
+            if (img) { img.src = base64; img.style.display = ''; }
+            if (ph)  ph.style.display = 'none';
+        } else {
+            if (img) img.style.display = 'none';
+            if (ph)  ph.style.display = '';
+        }
+    }
+
+    // ── Forge (stub — Phase 3 adds real POST) ─────────────────────────────────
+    function onForgeClick(closeAfter) {
+        _editorIsDirty = false;
+        updateButtonStates();
+        if (closeAfter) closeCardEditor(true);
+    }
+
+    // ── Bootstrap ─────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function () {
+        var tabsEl = document.querySelector('.deck-tabs');
+        if (!tabsEl) return;   // Not a deck page — skip
+
+        // Deck name from URL: /deck/<name>
+        var parts = window.location.pathname.split('/');
+        _deckName    = parts[2] ? decodeURIComponent(parts[2]) : '';
+        _stagedCount = parseInt(tabsEl.dataset.stagedCount || '0', 10);
+
+        // Tab buttons
+        tabsEl.querySelectorAll('.deck-tab').forEach(function (btn) {
+            btn.addEventListener('click', function () { switchTab(btn.dataset.tab, true); });
+        });
+
+        // Card clicks (delegated so grouped / cloned items also fire)
+        document.body.addEventListener('click', function (e) {
+            var item = e.target.closest('.card-gallery-item[data-card-name]');
+            if (item) { e.preventDefault(); openCardEditor(item.dataset.cardName); }
+        });
+
+        // Back button
+        var backBtn = $id('editor-back-btn');
+        if (backBtn) backBtn.addEventListener('click', function () { closeCardEditor(true); });
+
+        // Mode toggle
+        document.querySelectorAll('.editor-mode-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () { switchEditorMode(btn.dataset.mode); });
+        });
+
+        // Form field change detection
+        ['ef-name', 'ef-mana', 'ef-cardtype', 'ef-subtype', 'ef-rules',
+         'ef-power', 'ef-toughness', 'ef-rarity', 'ef-flavor',
+         'ef-legendary', 'ef-basic', 'ef-snow', 'ef-token'].forEach(function (id) {
+            var el = $id(id);
+            if (!el) return;
+            el.addEventListener('input', onFormChange);
+            el.addEventListener('change', onFormChange);
+        });
+
+        // Forge buttons
+        var forgeBtn = $id('forge-btn');
+        if (forgeBtn) forgeBtn.addEventListener('click', function () { onForgeClick(false); });
+        var closeForgeBtnEl = $id('close-forge-btn');
+        if (closeForgeBtnEl) closeForgeBtnEl.addEventListener('click', function () { onForgeClick(true); });
+
+        // Create Card button
+        var createCardBtn = $id('create-card-btn');
+        if (createCardBtn) createCardBtn.addEventListener('click', openNewCardEditor);
+
+        // Initial hash routing
+        handleHash(window.location.hash);
+        window.addEventListener('hashchange', function () { handleHash(window.location.hash); });
+    });
+
+}());

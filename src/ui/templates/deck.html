@@ -2,6 +2,10 @@
 
 {% block title %}{{ deck.name }} - Manufactor{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+{% endblock %}
+
 {% block content %}
 <div class="deck-details">
     <div class="deck-header">
@@ -26,11 +30,9 @@
     </div>
 
     {% if deck.metadata.commander %}
-    <!-- Layout with commander cards on the left, charts on the right -->
     <div class="deck-header-with-commander">
         <div class="commander-cards-section">
             {% if deck.metadata.commander is string %}
-                <!-- Single commander -->
                 {% if deck.commander_images and deck.commander_images[0] %}
                 <div class="commander-card-container">
                     <img src="{{ deck.commander_images[0] }}" alt="{{ deck.metadata.commander }}" class="commander-card-image">
@@ -41,7 +43,6 @@
                 </div>
                 {% endif %}
             {% else %}
-                <!-- Multiple commanders -->
                 {% for commander_name in deck.metadata.commander %}
                     {% if deck.commander_images and deck.commander_images[loop.index0] %}
                     <div class="commander-card-container">
@@ -56,7 +57,6 @@
             {% endif %}
         </div>
 
-        <!-- Two bar charts: mana curve (left) and type breakdown (right) -->
         <div class="deck-charts-panel">
             <div class="deck-chart-box">
                 <div class="deck-chart-title">Mana Curve</div>
@@ -78,7 +78,6 @@
     </div>
     {% endif %}
     {% else %}
-    <!-- Full-width layout for decks without commanders -->
     {% if deck.metadata.description %}
     <div class="deck-info-card">
         <p>{{ deck.metadata.description }}</p>
@@ -116,88 +115,286 @@
         </div>
     </div>
 
-    <div class="card-list">
-        <div class="card-list-header">
-            <h3 id="cards-count-header">Cards ({{ deck.total_cards - deck.commander_count }})</h3>
-            <div class="card-controls">
-                <div class="control-group">
-                    <label for="sort-select">Sort By</label>
-                    <select id="sort-select">
-                        <option value="alpha">Alphabetical</option>
-                        <option value="mana" selected>Mana Value</option>
-                    </select>
+    <!-- ── Tab Navigation ────────────────────────────────────────────── -->
+    <div class="deck-tabs" data-staged-count="{{ staged_count }}">
+        <button class="deck-tab deck-tab--active" data-tab="cards">Cards<span class="tab-count">{{ deck.total_cards - deck.commander_count }}</span></button>
+        <button class="deck-tab" data-tab="tokens">Tokens
+            {% if deck.tokens %}<span class="tab-count">{{ deck.tokens | length }}</span>{% endif %}
+        </button>
+        <button class="deck-tab" data-tab="assembly">
+            Assembly Line&nbsp;<span class="assembly-badge{% if staged_count > 0 %} assembly-badge--active{% endif %}" id="assembly-badge">{{ staged_count }}</span>
+        </button>
+    </div>
+
+    <!-- ── Cards Tab ─────────────────────────────────────────────────── -->
+    <div id="tab-cards" class="tab-pane tab-pane--active">
+
+        <!-- Normal gallery view -->
+        <div id="cards-tab-main">
+            <div class="tab-toolbar">
+                <div class="card-controls">
+                    <div class="control-group">
+                        <label for="sort-select">Sort By</label>
+                        <select id="sort-select">
+                            <option value="alpha">Alphabetical</option>
+                            <option value="mana" selected>Mana Value</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="group-select">Group By</label>
+                        <select id="group-select">
+                            <option value="none">None</option>
+                            <option value="type" selected>Card Type</option>
+                            <option value="landnonland">Land / Nonland</option>
+                            <option value="color">Color</option>
+                            <option value="tag">Tag</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Mana Value</label>
+                        <select id="mv-op-select">
+                            <option value="any">Any</option>
+                            <option value="lt">&lt;</option>
+                            <option value="eq">=</option>
+                            <option value="gt">&gt;</option>
+                        </select>
+                        <input type="number" id="mv-value-input" min="0" placeholder="#">
+                    </div>
+                    <div class="control-group">
+                        <label for="type-filter-select">Card Type</label>
+                        <select id="type-filter-select">
+                            <option value="any">Any</option>
+                            <option value="creature">Creature</option>
+                            <option value="artifact">Artifact</option>
+                            <option value="enchantment">Enchantment</option>
+                            <option value="land">Land</option>
+                            <option value="instant">Instant</option>
+                            <option value="sorcery">Sorcery</option>
+                            <option value="instant-sorcery">Instant/Sorcery</option>
+                            <option value="planeswalker">Planeswalker</option>
+                            <option value="nonland">Nonland</option>
+                            <option value="noncreature-nonland">Noncreature/Nonland</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="legitimacy-filter-select">Card Legitimacy</label>
+                        <select id="legitimacy-filter-select">
+                            <option value="any">Any</option>
+                            <option value="real">Only Real</option>
+                            <option value="custom">Only Custom</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="control-group">
-                    <label for="group-select">Group By</label>
-                    <select id="group-select">
-                        <option value="none">None</option>
-                        <option value="type" selected>Card Type</option>
-                        <option value="landnonland">Land / Nonland</option>
-                        <option value="color">Color</option>
-                        <option value="tag">Tag</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label>Mana Value</label>
-                    <select id="mv-op-select">
-                        <option value="any">Any</option>
-                        <option value="lt">&lt;</option>
-                        <option value="eq">=</option>
-                        <option value="gt">&gt;</option>
-                    </select>
-                    <input type="number" id="mv-value-input" min="0" placeholder="#">
-                </div>
-                <div class="control-group">
-                    <label for="type-filter-select">Card Type</label>
-                    <select id="type-filter-select">
-                        <option value="any">Any</option>
-                        <option value="creature">Creature</option>
-                        <option value="artifact">Artifact</option>
-                        <option value="enchantment">Enchantment</option>
-                        <option value="land">Land</option>
-                        <option value="instant">Instant</option>
-                        <option value="sorcery">Sorcery</option>
-                        <option value="instant-sorcery">Instant/Sorcery</option>
-                        <option value="planeswalker">Planeswalker</option>
-                        <option value="nonland">Nonland</option>
-                        <option value="noncreature-nonland">Noncreature/Nonland</option>
-                        <option value="other">Other</option>
-                    </select>
+                <div class="tab-toolbar-actions">
+                    <h3 id="cards-count-header" class="tab-card-count">Cards ({{ deck.total_cards - deck.commander_count }})</h3>
+                    <button id="create-card-btn" class="btn btn-primary btn-sm">+ Create Card</button>
                 </div>
             </div>
+
+            <div class="card-list">
+                <div class="card-gallery">
+                    {% for card_name, card_data in deck.cards.items() %}
+                    <a href="#edit/{{ card_name | urlencode }}"
+                       class="card-gallery-item"
+                       data-card-name="{{ card_name }}"
+                       data-name="{{ card_name }}"
+                       data-cost="{{ card_data.cost or card_data.front.mana or '' if card_data.front is defined else card_data.cost or '' }}"
+                       data-cardtype="{{ card_data.cardtype or card_data.front.cardtype or '' if card_data.front is defined else card_data.cardtype or '' }}"
+                       data-subtype="{{ card_data.subtype or card_data.front.subtype or '' if card_data.front is defined else card_data.subtype or '' }}"
+                       data-basic="{{ card_data.basic or card_data.front.basic or '' if card_data.front is defined else card_data.basic or '' }}"
+                       data-tags="{{ card_data.tags | join(',') if card_data.tags is not string and card_data.tags else (card_data.tags or '') }}"
+                       data-quantity="{{ card_data.quantity or 1 }}"
+                       data-real="{{ card_data.real or 0 }}">
+                        {% if card_data.image_base64 %}
+                        <div class="card-image-container">
+                            <img src="{{ card_data.image_base64 }}" alt="{{ card_name }}" class="card-image">
+                            {% if card_data.quantity and card_data.quantity > 1 %}
+                            <div class="quantity-badge">x{{ card_data.quantity }}</div>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <div class="card-image-placeholder">
+                            <div class="placeholder-text">{{ card_name }}</div>
+                            <div class="placeholder-text">No Image</div>
+                            {% if card_data.quantity and card_data.quantity > 1 %}
+                            <div class="quantity-badge">x{{ card_data.quantity }}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div><!-- #cards-tab-main -->
+
+        <!-- ── Inline Card Editor Panel ─────────────────────────────── -->
+        <div id="card-editor-panel" class="card-editor-panel" style="display:none;">
+            <div class="editor-panel-header">
+                <button id="editor-back-btn" class="btn btn-secondary btn-sm">← Cards</button>
+                <span id="editor-card-title" class="editor-card-title"></span>
+                <div class="editor-panel-actions">
+                    <span id="artwork-status" class="artwork-status"></span>
+                    <button id="forge-btn" class="btn btn-forge" disabled>Forge</button>
+                    <button id="close-forge-btn" class="btn btn-secondary btn-sm">✕ Close &amp; Forge</button>
+                    <button id="publish-btn" class="btn btn-publish" disabled>Publish Assembly Line</button>
+                </div>
+            </div>
+
+            <div class="editor-panel-body">
+                <!-- Left: card image preview -->
+                <div class="editor-preview-pane">
+                    <div class="editor-preview-container">
+                        <img id="editor-card-preview" src="" alt="" class="editor-card-image" style="display:none;">
+                        <div id="editor-card-placeholder" class="editor-card-placeholder">
+                            <span>No Image</span>
+                            <span class="editor-placeholder-sub">Forge to generate</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: editor controls -->
+                <div class="editor-form-pane">
+                    <div class="editor-mode-toggle">
+                        <button class="editor-mode-btn editor-mode-btn--active" data-mode="form">Form</button>
+                        <button class="editor-mode-btn" data-mode="json">JSON</button>
+                    </div>
+
+                    <!-- Form mode -->
+                    <div id="editor-form-mode" class="editor-mode-content">
+                        <div class="editor-form-fields">
+                            <div class="ef-row">
+                                <div class="ef-group">
+                                    <label class="ef-label">Name</label>
+                                    <input type="text" id="ef-name" class="ef-input">
+                                </div>
+                                <div class="ef-group">
+                                    <label class="ef-label">Mana Cost</label>
+                                    <input type="text" id="ef-mana" class="ef-input" placeholder="{2}{u}{r} · hybrid: {w/u} · phyrexian: {g/p}">
+                                </div>
+                            </div>
+                            <div class="ef-row">
+                                <div class="ef-group">
+                                    <label class="ef-label">Card Type</label>
+                                    <select id="ef-cardtype" class="ef-input">
+                                        <option value="Creature">Creature</option>
+                                        <option value="Instant">Instant</option>
+                                        <option value="Sorcery">Sorcery</option>
+                                        <option value="Enchantment">Enchantment</option>
+                                        <option value="Artifact">Artifact</option>
+                                        <option value="Land">Land</option>
+                                        <option value="Planeswalker">Planeswalker</option>
+                                    </select>
+                                </div>
+                                <div class="ef-group">
+                                    <label class="ef-label">Subtype</label>
+                                    <input type="text" id="ef-subtype" class="ef-input" placeholder="e.g. Human Wizard">
+                                </div>
+                            </div>
+                            <div class="ef-group ef-group--full">
+                                <label class="ef-label">Rules Text</label>
+                                <textarea id="ef-rules" class="ef-input ef-textarea" rows="6" placeholder="Mana symbols use {u}{r} notation"></textarea>
+                            </div>
+                            <div class="ef-row">
+                                <div class="ef-group">
+                                    <label class="ef-label">Power</label>
+                                    <input type="text" id="ef-power" class="ef-input" placeholder="*">
+                                </div>
+                                <div class="ef-group">
+                                    <label class="ef-label">Toughness</label>
+                                    <input type="text" id="ef-toughness" class="ef-input" placeholder="*">
+                                </div>
+                                <div class="ef-group">
+                                    <label class="ef-label">Rarity</label>
+                                    <select id="ef-rarity" class="ef-input">
+                                        <option value="common">Common</option>
+                                        <option value="uncommon">Uncommon</option>
+                                        <option value="rare">Rare</option>
+                                        <option value="mythic">Mythic</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="ef-group ef-group--full">
+                                <label class="ef-label">Flavor Text</label>
+                                <input type="text" id="ef-flavor" class="ef-input" placeholder="Optional flavor text">
+                            </div>
+                            <div class="ef-checkboxes">
+                                <label class="ef-checkbox-label"><input type="checkbox" id="ef-legendary"> Legendary</label>
+                                <label class="ef-checkbox-label"><input type="checkbox" id="ef-basic"> Basic</label>
+                                <label class="ef-checkbox-label"><input type="checkbox" id="ef-snow"> Snow</label>
+                                <label class="ef-checkbox-label"><input type="checkbox" id="ef-token"> Token</label>
+                            </div>
+                        </div>
+                    </div><!-- #editor-form-mode -->
+
+                    <!-- JSON mode -->
+                    <div id="editor-json-mode" class="editor-mode-content" style="display:none;">
+                        <div id="editor-json-error" class="editor-json-error" style="display:none;"></div>
+                        <textarea id="editor-json-textarea" class="editor-json-textarea"></textarea>
+                    </div>
+                </div><!-- .editor-form-pane -->
+            </div><!-- .editor-panel-body -->
+        </div><!-- #card-editor-panel -->
+
+    </div><!-- #tab-cards -->
+
+    <!-- ── Tokens Tab ────────────────────────────────────────────────── -->
+    <div id="tab-tokens" class="tab-pane" style="display:none;">
+        <div class="tab-toolbar">
+            <h3 class="tab-card-count">Tokens ({{ deck.tokens | length }})</h3>
+            <div class="tab-toolbar-actions">
+                <button id="create-token-btn" class="btn btn-primary btn-sm">+ Create Token</button>
+            </div>
         </div>
+        {% if deck.tokens %}
         <div class="card-gallery">
-            {% for card_name, card_data in deck.cards.items() %}
-            <a href="/deck/{{ deck.name | urlencode }}/card/{{ card_name | urlencode }}/edit"
-               class="card-gallery-item"
-               data-name="{{ card_name }}"
-               data-cost="{{ card_data.cost or card_data.front.mana or '' }}"
-               data-cardtype="{{ card_data.cardtype or card_data.front.cardtype or '' }}"
-               data-subtype="{{ card_data.subtype or card_data.front.subtype or '' }}"
-               data-basic="{{ card_data.basic or card_data.front.basic or '' }}"
-               data-tags="{{ card_data.tags | join(',') if card_data.tags is not string and card_data.tags else (card_data.tags or '') }}"
-               data-quantity="{{ card_data.quantity or 1 }}">
-                {% if card_data.image_base64 %}
+            {% for token_key, token_data in deck.tokens.items() %}
+            <a href="#edit-token/{{ token_key | urlencode }}"
+               class="card-gallery-item token-gallery-item"
+               data-token-key="{{ token_key }}"
+               data-name="{{ token_data.name or token_key }}"
+               data-quantity="1">
+                {% if token_data.image_base64 %}
                 <div class="card-image-container">
-                    <img src="{{ card_data.image_base64 }}" alt="{{ card_name }}" class="card-image">
-                    {% if card_data.quantity and card_data.quantity > 1 %}
-                    <div class="quantity-badge">x{{ card_data.quantity }}</div>
-                    {% endif %}
+                    <img src="{{ token_data.image_base64 }}" alt="{{ token_data.name }}" class="card-image">
+                    <div class="token-label-badge">TOKEN</div>
                 </div>
                 {% else %}
                 <div class="card-image-placeholder">
-                    <div class="placeholder-text">{{ card_name }}</div>
-                    <div class="placeholder-text">No Image</div>
-                    {% if card_data.quantity and card_data.quantity > 1 %}
-                    <div class="quantity-badge">x{{ card_data.quantity }}</div>
-                    {% endif %}
+                    <div class="placeholder-text">{{ token_data.name or token_key }}</div>
+                    <div class="placeholder-text token-placeholder-label">Token</div>
                 </div>
                 {% endif %}
             </a>
             {% endfor %}
         </div>
-    </div>
-</div>
+        {% else %}
+        <div class="tab-empty-state">
+            <p>No tokens yet — tokens will appear here after you Forge cards that create them, or you can create one manually.</p>
+        </div>
+        {% endif %}
+    </div><!-- #tab-tokens -->
+
+    <!-- ── Assembly Line Tab ─────────────────────────────────────────── -->
+    <div id="tab-assembly" class="tab-pane" style="display:none;">
+        {% if staged_count == 0 %}
+        <div class="tab-empty-state">
+            <p>No staged changes. Forge a card in the Cards tab to add it to the Assembly Line.</p>
+        </div>
+        {% else %}
+        <div class="assembly-publish-bar">
+            <button id="publish-assembly-btn" class="btn btn-publish-large">
+                Publish Assembly Line ({{ staged_count }} change{{ 's' if staged_count != 1 else '' }})
+            </button>
+        </div>
+        <div id="assembly-line-list" class="assembly-line-list">
+            <!-- Populated by JS or future Phase 4 implementation -->
+            <p class="tab-empty-state-text">{{ staged_count }} card(s) staged. Publish to finalize.</p>
+        </div>
+        {% endif %}
+    </div><!-- #tab-assembly -->
+
+</div><!-- .deck-details -->
 
 <div class="scroll-nav">
     <button class="scroll-nav-btn" id="scroll-top-btn" title="Scroll to top">⤒</button>
@@ -205,4 +402,9 @@
     <button class="scroll-nav-btn" id="scroll-next-group-btn" title="Next group">▼</button>
     <button class="scroll-nav-btn" id="scroll-bottom-btn" title="Scroll to bottom">⤓</button>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
 {% endblock %}

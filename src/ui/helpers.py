@@ -482,6 +482,35 @@ def load_deck_by_name(deck_name):
 
             commander_count = len(commander_names)
 
+            # Load tokens from deck JSON (new format stores them under "tokens" key)
+            tokens_dict = deck_data.get('tokens', {})
+            tokens_with_images = {}
+            tokens_folder = os.path.join(deck_folder_path, 'Tokens')
+            for token_key, token_data in tokens_dict.items():
+                if not isinstance(token_data, dict):
+                    continue
+                display_token_name = token_data.get('name', token_key.replace('_TOKEN_', ''))
+                token_image = None
+                if os.path.isdir(tokens_folder):
+                    for name_to_try in [display_token_name, token_key]:
+                        for ext in ['.jpg', '.jpeg', '.png']:
+                            img_path = os.path.join(tokens_folder, f"{name_to_try}{ext}")
+                            if os.path.isfile(img_path):
+                                try:
+                                    with open(img_path, 'rb') as f:
+                                        b64 = base64.b64encode(f.read()).decode('utf-8')
+                                        token_image = f"data:image/jpeg;base64,{b64}"
+                                except Exception:
+                                    pass
+                                break
+                        if token_image:
+                            break
+                tokens_with_images[token_key] = {
+                    **token_data,
+                    'image_base64': token_image,
+                    'quantity': token_data.get('quantity', 1),
+                }
+
             return {
                 'name': display_name,
                 'folder_name': folder_name,
@@ -489,6 +518,7 @@ def load_deck_by_name(deck_name):
                 'json_path': json_path,
                 'metadata': metadata,
                 'cards': cards_with_images,
+                'tokens': tokens_with_images,
                 'commander_images': commander_images if commander_images else None,
                 'total_cards': total_cards,
                 'unique_cards': unique_cards,
@@ -523,3 +553,41 @@ def save_common_tokens(tokens_dict):
     tokens_path = Path(PROJECT_ROOT) / "config" / "common_tokens.json"
     with open(tokens_path, 'w') as f:
         json.dump(tokens_dict, f, indent=2)
+
+
+# ─── Staging helpers ────────────────────────────────────────────────────────
+
+def get_staging_path(deck_folder_path):
+    """Return path to the Staging/ folder for a deck."""
+    return os.path.join(deck_folder_path, 'Staging')
+
+
+def load_staging(deck_folder_path):
+    """
+    Load the staging sidecar JSON for a deck.
+
+    Returns a dict mapping card_name → staged entry, or {} if none exists.
+    """
+    folder_name = os.path.basename(deck_folder_path)
+    staging_json = os.path.join(deck_folder_path, f'{folder_name}_staging.json')
+    if os.path.isfile(staging_json):
+        try:
+            with open(staging_json, 'r') as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_staging(deck_folder_path, data):
+    """
+    Persist the staging sidecar JSON for a deck.
+
+    Args:
+        deck_folder_path: Path to the deck folder
+        data: Dict mapping card_name → staged entry
+    """
+    folder_name = os.path.basename(deck_folder_path)
+    staging_json = os.path.join(deck_folder_path, f'{folder_name}_staging.json')
+    with open(staging_json, 'w') as f:
+        json.dump(data, f, indent=2)

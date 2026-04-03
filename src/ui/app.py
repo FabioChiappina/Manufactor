@@ -7,7 +7,7 @@ This module provides the Flask-based web interface for the card creation tool.
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, jsonify
 import json
 import os
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 from src.services.settings_manager import SettingsManager
 from src.utils.paths import SYMBOL_PATH
 from src.ui.helpers import (
@@ -15,7 +15,10 @@ from src.ui.helpers import (
     get_decks_with_metadata,
     load_deck_by_name,
     load_common_tokens,
-    save_common_tokens
+    save_common_tokens,
+    load_staging,
+    save_staging,
+    get_staging_path,
 )
 
 app = Flask(__name__)
@@ -52,7 +55,6 @@ def index():
 @app.route('/deck/<deck_name>')
 def deck_details(deck_name):
     """Deck details page."""
-    # Decode URL-encoded deck name
     deck_name = unquote(deck_name)
 
     deck_data = load_deck_by_name(deck_name)
@@ -60,7 +62,10 @@ def deck_details(deck_name):
         flash(f'Deck "{deck_name}" not found', 'error')
         return redirect(url_for('index'))
 
-    return render_template('deck.html', deck=deck_data)
+    staging = load_staging(deck_data['folder_path'])
+    staged_count = len(staging)
+
+    return render_template('deck.html', deck=deck_data, staged_count=staged_count)
 
 
 @app.route('/deck/<deck_name>/toggle-complete', methods=['POST'])
@@ -236,25 +241,52 @@ def remove_basic(deck_name, color):
 
 @app.route('/deck/<deck_name>/card/<card_name>/edit')
 def card_editor(deck_name, card_name):
-    """Card editor page."""
-    # Decode URL-encoded names
+    """Redirect to inline deck editor (old standalone page is superseded)."""
+    deck_name = unquote(deck_name)
+    card_name = unquote(card_name)
+    return redirect(
+        url_for('deck_details', deck_name=deck_name) + '#edit/' + quote(card_name, safe='')
+    )
+
+
+@app.route('/deck/<deck_name>/card/<card_name>/data')
+def card_data(deck_name, card_name):
+    """Return card JSON for the inline editor."""
     deck_name = unquote(deck_name)
     card_name = unquote(card_name)
 
     deck_data = load_deck_by_name(deck_name)
     if not deck_data:
-        flash(f'Deck "{deck_name}" not found', 'error')
-        return redirect(url_for('index'))
+        return jsonify({'error': 'Deck not found'}), 404
 
-    card_data = deck_data['cards'].get(card_name)
-    if not card_data:
-        flash(f'Card "{card_name}" not found in deck "{deck_name}"', 'error')
-        return redirect(url_for('deck_details', deck_name=deck_name))
+    card = deck_data['cards'].get(card_name)
+    if card is None:
+        return jsonify({'error': 'Card not found'}), 404
 
-    return render_template('card_edit.html',
-                         deck_name=deck_name,
-                         card_name=card_name,
-                         card=card_data)
+    # Strip the base64 image blob — not needed by the editor
+    card_json = {k: v for k, v in card.items() if k != 'image_base64'}
+
+    # Check whether artwork exists for this card
+    artwork_folder = os.path.join(deck_data['folder_path'], 'Artwork')
+    artwork_found = False
+    artwork_hint = None
+    names_to_check = [card_name]
+    if ' / ' in card_name:
+        names_to_check.append(card_name.split(' / ')[0])
+    for name in names_to_check:
+        for ext in ['.jpg', '.jpeg', '.png']:
+            candidate = os.path.join(artwork_folder, f"{name}{ext}")
+            if os.path.isfile(candidate):
+                artwork_found = True
+                artwork_hint = f"Artwork/{name}{ext}"
+                break
+        if artwork_found:
+            break
+
+    card_json['_artwork_found'] = artwork_found
+    card_json['_artwork_hint'] = artwork_hint
+
+    return jsonify(card_json)
 
 
 @app.route('/deck/<deck_name>/card/<card_name>/save', methods=['POST'])
