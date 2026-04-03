@@ -239,7 +239,7 @@
                 <div class="editor-panel-actions">
                     <button id="forge-btn" class="btn btn-forge" disabled>Forge</button>
                     <button id="publish-btn" class="btn btn-publish" disabled>Publish Assembly Line</button>
-                    <button id="close-forge-btn" class="btn btn-close-forge">✕ Close &amp; Forge</button>
+                    <button id="close-forge-btn" class="btn btn-close-forge" disabled>✕ Close &amp; Forge</button>
                     <button id="editor-back-btn" class="btn btn-editor-close">✕ Close</button>
                 </div>
             </div>
@@ -324,10 +324,6 @@
                                     <label class="ef-label">Toughness</label>
                                     <input type="text" id="ef-toughness" class="ef-input" placeholder="*">
                                 </div>
-                                <div class="ef-group ef-group--frame">
-                                    <label class="ef-label">Frame Filename</label>
-                                    <input type="text" id="ef-frame" class="ef-input" list="card-frames-list" placeholder="Optionally override default card frame." autocomplete="off">
-                                </div>
                                 <div class="ef-group ef-group--dfc">
                                     <label class="ef-label">Double Faced Type</label>
                                     <select id="ef-dfc-type" class="ef-input">
@@ -335,6 +331,14 @@
                                         <option value="transform">Transform</option>
                                         <option value="mdfc">MDFC</option>
                                     </select>
+                                </div>
+                                <div class="ef-group ef-group--artist">
+                                    <label class="ef-label">Artist Name</label>
+                                    <input type="text" id="ef-artist" class="ef-input" placeholder="Artist">
+                                </div>
+                                <div class="ef-group ef-group--frame">
+                                    <label class="ef-label">Frame Filename</label>
+                                    <input type="text" id="ef-frame" class="ef-input" list="card-frames-list" placeholder="Optionally override default card frame." autocomplete="off">
                                 </div>
                             </div>
                             <datalist id="card-frames-list"></datalist>

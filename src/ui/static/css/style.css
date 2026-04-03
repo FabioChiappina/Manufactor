@@ -1883,6 +1883,11 @@ footer p {
     flex-shrink: 0;
 }
 
+.ef-group--artist {
+    flex: 0 1 150px;
+    min-width: 90px;
+}
+
 .ef-row .ef-group:only-child {
     grid-column: 1 / -1;
 }

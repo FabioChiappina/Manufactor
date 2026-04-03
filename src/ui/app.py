@@ -5,10 +5,12 @@ This module provides the Flask-based web interface for the card creation tool.
 """
 
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, jsonify
+import base64
 import json
 import os
 from urllib.parse import unquote, quote
 from src.services.settings_manager import SettingsManager
+from src.services.image_generator import ImageGenerator
 from src.utils.paths import SYMBOL_PATH, CARD_FRAMES_PATH
 from src.ui.helpers import (
     get_available_decks,
@@ -20,6 +22,7 @@ from src.ui.helpers import (
     save_staging,
     get_staging_path,
     get_card_image_base64,
+    card_from_editor_dict,
 )
 
 app = Flask(__name__)
@@ -262,22 +265,41 @@ def card_data(deck_name):
     if not deck_data:
         return jsonify({'error': 'Deck not found'}), 404
 
-    card = deck_data['cards'].get(card_name)
-    if card is None:
-        # Commander cards are excluded from deck_data['cards'] — check raw JSON
-        with open(deck_data['json_path'], 'r') as f:
-            raw_deck = json.load(f)
-        raw_card = raw_deck.get('cards', {}).get(card_name)
-        if raw_card is None:
-            return jsonify({'error': 'Card not found'}), 404
-        card_json = dict(raw_card) if isinstance(raw_card, dict) else {}
-        card_json['image_base64'] = get_card_image_base64(deck_data['folder_path'], card_name)
+    folder_path = deck_data['folder_path']
+
+    # Prefer staged data — if this card has been forged, show the pending version
+    staging = load_staging(folder_path)
+    staged_entry = staging.get(card_name)
+    staging_dir = get_staging_path(folder_path)
+
+    def _img_base64(path):
+        if os.path.isfile(path):
+            with open(path, 'rb') as _f:
+                return 'data:image/jpeg;base64,' + base64.b64encode(_f.read()).decode('utf-8')
+        return None
+
+    if staged_entry:
+        card_json = dict(staged_entry['updated'])
+        # Prefer staged image; fall back to Cards/
+        staged_img = os.path.join(staging_dir, f"{card_name}.jpg")
+        card_json['image_base64'] = _img_base64(staged_img) or get_card_image_base64(folder_path, card_name)
     else:
-        # card already includes image_base64 from load_deck_by_name
-        card_json = dict(card)
+        card = deck_data['cards'].get(card_name)
+        if card is None:
+            # Commander cards are excluded from deck_data['cards'] — check raw JSON
+            with open(deck_data['json_path'], 'r') as f:
+                raw_deck = json.load(f)
+            raw_card = raw_deck.get('cards', {}).get(card_name)
+            if raw_card is None:
+                return jsonify({'error': 'Card not found'}), 404
+            card_json = dict(raw_card) if isinstance(raw_card, dict) else {}
+            card_json['image_base64'] = get_card_image_base64(folder_path, card_name)
+        else:
+            # card already includes image_base64 from load_deck_by_name
+            card_json = dict(card)
 
     # Check whether artwork exists for this card
-    artwork_folder = os.path.join(deck_data['folder_path'], 'Artwork')
+    artwork_folder = os.path.join(folder_path, 'Artwork')
     artwork_found = False
     artwork_hint = None
     names_to_check = [card_name]
@@ -296,10 +318,11 @@ def card_data(deck_name):
     card_json['_artwork_found'] = artwork_found
     card_json['_artwork_hint'] = artwork_hint
 
-    # Include back face image (if card has a back face with a name)
+    # Include back face image — prefer staged version
     back_name = card_json.get('back', {}).get('name') if isinstance(card_json.get('back'), dict) else None
     if back_name:
-        card_json['back_image_base64'] = get_card_image_base64(deck_data['folder_path'], back_name)
+        staged_back = os.path.join(staging_dir, f"{back_name}.jpg")
+        card_json['back_image_base64'] = _img_base64(staged_back) or get_card_image_base64(folder_path, back_name)
 
     # Include deck-level tag list for the tag picker
     card_json['_deck_tags'] = sorted(deck_data['metadata'].get('tags', []))
@@ -394,6 +417,97 @@ def card_frames():
     except OSError:
         files = []
     return jsonify(files)
+
+
+@app.route('/deck/<deck_name>/card/<card_name>/forge', methods=['POST'])
+def forge_card(deck_name, card_name):
+    """Generate a staged card image from the editor JSON and update the staging sidecar."""
+    deck_name = unquote(deck_name)
+    card_name = unquote(card_name)
+    is_new = (card_name == '_new')
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No card data provided'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    setname = deck_data['metadata'].get('setname', 'UNK')
+
+    # Ensure Staging/ and Artwork/ directories exist
+    staging_dir = get_staging_path(folder_path)
+    os.makedirs(staging_dir, exist_ok=True)
+    os.makedirs(os.path.join(folder_path, 'Artwork'), exist_ok=True)
+
+    # Build Card object(s) from the editor dict
+    try:
+        cards = card_from_editor_dict(data, setname=setname)
+    except Exception as e:
+        return jsonify({'error': f'Invalid card data: {e}'}), 400
+
+    if not cards:
+        return jsonify({'error': 'No card produced from data'}), 400
+
+    # Generate images into Staging/
+    gen = ImageGenerator()
+    images = {}  # card_name -> base64 string
+    for card in cards:
+        success = gen.generate_single_card_image(card, save_path=staging_dir, include_printing=False)
+        if not success:
+            return jsonify({'error': f'Image generation failed for "{card.name}"'}), 500
+        # Read the generated image back as base64
+        img_path = os.path.join(staging_dir, f"{card.name}.jpg")
+        if not os.path.isfile(img_path):
+            # Renderer may have used the artwork filename — find it
+            for fname in sorted(os.listdir(staging_dir)):
+                if fname.startswith(card.name) and fname.endswith('.jpg'):
+                    img_path = os.path.join(staging_dir, fname)
+                    break
+        if os.path.isfile(img_path):
+            with open(img_path, 'rb') as f:
+                b64 = base64.b64encode(f.read()).decode('utf-8')
+                images[card.name] = f"data:image/jpeg;base64,{b64}"
+
+    front_name = cards[0].name
+
+    # Load original card data from deck JSON (for the staging sidecar)
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    original = raw_deck.get('cards', {}).get(card_name if not is_new else front_name)
+
+    # For brand-new cards: add a placeholder entry to the deck JSON
+    if is_new or original is None:
+        placeholder = dict(data)
+        placeholder['complete'] = 0
+        raw_deck.setdefault('cards', {})[front_name] = placeholder
+        with open(deck_data['json_path'], 'w') as f:
+            json.dump(raw_deck, f, indent=2)
+        original = {}
+        is_new = True
+
+    # Update _staging.json sidecar
+    staging = load_staging(folder_path)
+    staging[front_name] = {
+        'original': original,
+        'updated': data,
+        'staged_image_path': f"Staging/{front_name}.jpg",
+        'disable_auto_tokens': data.get('disable_auto_tokens', False),
+        'is_new': is_new,
+    }
+    save_staging(folder_path, staging)
+
+    result = {
+        'image_base64': images.get(front_name),
+        'staged_count': len(staging),
+    }
+    if len(cards) > 1:
+        result['back_image_base64'] = images.get(cards[1].name)
+
+    return jsonify(result)
 
 
 @app.route('/deck/<deck_name>/card/<card_name>/save', methods=['POST'])

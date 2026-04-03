@@ -108,32 +108,20 @@ Stored at `DECK_PATH/<FolderName>/<FolderName>_staging.json`.
 
 ---
 
-## 🔲 Phase 3 — Forge (Staged Image Generation)
+## ✅ Phase 3 — Forge (Staged Image Generation)
 
-**Files to change:** `app.py`, `src/services/image_generator.py` (minor), `src/ui/helpers.py`
+**Files changed:** `app.py`, `src/ui/helpers.py`, `src/ui/static/js/main.js`
 
-### 3a. New `/deck/<name>/card/<card>/forge` endpoint (POST)
-1. Receive updated card JSON from request body (`Content-Type: application/json`)
-2. Build a `Card` object from the dict (using `CardBuilder` or `Deck.from_json` logic — investigate which is simpler)
-3. Call `ImageGenerator.generate_single_card_image(card, save_path=staging_path, include_printing=False)`
-4. Write/update `_staging.json` sidecar: `{ original, updated, staged_image_path, disable_auto_tokens }`
-5. Return JSON: `{ "image_base64": "data:image/jpeg;base64,...", "staged_count": N }`
+### Completed
+- `helpers.py`: `card_from_editor_dict(card_dict, setname)` — builds `Card` object(s) from editor JSON; handles single-faced and DFC (returns `[front_card, back_card]`)
+- `app.py`: `POST /deck/<name>/card/<card>/forge` — builds Card, generates image to `Staging/`, updates `_staging.json` sidecar (`original`, `updated`, `staged_image_path`, `is_new`), returns `{ image_base64, staged_count }` (+ `back_image_base64` for DFC). New cards get a placeholder entry in deck JSON with `complete: 0`
+- `main.js`: `getEditorJson()` helper (reads form or CodeMirror JSON mode); `onForgeClick()` — POSTs to forge endpoint, updates preview + assembly badge, promotes new cards to `_currentCardName`
+- `app.py` `card_data` endpoint: now checks `_staging.json` first and returns staged `updated` data + staged image when available, so reopening a staged card shows the pending state
+- `deck.html` / `main.js`: `close-forge-btn` starts `disabled`; `updateButtonStates()` now also manages `close-forge-btn` (enabled iff dirty/new, same as Forge button)
 
-### 3b. Frontend wiring (in `main.js` `onForgeClick`)
-- Replace the stub with a real `fetch` POST to the forge endpoint
-- On success: call `updatePreview(data.image_base64)`, update `_stagedCount`, refresh `#assembly-badge` text and `assembly-badge--active` class, call `updateButtonStates()`
-- Mark `_editorIsDirty = false` after successful forge
-
-### 3c. Artwork detection (already partially done)
-- `card_data` endpoint already returns `_artwork_found` / `_artwork_hint`
-- These are already shown in the editor header as green/amber status
-- No additional work needed here
-
-### Notes
-- Investigate `image_generator.py` to find the right entry point for single-card rendering
-- Staging folder (`Staging/`) should be created if it doesn't exist
-- The forge endpoint should work for both existing cards (update) and new cards (create placeholder in deck JSON with `complete: 0`)
-- The `frame` override field should be respected when building the `Card` object
+### Known limitations / deferred to later phases
+- Assembly Line tab content is server-rendered at page load; dynamically forging cards updates the badge but the tab body (card list + publish button count) won't reflect new forges until page reload — **Phase 4 will replace with AJAX content**
+- The "Publish Assembly Line" button in the editor header (`publish-btn`) is wired but has no endpoint yet — **Phase 5**
 
 ---
 

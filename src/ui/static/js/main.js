@@ -1128,6 +1128,8 @@ function _doBasicAction(color, action, btn) {
         if (frameEl) frameEl.value = data.frame || '';
         var dfcEl = $id('ef-dfc-type');
         if (dfcEl) dfcEl.value = data.double_faced_type || '';
+        var artistEl = $id('ef-artist');
+        if (artistEl) artistEl.value = data.artist || '';
         populateFaceForm(frontFace);
         updateFaceTabs();
     }
@@ -1148,6 +1150,9 @@ function _doBasicAction(color, action, btn) {
         }
         var dfcVal = dfcEl ? dfcEl.value : '';
         if (dfcVal) result.double_faced_type = dfcVal;
+        var artistEl = $id('ef-artist');
+        var artistVal = artistEl ? artistEl.value.trim() : '';
+        if (artistVal) result.artist = artistVal;
         var frameVal = frameEl ? frameEl.value.trim() : '';
         if (frameVal) result.frame = frameVal;
         return result;
@@ -1172,6 +1177,7 @@ function _doBasicAction(color, action, btn) {
             if (Object.keys(backFace).length > 0) result.back = backFace;
         }
         if (data.double_faced_type) result.double_faced_type = data.double_faced_type;
+        if (data.artist) result.artist = data.artist;
         if (data.frame) result.frame = data.frame;
         return result;
     }
@@ -1193,12 +1199,14 @@ function _doBasicAction(color, action, btn) {
     }
 
     function updateButtonStates() {
+        var active = _editorIsDirty || _isNewCard;
         var forgeBtn = $id('forge-btn');
         if (forgeBtn) {
-            var active = _editorIsDirty || _isNewCard;
             forgeBtn.disabled = !active;
             forgeBtn.classList.toggle('btn-forge--active', active);
         }
+        var closeForgeBtnEl = $id('close-forge-btn');
+        if (closeForgeBtnEl) closeForgeBtnEl.disabled = !active;
         var publishBtn = $id('publish-btn');
         if (publishBtn) publishBtn.disabled = (_stagedCount === 0);
     }
@@ -1403,11 +1411,80 @@ function _doBasicAction(color, action, btn) {
         .catch(function () {});
     }
 
-    // ── Forge (stub — Phase 3 adds real POST) ─────────────────────────────────
+    // ── Forge ─────────────────────────────────────────────────────────────────
+    function getEditorJson() {
+        // Return current card dict regardless of editor mode (form or JSON).
+        if (_editorMode === 'json') {
+            var raw = _cmEditor ? _cmEditor.getValue()
+                                : (($id('editor-json-textarea') || {}).value || '{}');
+            try { return JSON.parse(raw); }
+            catch (e) {
+                setArtworkStatus('missing', 'Invalid JSON: ' + e.message);
+                return null;
+            }
+        }
+        return serializeForm();
+    }
+
     function onForgeClick(closeAfter) {
-        _editorIsDirty = false;
-        updateButtonStates();
-        if (closeAfter) closeCardEditor(true);
+        var cardData = getEditorJson();
+        if (!cardData) return;
+
+        var cardNameForUrl = _currentCardName
+            ? encodeURIComponent(_currentCardName)
+            : '_new';
+        var url = '/deck/' + encodeURIComponent(_deckName) + '/card/' + cardNameForUrl + '/forge';
+
+        // Disable forge buttons while request is in flight
+        var forgeBtn        = $id('forge-btn');
+        var closeForgeBtnEl = $id('close-forge-btn');
+        if (forgeBtn)        forgeBtn.disabled        = true;
+        if (closeForgeBtnEl) closeForgeBtnEl.disabled = true;
+        setArtworkStatus('found', 'Forging\u2026');
+
+        fetch(url, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(cardData)
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) {
+                setArtworkStatus('missing', 'Forge failed: ' + data.error);
+                updateButtonStates();
+                return;
+            }
+
+            // Update card preview (respect current face tab)
+            var previewB64 = (_currentFace === 'back' && data.back_image_base64)
+                ? data.back_image_base64
+                : data.image_base64;
+            if (previewB64) updatePreview(previewB64);
+
+            // Update assembly badge
+            _stagedCount = data.staged_count || 0;
+            var badge = $id('assembly-badge');
+            if (badge) {
+                badge.textContent = _stagedCount;
+                badge.classList.toggle('assembly-badge--active', _stagedCount > 0);
+            }
+
+            // New card now exists in the deck — track its name
+            if (_isNewCard && cardData.front && cardData.front.name) {
+                _currentCardName = cardData.front.name;
+                _isNewCard       = false;
+            }
+
+            _editorIsDirty = false;
+            setArtworkStatus('found', 'Forged \u2713');
+            updateButtonStates();
+
+            if (closeAfter) closeCardEditor(true);
+        })
+        .catch(function () {
+            setArtworkStatus('missing', 'Forge error \u2014 check server log');
+            updateButtonStates();
+        });
     }
 
     // ── Bootstrap ─────────────────────────────────────────────────────────────
@@ -1451,7 +1528,7 @@ function _doBasicAction(color, action, btn) {
         ['ef-name', 'ef-mana', 'ef-cardtype', 'ef-subtype', 'ef-rules',
          'ef-power', 'ef-toughness', 'ef-rarity', 'ef-flavor',
          'ef-legendary', 'ef-basic', 'ef-snow',
-         'ef-frame', 'ef-dfc-type'].forEach(function (id) {
+         'ef-artist', 'ef-frame', 'ef-dfc-type'].forEach(function (id) {
             var el = $id(id);
             if (!el) return;
             el.addEventListener('input', onFormChange);
