@@ -977,6 +977,13 @@ function _doBasicAction(color, action, btn) {
         _currentFace = face;
         if (_editorMode === 'form') populateFaceForm(_faceCache[_currentFace]);
         updateFaceTabs();
+        // Update preview to show the image for the selected face
+        if (_serverData) {
+            var faceImg = (face === 'front')
+                ? (_serverData.image_base64 || null)
+                : (_serverData.back_image_base64 || null);
+            updatePreview(faceImg);
+        }
         onFormChange();
     }
 
@@ -1108,6 +1115,10 @@ function _doBasicAction(color, action, btn) {
         _currentFace = 'front';
         var rarEl = $id('ef-rarity');
         if (rarEl) rarEl.value = (data.rarity || 'common').toLowerCase();
+        var frameEl = $id('ef-frame');
+        if (frameEl) frameEl.value = data.frame || '';
+        var dfcEl = $id('ef-dfc-type');
+        if (dfcEl) dfcEl.value = data.double_faced_type || '';
         populateFaceForm(frontFace);
         updateFaceTabs();
     }
@@ -1115,7 +1126,9 @@ function _doBasicAction(color, action, btn) {
     // ── Serialise form → card JSON ────────────────────────────────────────────
     function serializeForm() {
         _faceCache[_currentFace] = captureCurrentFace();
-        var rarEl = $id('ef-rarity');
+        var rarEl   = $id('ef-rarity');
+        var frameEl = $id('ef-frame');
+        var dfcEl   = $id('ef-dfc-type');
         var result = {
             front:    _faceCache.front,
             rarity:   rarEl ? rarEl.value : 'common',
@@ -1124,9 +1137,10 @@ function _doBasicAction(color, action, btn) {
         if (_faceCache.back && Object.keys(_faceCache.back).length > 0) {
             result.back = _faceCache.back;
         }
-        if (_serverData && _serverData.double_faced_type) {
-            result.double_faced_type = _serverData.double_faced_type;
-        }
+        var dfcVal = dfcEl ? dfcEl.value : '';
+        if (dfcVal) result.double_faced_type = dfcVal;
+        var frameVal = frameEl ? frameEl.value.trim() : '';
+        if (frameVal) result.frame = frameVal;
         return result;
     }
 
@@ -1149,6 +1163,7 @@ function _doBasicAction(color, action, btn) {
             if (Object.keys(backFace).length > 0) result.back = backFace;
         }
         if (data.double_faced_type) result.double_faced_type = data.double_faced_type;
+        if (data.frame) result.frame = data.frame;
         return result;
     }
 
@@ -1315,12 +1330,28 @@ function _doBasicAction(color, action, btn) {
         // Form field change detection
         ['ef-name', 'ef-mana', 'ef-cardtype', 'ef-subtype', 'ef-rules',
          'ef-power', 'ef-toughness', 'ef-rarity', 'ef-flavor',
-         'ef-legendary', 'ef-basic', 'ef-snow'].forEach(function (id) {
+         'ef-legendary', 'ef-basic', 'ef-snow',
+         'ef-frame', 'ef-dfc-type'].forEach(function (id) {
             var el = $id(id);
             if (!el) return;
             el.addEventListener('input', onFormChange);
             el.addEventListener('change', onFormChange);
         });
+
+        // Populate card frames datalist
+        var framesDatalist = $id('card-frames-list');
+        if (framesDatalist) {
+            fetch('/card-frames')
+                .then(function (r) { return r.json(); })
+                .then(function (files) {
+                    files.forEach(function (f) {
+                        var opt = document.createElement('option');
+                        opt.value = f;
+                        framesDatalist.appendChild(opt);
+                    });
+                })
+                .catch(function () { /* silently ignore */ });
+        }
 
         // Forge buttons
         var forgeBtn = $id('forge-btn');

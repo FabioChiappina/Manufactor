@@ -266,7 +266,7 @@
                     <!-- Form mode -->
                     <div id="editor-form-mode" class="editor-mode-content">
                         <div class="editor-form-fields">
-                            <div class="ef-row">
+                            <div class="ef-row ef-row--with-rarity">
                                 <div class="ef-group">
                                     <label class="ef-label">Name</label>
                                     <input type="text" id="ef-name" class="ef-input">
@@ -274,6 +274,15 @@
                                 <div class="ef-group">
                                     <label class="ef-label">Mana Cost</label>
                                     <input type="text" id="ef-mana" class="ef-input" placeholder="{2}{u}{r}  •  hybrid: {w/u}  •  phyrexian: {g/p}">
+                                </div>
+                                <div class="ef-group ef-group--rarity">
+                                    <label class="ef-label">Rarity</label>
+                                    <select id="ef-rarity" class="ef-input ef-select--rarity">
+                                        <option value="common">Common</option>
+                                        <option value="uncommon">Uncommon</option>
+                                        <option value="rare">Rare</option>
+                                        <option value="mythic">Mythic</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="ef-row--type-line">
@@ -294,32 +303,36 @@
                                     <input type="text" id="ef-subtype" class="ef-input" placeholder="e.g. Human Wizard">
                                 </div>
                             </div>
-                            <div class="ef-row ef-row--three">
-                                <div class="ef-group">
+                            <div class="ef-row ef-row--pt">
+                                <div class="ef-group ef-group--pt-narrow">
                                     <label class="ef-label">Power</label>
                                     <input type="text" id="ef-power" class="ef-input" placeholder="*">
                                 </div>
-                                <div class="ef-group">
+                                <div class="ef-group ef-group--pt-narrow">
                                     <label class="ef-label">Toughness</label>
                                     <input type="text" id="ef-toughness" class="ef-input" placeholder="*">
                                 </div>
-                                <div class="ef-group">
-                                    <label class="ef-label">Rarity</label>
-                                    <select id="ef-rarity" class="ef-input">
-                                        <option value="common">Common</option>
-                                        <option value="uncommon">Uncommon</option>
-                                        <option value="rare">Rare</option>
-                                        <option value="mythic">Mythic</option>
+                                <div class="ef-group ef-group--frame">
+                                    <label class="ef-label">Frame Filename</label>
+                                    <input type="text" id="ef-frame" class="ef-input" list="card-frames-list" placeholder="Optionally override default card frame." autocomplete="off">
+                                </div>
+                                <div class="ef-group ef-group--dfc">
+                                    <label class="ef-label">Double Faced Type</label>
+                                    <select id="ef-dfc-type" class="ef-input">
+                                        <option value="">None (Single Faced)</option>
+                                        <option value="transform">Transform</option>
+                                        <option value="mdfc">MDFC</option>
                                     </select>
                                 </div>
                             </div>
+                            <datalist id="card-frames-list"></datalist>
                             <div class="ef-group ef-group--full">
-                                <label class="ef-label">Rules Text</label>
+                                <label class="ef-label">Rules Text • Main</label>
                                 <textarea id="ef-rules" class="ef-input ef-textarea" rows="6" placeholder="Mana symbols use {w}{u}{b}{r}{g}{c} notation. Tap: {t}. Untap: {q}. <i>Italics</i>"></textarea>
                             </div>
                             <div class="ef-group ef-group--full">
                                 <label class="ef-label">Flavor Text — Optional</label>
-                                <input type="text" id="ef-flavor" class="ef-input" placeholder="Optional flavor text">
+                                <textarea id="ef-flavor" class="ef-input ef-textarea" rows="2" placeholder="Optional flavor text"></textarea>
                             </div>
                         </div>
                     </div><!-- #editor-form-mode -->

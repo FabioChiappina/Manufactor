@@ -1724,6 +1724,41 @@ footer p {
     grid-template-columns: 90px 90px 1fr;
 }
 
+/* Top row: name (wide) + mana cost (narrower) + rarity (auto-sized) */
+.ef-row--with-rarity {
+    grid-template-columns: 1fr minmax(0, 0.65fr) auto;
+}
+
+.ef-group--rarity {
+    flex-shrink: 0;
+}
+
+.ef-select--rarity {
+    width: auto;
+    min-width: 0;
+}
+
+/* Power/Toughness + Frame Filename + DFC type row */
+.ef-row--pt {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.ef-group--pt-narrow {
+    width: 90px;
+    flex-shrink: 0;
+}
+
+.ef-group--frame {
+    flex: 1;
+    min-width: 0;
+}
+
+.ef-group--dfc {
+    flex-shrink: 0;
+}
+
 .ef-row .ef-group:only-child {
     grid-column: 1 / -1;
 }

@@ -9,7 +9,7 @@ import json
 import os
 from urllib.parse import unquote, quote
 from src.services.settings_manager import SettingsManager
-from src.utils.paths import SYMBOL_PATH
+from src.utils.paths import SYMBOL_PATH, CARD_FRAMES_PATH
 from src.ui.helpers import (
     get_available_decks,
     get_decks_with_metadata,
@@ -296,7 +296,22 @@ def card_data(deck_name):
     card_json['_artwork_found'] = artwork_found
     card_json['_artwork_hint'] = artwork_hint
 
+    # Include back face image (if card has a back face with a name)
+    back_name = card_json.get('back', {}).get('name') if isinstance(card_json.get('back'), dict) else None
+    if back_name:
+        card_json['back_image_base64'] = get_card_image_base64(deck_data['folder_path'], back_name)
+
     return jsonify(card_json)
+
+
+@app.route('/card-frames')
+def card_frames():
+    """Return sorted list of card frame filenames from Assets/CardFrames/."""
+    try:
+        files = sorted(f for f in os.listdir(CARD_FRAMES_PATH) if f.endswith('.jpg'))
+    except OSError:
+        files = []
+    return jsonify(files)
 
 
 @app.route('/deck/<deck_name>/card/<card_name>/save', methods=['POST'])
