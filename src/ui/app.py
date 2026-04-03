@@ -19,6 +19,7 @@ from src.ui.helpers import (
     load_staging,
     save_staging,
     get_staging_path,
+    get_card_image_base64,
 )
 
 app = Flask(__name__)
@@ -249,11 +250,13 @@ def card_editor(deck_name, card_name):
     )
 
 
-@app.route('/deck/<deck_name>/card/<card_name>/data')
-def card_data(deck_name, card_name):
+@app.route('/deck/<deck_name>/card-data')
+def card_data(deck_name):
     """Return card JSON for the inline editor."""
     deck_name = unquote(deck_name)
-    card_name = unquote(card_name)
+    card_name = request.args.get('name', '')
+    if not card_name:
+        return jsonify({'error': 'Card name required'}), 400
 
     deck_data = load_deck_by_name(deck_name)
     if not deck_data:
@@ -261,10 +264,17 @@ def card_data(deck_name, card_name):
 
     card = deck_data['cards'].get(card_name)
     if card is None:
-        return jsonify({'error': 'Card not found'}), 404
-
-    # Strip the base64 image blob — not needed by the editor
-    card_json = {k: v for k, v in card.items() if k != 'image_base64'}
+        # Commander cards are excluded from deck_data['cards'] — check raw JSON
+        with open(deck_data['json_path'], 'r') as f:
+            raw_deck = json.load(f)
+        raw_card = raw_deck.get('cards', {}).get(card_name)
+        if raw_card is None:
+            return jsonify({'error': 'Card not found'}), 404
+        card_json = dict(raw_card) if isinstance(raw_card, dict) else {}
+        card_json['image_base64'] = get_card_image_base64(deck_data['folder_path'], card_name)
+    else:
+        # card already includes image_base64 from load_deck_by_name
+        card_json = dict(card)
 
     # Check whether artwork exists for this card
     artwork_folder = os.path.join(deck_data['folder_path'], 'Artwork')

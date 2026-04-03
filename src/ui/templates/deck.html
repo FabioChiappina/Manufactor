@@ -34,22 +34,22 @@
         <div class="commander-cards-section">
             {% if deck.metadata.commander is string %}
                 {% if deck.commander_images and deck.commander_images[0] %}
-                <div class="commander-card-container">
+                <div class="commander-card-container" data-commander-name="{{ deck.metadata.commander }}" style="cursor:pointer">
                     <img src="{{ deck.commander_images[0] }}" alt="{{ deck.metadata.commander }}" class="commander-card-image">
                 </div>
                 {% else %}
-                <div class="commander-card-placeholder">
+                <div class="commander-card-placeholder" data-commander-name="{{ deck.metadata.commander }}" style="cursor:pointer">
                     <div class="placeholder-text">{{ deck.metadata.commander }}</div>
                 </div>
                 {% endif %}
             {% else %}
                 {% for commander_name in deck.metadata.commander %}
                     {% if deck.commander_images and deck.commander_images[loop.index0] %}
-                    <div class="commander-card-container">
+                    <div class="commander-card-container" data-commander-name="{{ commander_name }}" style="cursor:pointer">
                         <img src="{{ deck.commander_images[loop.index0] }}" alt="{{ commander_name }}" class="commander-card-image">
                     </div>
                     {% else %}
-                    <div class="commander-card-placeholder">
+                    <div class="commander-card-placeholder" data-commander-name="{{ commander_name }}" style="cursor:pointer">
                         <div class="placeholder-text">{{ commander_name }}</div>
                     </div>
                     {% endif %}

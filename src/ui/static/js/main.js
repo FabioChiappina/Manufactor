@@ -974,10 +974,17 @@ function _doBasicAction(color, action, btn) {
         $id('cards-tab-main').style.display  = 'none';
         $id('card-editor-panel').style.display = '';
 
+        // Scroll to editor (needed when opening from commander images above the tab area)
+        setTimeout(function () {
+            var panel = $id('card-editor-panel');
+            if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 30);
+
         switchEditorMode('form', /* silent */ true);
         history.replaceState(null, '', '#edit/' + encodeURIComponent(cardName));
 
-        fetch('/deck/' + encodeURIComponent(_deckName) + '/card/' + encodeURIComponent(cardName) + '/data')
+        // Use query param so card names containing "/" (DFCs) aren't misrouted
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/card-data?name=' + encodeURIComponent(cardName))
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (data.error) { setArtworkStatus('missing', 'Error: ' + data.error); return; }
@@ -1013,6 +1020,11 @@ function _doBasicAction(color, action, btn) {
         _currentCardName = null;
         _isNewCard       = false;
         _editorIsDirty   = false;
+
+        // Clear stale data so the next opened card doesn't briefly flash old content
+        updatePreview(null);
+        setArtworkStatus('', '');
+        $id('editor-card-title').textContent = '';
 
         $id('card-editor-panel').style.display = 'none';
         $id('cards-tab-main').style.display    = '';
@@ -1222,7 +1234,9 @@ function _doBasicAction(color, action, btn) {
         // Card clicks (delegated so grouped / cloned items also fire)
         document.body.addEventListener('click', function (e) {
             var item = e.target.closest('.card-gallery-item[data-card-name]');
-            if (item) { e.preventDefault(); openCardEditor(item.dataset.cardName); }
+            if (item) { e.preventDefault(); openCardEditor(item.dataset.cardName); return; }
+            var cmd = e.target.closest('[data-commander-name]');
+            if (cmd) { e.preventDefault(); switchTab('cards', false); openCardEditor(cmd.dataset.commanderName); }
         });
 
         // Back button
