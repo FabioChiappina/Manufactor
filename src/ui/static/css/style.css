@@ -1504,18 +1504,24 @@ footer p {
 
 /* Close & Forge button — warm muted rust, halfway between Forge and Close */
 .btn-close-forge {
-    background: linear-gradient(135deg, #b06045 0%, #8a4040 100%);
-    color: white;
+    background: #e0e0e0;
+    color: #aaa;
     border: none;
     border-radius: 6px;
     padding: 10px 20px;
     font-size: 14px;
     font-weight: 600;
-    cursor: pointer;
-    transition: filter 0.2s, transform 0.1s;
+    cursor: not-allowed;
+    transition: filter 0.2s, transform 0.1s, background 0.2s, color 0.2s;
 }
 
-.btn-close-forge:hover {
+.btn-close-forge:not([disabled]) {
+    background: linear-gradient(135deg, #b06045 0%, #8a4040 100%);
+    color: white;
+    cursor: pointer;
+}
+
+.btn-close-forge:not([disabled]):hover {
     filter: brightness(1.12);
     transform: translateY(-1px);
 }
@@ -1876,7 +1882,7 @@ footer p {
 
 .ef-group--frame {
     flex: 1;
-    min-width: 0;
+    min-width: 100px;
 }
 
 .ef-group--dfc {
@@ -1884,8 +1890,8 @@ footer p {
 }
 
 .ef-group--artist {
-    flex: 0 1 150px;
-    min-width: 90px;
+    flex: 1;
+    min-width: 100px;
 }
 
 .ef-row .ef-group:only-child {
