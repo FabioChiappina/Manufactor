@@ -985,6 +985,13 @@ function _doBasicAction(color, action, btn) {
         _currentFace = face;
         if (_editorMode === 'form') populateFaceForm(_faceCache[_currentFace]);
         updateFaceTabs();
+        // Auto-select Transform when switching to Back if no DFC type is set yet
+        if (face === 'back') {
+            var dfcEl = $id('ef-dfc-type');
+            if (dfcEl && !dfcEl.value) {
+                dfcEl.value = 'transform';
+            }
+        }
         // Update preview to show the image for the selected face
         if (_serverData) {
             var faceImg = (face === 'front')
@@ -1435,10 +1442,8 @@ function _doBasicAction(color, action, btn) {
         var cardData = getEditorJson();
         if (!cardData) return;
 
-        var cardNameForUrl = _currentCardName
-            ? encodeURIComponent(_currentCardName)
-            : '_new';
-        var url = '/deck/' + encodeURIComponent(_deckName) + '/card/' + cardNameForUrl + '/forge';
+        var url = '/deck/' + encodeURIComponent(_deckName) + '/forge-card?name='
+            + encodeURIComponent(_currentCardName || '_new');
 
         // Disable forge buttons while request is in flight
         var forgeBtn        = $id('forge-btn');
@@ -1480,21 +1485,24 @@ function _doBasicAction(color, action, btn) {
             updateButtonStates();
 
             // Mark the gallery item as staged
-            var galItem = document.querySelector('.card-gallery-item[data-card-name="' + _currentCardName.replace(/"/g, '\\"') + '"]');
-            if (galItem) {
-                galItem.dataset.staged = 'true';
-                var imgCon = galItem.querySelector('.card-image-container, .card-image-placeholder');
-                if (imgCon && !imgCon.querySelector('.staged-overlay')) {
-                    var ov = document.createElement('div');
-                    ov.className = 'staged-overlay';
-                    ov.innerHTML = 'AWAITING<br>ASSEMBLY LINE';
-                    imgCon.appendChild(ov);
+            if (_currentCardName) {
+                var galItem = document.querySelector('.card-gallery-item[data-card-name="' + _currentCardName.replace(/"/g, '\\"') + '"]');
+                if (galItem) {
+                    galItem.dataset.staged = 'true';
+                    var imgCon = galItem.querySelector('.card-image-container, .card-image-placeholder');
+                    if (imgCon && !imgCon.querySelector('.staged-overlay')) {
+                        var ov = document.createElement('div');
+                        ov.className = 'staged-overlay';
+                        ov.innerHTML = 'AWAITING<br>ASSEMBLY LINE';
+                        imgCon.appendChild(ov);
+                    }
                 }
             }
 
             if (closeAfter) closeCardEditor(true);
         })
-        .catch(function () {
+        .catch(function (err) {
+            console.error('Forge error:', err);
             setArtworkStatus('missing', 'Forge error \u2014 check server log');
             updateButtonStates();
         });
@@ -1624,7 +1632,7 @@ function _doBasicAction(color, action, btn) {
     }
 
     function onDiscardCard(cardName, rowEl) {
-        fetch('/deck/' + encodeURIComponent(_deckName) + '/card/' + encodeURIComponent(cardName) + '/discard', {
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/discard-card?name=' + encodeURIComponent(cardName), {
             method: 'POST',
         })
         .then(function (r) { return r.json(); })

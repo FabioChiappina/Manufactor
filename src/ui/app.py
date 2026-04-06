@@ -421,11 +421,11 @@ def card_frames():
     return jsonify(files)
 
 
-@app.route('/deck/<deck_name>/card/<card_name>/forge', methods=['POST'])
-def forge_card(deck_name, card_name):
+@app.route('/deck/<deck_name>/forge-card', methods=['POST'])
+def forge_card(deck_name):
     """Generate a staged card image from the editor JSON and update the staging sidecar."""
     deck_name = unquote(deck_name)
-    card_name = unquote(card_name)
+    card_name = request.args.get('name', '_new')
     is_new = (card_name == '_new')
 
     data = request.get_json()
@@ -436,6 +436,16 @@ def forge_card(deck_name, card_name):
     if not deck_data:
         return jsonify({'error': 'Deck not found'}), 404
 
+    try:
+        return _do_forge(deck_data, card_name, is_new, data)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Forge failed unexpectedly: {e}'}), 500
+
+
+def _do_forge(deck_data, card_name, is_new, data):
+    """Inner forge logic — always returns a Flask response."""
     folder_path = deck_data['folder_path']
     setname = deck_data['metadata'].get('setname', 'UNK')
 
@@ -452,6 +462,11 @@ def forge_card(deck_name, card_name):
 
     if not cards:
         return jsonify({'error': 'No card produced from data'}), 400
+
+    # Validate front name
+    front_name = cards[0].name
+    if not front_name:
+        return jsonify({'error': 'Card must have a name'}), 400
 
     # Generate images into Staging/
     gen = ImageGenerator()
@@ -472,8 +487,6 @@ def forge_card(deck_name, card_name):
             with open(img_path, 'rb') as f:
                 b64 = base64.b64encode(f.read()).decode('utf-8')
                 images[card.name] = f"data:image/jpeg;base64,{b64}"
-
-    front_name = cards[0].name
 
     # Load original card data from deck JSON (for the staging sidecar)
     with open(deck_data['json_path'], 'r') as f:
@@ -544,11 +557,11 @@ def assembly_line_data(deck_name):
     return jsonify(items)
 
 
-@app.route('/deck/<deck_name>/card/<card_name>/discard', methods=['POST'])
-def discard_card(deck_name, card_name):
+@app.route('/deck/<deck_name>/discard-card', methods=['POST'])
+def discard_card(deck_name):
     """Remove a card from the staging area."""
     deck_name = unquote(deck_name)
-    card_name = unquote(card_name)
+    card_name = request.args.get('name', '')
 
     deck_data = load_deck_by_name(deck_name)
     if not deck_data:
@@ -567,11 +580,17 @@ def discard_card(deck_name, card_name):
             with open(deck_data['json_path'], 'w') as f:
                 json.dump(raw_deck, f, indent=2)
 
-    # Remove staged image file
+    # Remove staged image file(s) — front and back face for DFCs
     staging_dir = get_staging_path(folder_path)
     staged_img = os.path.join(staging_dir, f"{card_name}.jpg")
     if os.path.isfile(staged_img):
         os.remove(staged_img)
+    if entry:
+        back_face_name = (entry.get('updated', {}).get('back') or {}).get('name')
+        if back_face_name:
+            staged_back = os.path.join(staging_dir, f"{back_face_name}.jpg")
+            if os.path.isfile(staged_back):
+                os.remove(staged_back)
 
     save_staging(folder_path, staging)
     return jsonify({'staged_count': len(staging)})
@@ -666,6 +685,15 @@ def publish_assembly_line(deck_name):
         if os.path.isfile(staged_img):
             shutil.copy2(staged_img, os.path.join(cards_dir, f"{card_name}.jpg"))
 
+        # Also copy back face staged image for DFCs
+        updated_data_entry = entry.get('updated', {})
+        back_face_data = updated_data_entry.get('back') or {}
+        back_face_name = back_face_data.get('name')
+        if back_face_name:
+            staged_back = os.path.join(staging_dir, f"{back_face_name}.jpg")
+            if os.path.isfile(staged_back):
+                shutil.copy2(staged_back, os.path.join(cards_dir, f"{back_face_name}.jpg"))
+
         # Merge updated data into deck JSON and mark complete
         updated_data = entry.get('updated', {})
         if card_name in raw_deck.get('cards', {}):
@@ -697,11 +725,16 @@ def publish_assembly_line(deck_name):
     with open(deck_data['json_path'], 'w') as f:
         json.dump(raw_deck, f, indent=2)
 
-    # Clear staging sidecar and staged images
-    for card_name in list(staging.keys()):
+    # Clear staging sidecar and staged images (including back faces for DFCs)
+    for card_name, entry in staging.items():
         staged_img = os.path.join(staging_dir, f"{card_name}.jpg")
         if os.path.isfile(staged_img):
             os.remove(staged_img)
+        back_face_name = (entry.get('updated', {}).get('back') or {}).get('name')
+        if back_face_name:
+            staged_back = os.path.join(staging_dir, f"{back_face_name}.jpg")
+            if os.path.isfile(staged_back):
+                os.remove(staged_back)
     save_staging(folder_path, {})
 
     # Cockatrice export
