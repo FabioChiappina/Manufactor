@@ -8,6 +8,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 import base64
 import json
 import os
+import shutil
 from urllib.parse import unquote, quote
 from src.services.settings_manager import SettingsManager
 from src.services.image_generator import ImageGenerator
@@ -509,6 +510,225 @@ def forge_card(deck_name, card_name):
         result['back_image_base64'] = images.get(cards[1].name)
 
     return jsonify(result)
+
+
+@app.route('/deck/<deck_name>/assembly-line-data')
+def assembly_line_data(deck_name):
+    """Return JSON list of staged cards with original + staged images."""
+    deck_name = unquote(deck_name)
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    staging = load_staging(folder_path)
+    staging_dir = get_staging_path(folder_path)
+
+    def _b64(path):
+        if path and os.path.isfile(path):
+            with open(path, 'rb') as f:
+                return 'data:image/jpeg;base64,' + base64.b64encode(f.read()).decode()
+        return None
+
+    items = []
+    for card_name, entry in staging.items():
+        staged_b64 = _b64(os.path.join(staging_dir, f"{card_name}.jpg"))
+        original_b64 = get_card_image_base64(folder_path, card_name)
+        items.append({
+            'card_name': card_name,
+            'is_new': entry.get('is_new', False),
+            'original_image_base64': original_b64,
+            'staged_image_base64': staged_b64,
+        })
+
+    return jsonify(items)
+
+
+@app.route('/deck/<deck_name>/card/<card_name>/discard', methods=['POST'])
+def discard_card(deck_name, card_name):
+    """Remove a card from the staging area."""
+    deck_name = unquote(deck_name)
+    card_name = unquote(card_name)
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    staging = load_staging(folder_path)
+    entry = staging.pop(card_name, None)
+
+    # If card was brand-new (placeholder only), remove it from the deck JSON too
+    if entry and entry.get('is_new'):
+        with open(deck_data['json_path'], 'r') as f:
+            raw_deck = json.load(f)
+        if card_name in raw_deck.get('cards', {}):
+            del raw_deck['cards'][card_name]
+            with open(deck_data['json_path'], 'w') as f:
+                json.dump(raw_deck, f, indent=2)
+
+    # Remove staged image file
+    staging_dir = get_staging_path(folder_path)
+    staged_img = os.path.join(staging_dir, f"{card_name}.jpg")
+    if os.path.isfile(staged_img):
+        os.remove(staged_img)
+
+    save_staging(folder_path, staging)
+    return jsonify({'staged_count': len(staging)})
+
+
+@app.route('/deck/<deck_name>/forge-all', methods=['POST'])
+def forge_all(deck_name):
+    """Forge every non-real card in the deck into the staging area."""
+    deck_name = unquote(deck_name)
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    setname = deck_data['metadata'].get('setname', 'UNK')
+    staging_dir = get_staging_path(folder_path)
+    os.makedirs(staging_dir, exist_ok=True)
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    staging = load_staging(folder_path)
+    gen = ImageGenerator()
+    forged = 0
+    errors = []
+
+    for card_name, card_dict in raw_deck.get('cards', {}).items():
+        if not isinstance(card_dict, dict):
+            continue
+        if card_dict.get('real'):
+            continue  # Skip real (non-custom) cards
+
+        try:
+            cards = card_from_editor_dict(card_dict, setname=setname)
+        except Exception as e:
+            errors.append(f"{card_name}: {e}")
+            continue
+
+        success = True
+        for card in cards:
+            if not gen.generate_single_card_image(card, save_path=staging_dir, include_printing=False):
+                errors.append(f"{card_name}: image generation failed")
+                success = False
+                break
+
+        if success:
+            front_name = cards[0].name
+            staging[front_name] = {
+                'original': raw_deck['cards'].get(card_name, {}),
+                'updated': card_dict,
+                'staged_image_path': f"Staging/{front_name}.jpg",
+                'disable_auto_tokens': card_dict.get('disable_auto_tokens', False),
+                'is_new': False,
+            }
+            forged += 1
+
+    save_staging(folder_path, staging)
+    return jsonify({'forged': forged, 'staged_count': len(staging), 'errors': errors})
+
+
+@app.route('/deck/<deck_name>/publish-assembly-line', methods=['POST'])
+def publish_assembly_line(deck_name):
+    """Copy staged images to Cards/, regenerate Printing/, update deck JSON, run Cockatrice export."""
+    deck_name = unquote(deck_name)
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    staging = load_staging(folder_path)
+    staging_dir = get_staging_path(folder_path)
+
+    if not staging:
+        return jsonify({'error': 'Nothing to publish'}), 400
+
+    cards_dir = os.path.join(folder_path, 'Cards')
+    printing_dir = os.path.join(folder_path, 'Printing')
+    os.makedirs(cards_dir, exist_ok=True)
+    os.makedirs(printing_dir, exist_ok=True)
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    setname = deck_data['metadata'].get('setname', 'UNK')
+    gen = ImageGenerator()
+    cards_updated = 0
+    printing_ok = True
+
+    for card_name, entry in staging.items():
+        # Copy staged image → Cards/
+        staged_img = os.path.join(staging_dir, f"{card_name}.jpg")
+        if os.path.isfile(staged_img):
+            shutil.copy2(staged_img, os.path.join(cards_dir, f"{card_name}.jpg"))
+
+        # Merge updated data into deck JSON and mark complete
+        updated_data = entry.get('updated', {})
+        if card_name in raw_deck.get('cards', {}):
+            raw_deck['cards'][card_name].update(updated_data)
+            raw_deck['cards'][card_name]['complete'] = 1
+        else:
+            # New card — add it
+            new_entry = dict(updated_data)
+            new_entry['complete'] = 1
+            raw_deck.setdefault('cards', {})[card_name] = new_entry
+
+        # Regenerate printing image from the staged image
+        try:
+            card_list = card_from_editor_dict(updated_data, setname=setname)
+            if card_list:
+                from src.rendering.card_renderer import create_printing_image_from_Card
+                create_printing_image_from_Card(
+                    card_list[0],
+                    saved_image_path=cards_dir,
+                    save_path=printing_dir,
+                )
+        except Exception as e:
+            print(f"Printing regen failed for {card_name}: {e}")
+            printing_ok = False
+
+        cards_updated += 1
+
+    # Persist updated deck JSON
+    with open(deck_data['json_path'], 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    # Clear staging sidecar and staged images
+    for card_name in list(staging.keys()):
+        staged_img = os.path.join(staging_dir, f"{card_name}.jpg")
+        if os.path.isfile(staged_img):
+            os.remove(staged_img)
+    save_staging(folder_path, {})
+
+    # Cockatrice export
+    cockatrice_ok = None  # None = not configured
+    try:
+        from src.services.cockatrice_exporter import CockatriceExporter
+        from src.core.deck import Deck
+        exporter = CockatriceExporter()
+        if exporter.is_cockatrice_available():
+            deck_obj = Deck.from_json(deck_data['json_path'], setname, deck_data['folder_name'])
+            cockatrice_ok = exporter.export_deck(deck_obj)
+    except Exception as e:
+        print(f"Cockatrice export failed: {e}")
+        cockatrice_ok = False
+
+    total_cards = sum(
+        c.get('quantity', 1) if isinstance(c, dict) else 1
+        for c in raw_deck.get('cards', {}).values()
+    )
+
+    return jsonify({
+        'cards_updated': cards_updated,
+        'total_cards': total_cards,
+        'printing_ok': printing_ok,
+        'cockatrice_ok': cockatrice_ok,
+        'staged_count': 0,
+    })
 
 
 @app.route('/deck/<deck_name>/card/<card_name>/save', methods=['POST'])

@@ -1435,10 +1435,113 @@ footer p {
     transform: translateY(-1px);
 }
 
+.assembly-forge-all-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0 16px;
+    border-bottom: 1px solid #e8e8e8;
+    margin-bottom: 20px;
+}
+
+.assembly-forge-all-status {
+    font-size: 13px;
+    color: #666;
+    font-style: italic;
+}
+
+.assembly-loading {
+    color: #888;
+    font-size: 14px;
+    padding: 24px 0;
+    text-align: center;
+}
+
 .assembly-line-list {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 24px;
+}
+
+.assembly-card-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #fafafa;
+    border: 1px solid #e8e8e8;
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.assembly-card-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.assembly-card-images {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.assembly-img-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.assembly-card-img {
+    width: 160px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.assembly-card-placeholder {
+    width: 160px;
+    height: 224px;
+    background: #e8e8e8;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-size: 13px;
+    text-align: center;
+}
+
+.assembly-img-caption {
+    font-size: 12px;
+    color: #888;
+    font-weight: 500;
+}
+
+.assembly-arrow {
+    font-size: 28px;
+    color: #999;
+    align-self: center;
+    padding: 0 4px;
+}
+
+.assembly-discard-btn {
+    background: #fff;
+    color: #dc2626;
+    border: 1px solid #dc2626;
+    border-radius: 6px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    align-self: flex-start;
+    transition: background 0.15s, color 0.15s;
+}
+
+.assembly-discard-btn:hover {
+    background: #dc2626;
+    color: white;
 }
 
 /* ── Inline Card Editor Panel ────────────────────────────────────────────── */
@@ -2073,6 +2176,78 @@ footer p {
     }
 }
 
+/* ── Publish Confirm Dialog ──────────────────────────────────────────────── */
+
+.confirm-dialog {
+    border: none;
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+    max-width: 460px;
+    width: 90%;
+}
+
+.confirm-dialog::backdrop {
+    background: rgba(0,0,0,0.45);
+}
+
+.confirm-dialog-body {
+    padding: 28px 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.confirm-dialog-message {
+    font-size: 17px;
+    font-weight: 600;
+    color: #222;
+    margin: 0;
+}
+
+.confirm-dialog-sub {
+    font-size: 13px;
+    color: #666;
+    margin: 0;
+}
+
+.confirm-dialog-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+/* ── Toast Notifications ─────────────────────────────────────────────────── */
+
+.manufactor-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: white;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    max-width: 480px;
+    text-align: center;
+    pointer-events: none;
+}
+
+.manufactor-toast--visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.manufactor-toast--success { background: #16a34a; }
+.manufactor-toast--warning { background: #d97706; }
+.manufactor-toast--error   { background: #dc2626; }
+.manufactor-toast--info    { background: #2563eb; }
+
 @media (max-width: 768px) {
     .deck-tabs {
         overflow-x: auto;
@@ -2086,5 +2261,14 @@ footer p {
 
     .editor-panel-actions {
         width: 100%;
+    }
+
+    .assembly-card-img,
+    .assembly-card-placeholder {
+        width: 120px;
+    }
+
+    .assembly-card-placeholder {
+        height: 168px;
     }
 }

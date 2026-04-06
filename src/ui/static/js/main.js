@@ -1002,6 +1002,7 @@ function _doBasicAction(color, action, btn) {
             pane.classList.toggle('tab-pane--active', show);
         });
         if (pushHash) history.replaceState(null, '', '#' + tabName);
+        if (tabName === 'assembly') loadAssemblyLineData();
     }
 
     function handleHash(hash) {
@@ -1500,6 +1501,231 @@ function _doBasicAction(color, action, btn) {
         });
     }
 
+    // ── Assembly Line ─────────────────────────────────────────────────────────
+    function _updatePublishBar(count) {
+        _stagedCount = count;
+        var badge = $id('assembly-badge');
+        if (badge) {
+            badge.textContent = count;
+            badge.classList.toggle('assembly-badge--active', count > 0);
+        }
+        var publishBtn    = $id('publish-assembly-btn');
+        var publishEdBtn  = $id('publish-btn');
+        var countSpan     = $id('publish-count');
+        if (countSpan)   countSpan.textContent = count;
+        if (publishBtn)  publishBtn.disabled   = (count === 0);
+        if (publishEdBtn) publishEdBtn.disabled = (count === 0);
+    }
+
+    function loadAssemblyLineData() {
+        var list    = $id('assembly-line-list');
+        var loading = $id('assembly-loading');
+        if (!list) return;
+        if (loading) { loading.style.display = ''; }
+        // Clear old rows (keep loading element)
+        Array.from(list.children).forEach(function (child) {
+            if (child.id !== 'assembly-loading') child.remove();
+        });
+
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/assembly-line-data')
+            .then(function (r) { return r.json(); })
+            .then(function (items) {
+                if (loading) loading.style.display = 'none';
+                if (!items.length) {
+                    var empty = document.createElement('div');
+                    empty.className = 'tab-empty-state';
+                    empty.innerHTML = '<p>No staged changes. Forge a card in the Cards tab to add it to the Assembly Line.</p>';
+                    list.appendChild(empty);
+                    return;
+                }
+                items.forEach(function (item) { list.appendChild(_buildAssemblyRow(item)); });
+            })
+            .catch(function () {
+                if (loading) loading.style.display = 'none';
+            });
+    }
+
+    function _buildAssemblyRow(item) {
+        var row = document.createElement('div');
+        row.className = 'assembly-card-row';
+        row.dataset.cardName = item.card_name;
+
+        var label = document.createElement('div');
+        label.className = 'assembly-card-label';
+        label.textContent = item.card_name + (item.is_new ? ' (new)' : '');
+
+        var images = document.createElement('div');
+        images.className = 'assembly-card-images';
+
+        // Original image
+        var origWrap = document.createElement('div');
+        origWrap.className = 'assembly-img-wrap';
+        var origCaption = document.createElement('div');
+        origCaption.className = 'assembly-img-caption';
+        origCaption.textContent = item.is_new ? 'New' : 'Original';
+        if (item.original_image_base64 && !item.is_new) {
+            var origImg = document.createElement('img');
+            origImg.src = item.original_image_base64;
+            origImg.className = 'assembly-card-img';
+            origImg.alt = 'Original';
+            origWrap.appendChild(origImg);
+        } else {
+            var origPlaceholder = document.createElement('div');
+            origPlaceholder.className = 'assembly-card-placeholder';
+            origPlaceholder.textContent = item.is_new ? 'New Card' : 'No Image';
+            origWrap.appendChild(origPlaceholder);
+        }
+        origWrap.appendChild(origCaption);
+
+        var arrow = document.createElement('div');
+        arrow.className = 'assembly-arrow';
+        arrow.textContent = '→';
+
+        // Staged image
+        var stgWrap = document.createElement('div');
+        stgWrap.className = 'assembly-img-wrap';
+        var stgCaption = document.createElement('div');
+        stgCaption.className = 'assembly-img-caption';
+        stgCaption.textContent = 'Staged';
+        if (item.staged_image_base64) {
+            var stgImg = document.createElement('img');
+            stgImg.src = item.staged_image_base64;
+            stgImg.className = 'assembly-card-img';
+            stgImg.alt = 'Staged';
+            stgWrap.appendChild(stgImg);
+        } else {
+            var stgPlaceholder = document.createElement('div');
+            stgPlaceholder.className = 'assembly-card-placeholder';
+            stgPlaceholder.textContent = 'No Image';
+            stgWrap.appendChild(stgPlaceholder);
+        }
+        stgWrap.appendChild(stgCaption);
+
+        images.appendChild(origWrap);
+        images.appendChild(arrow);
+        images.appendChild(stgWrap);
+
+        // Discard button
+        var discardBtn = document.createElement('button');
+        discardBtn.className = 'btn assembly-discard-btn';
+        discardBtn.textContent = 'Discard';
+        discardBtn.addEventListener('click', function () { onDiscardCard(item.card_name, row); });
+
+        row.appendChild(label);
+        row.appendChild(images);
+        row.appendChild(discardBtn);
+        return row;
+    }
+
+    function onDiscardCard(cardName, rowEl) {
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/card/' + encodeURIComponent(cardName) + '/discard', {
+            method: 'POST',
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) return;
+            if (rowEl) rowEl.remove();
+            _updatePublishBar(data.staged_count || 0);
+            // Update gallery item staged state
+            var galItem = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
+            if (galItem) {
+                galItem.dataset.staged = 'false';
+                var ov = galItem.querySelector('.staged-overlay');
+                if (ov) ov.remove();
+            }
+            // If list is now empty, show empty state
+            var list = $id('assembly-line-list');
+            if (list && !list.querySelector('.assembly-card-row')) {
+                var empty = document.createElement('div');
+                empty.className = 'tab-empty-state';
+                empty.innerHTML = '<p>No staged changes. Forge a card in the Cards tab to add it to the Assembly Line.</p>';
+                list.appendChild(empty);
+            }
+        })
+        .catch(function () {});
+    }
+
+    function onForgeAllClick() {
+        var btn    = $id('forge-all-btn');
+        var status = $id('forge-all-status');
+        if (btn) btn.disabled = true;
+        if (status) status.textContent = 'Forging\u2026';
+
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/forge-all', { method: 'POST' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (btn) btn.disabled = false;
+                if (data.error) {
+                    if (status) status.textContent = 'Error: ' + data.error;
+                    return;
+                }
+                if (status) status.textContent = 'Forged ' + data.forged + ' card(s) \u2713';
+                _updatePublishBar(data.staged_count || 0);
+                loadAssemblyLineData();
+            })
+            .catch(function () {
+                if (btn) btn.disabled = false;
+                if (status) status.textContent = 'Forge error \u2014 check server log';
+            });
+    }
+
+    function onPublishAssemblyClick() {
+        var dialog = $id('publish-confirm-dialog');
+        var countEl = $id('confirm-staged-count');
+        if (countEl) countEl.textContent = _stagedCount;
+        if (dialog) dialog.showModal();
+    }
+
+    function doPublishAssembly() {
+        var dialog    = $id('publish-confirm-dialog');
+        var publishBtn = $id('publish-assembly-btn');
+        var confirmBtn = $id('confirm-publish-btn');
+        if (dialog)     dialog.close();
+        if (publishBtn) publishBtn.disabled = true;
+        if (confirmBtn) confirmBtn.disabled = true;
+
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/publish-assembly-line', { method: 'POST' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (confirmBtn) confirmBtn.disabled = false;
+                if (data.error) {
+                    _showToast('Publish failed: ' + data.error, 'error');
+                    if (publishBtn) publishBtn.disabled = (_stagedCount === 0);
+                    return;
+                }
+                _updatePublishBar(0);
+                loadAssemblyLineData();
+                // Clear all staged-overlay badges in gallery
+                document.querySelectorAll('.card-gallery-item[data-staged="true"]').forEach(function (item) {
+                    item.dataset.staged = 'false';
+                    var ov = item.querySelector('.staged-overlay');
+                    if (ov) ov.remove();
+                });
+                var msg = 'Published ' + data.cards_updated + ' card(s).';
+                if (data.cockatrice_ok === true)  msg += ' Cockatrice export OK.';
+                if (data.cockatrice_ok === false) msg += ' Cockatrice export failed.';
+                if (!data.printing_ok)            msg += ' Some printing images failed.';
+                _showToast(msg, data.cockatrice_ok === false || !data.printing_ok ? 'warning' : 'success');
+            })
+            .catch(function () {
+                if (confirmBtn) confirmBtn.disabled = false;
+                _showToast('Publish error \u2014 check server log', 'error');
+                if (publishBtn) publishBtn.disabled = (_stagedCount === 0);
+            });
+    }
+
+    function _showToast(message, type) {
+        var toast = document.createElement('div');
+        toast.className = 'manufactor-toast manufactor-toast--' + (type || 'info');
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        requestAnimationFrame(function () { toast.classList.add('manufactor-toast--visible'); });
+        setTimeout(function () {
+            toast.classList.remove('manufactor-toast--visible');
+            setTimeout(function () { toast.remove(); }, 400);
+        }, 5000);
+    }
+
     // ── Bootstrap ─────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', function () {
         var tabsEl = document.querySelector('.deck-tabs');
@@ -1605,6 +1831,30 @@ function _doBasicAction(color, action, btn) {
         // Create Card button
         var createCardBtn = $id('create-card-btn');
         if (createCardBtn) createCardBtn.addEventListener('click', openNewCardEditor);
+
+        // Assembly Line buttons
+        var forgeAllBtn = $id('forge-all-btn');
+        if (forgeAllBtn) forgeAllBtn.addEventListener('click', onForgeAllClick);
+
+        var publishAssemblyBtn = $id('publish-assembly-btn');
+        if (publishAssemblyBtn) publishAssemblyBtn.addEventListener('click', onPublishAssemblyClick);
+
+        // Publish confirm dialog buttons
+        var confirmPublishBtn = $id('confirm-publish-btn');
+        if (confirmPublishBtn) confirmPublishBtn.addEventListener('click', doPublishAssembly);
+
+        var confirmCancelBtn = $id('confirm-cancel-btn');
+        if (confirmCancelBtn) confirmCancelBtn.addEventListener('click', function () {
+            var dialog = $id('publish-confirm-dialog');
+            if (dialog) dialog.close();
+        });
+
+        var confirmReviewBtn = $id('confirm-review-btn');
+        if (confirmReviewBtn) confirmReviewBtn.addEventListener('click', function () {
+            var dialog = $id('publish-confirm-dialog');
+            if (dialog) dialog.close();
+            // Already on assembly tab, just close the dialog
+        });
 
         // Initial hash routing
         handleHash(window.location.hash);

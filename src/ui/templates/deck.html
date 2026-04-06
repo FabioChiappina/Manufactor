@@ -410,22 +410,35 @@
 
     <!-- ── Assembly Line Tab ─────────────────────────────────────────── -->
     <div id="tab-assembly" class="tab-pane" style="display:none;">
-        {% if staged_count == 0 %}
-        <div class="tab-empty-state">
-            <p>No staged changes. Forge a card in the Cards tab to add it to the Assembly Line.</p>
-        </div>
-        {% else %}
+        <!-- Sticky Publish Bar -->
         <div class="assembly-publish-bar">
-            <button id="publish-assembly-btn" class="btn btn-publish-large">
-                Publish Assembly Line ({{ staged_count }} change{{ 's' if staged_count != 1 else '' }})
+            <button id="publish-assembly-btn" class="btn btn-publish-large"{% if staged_count == 0 %} disabled{% endif %}>
+                Publish Assembly Line (<span id="publish-count">{{ staged_count }}</span>)
             </button>
         </div>
-        <div id="assembly-line-list" class="assembly-line-list">
-            <!-- Populated by JS or future Phase 4 implementation -->
-            <p class="tab-empty-state-text">{{ staged_count }} card(s) staged. Publish to finalize.</p>
+        <!-- Forge All Bar -->
+        <div class="assembly-forge-all-bar">
+            <button id="forge-all-btn" class="btn btn-secondary">Forge Entire Deck</button>
+            <span id="forge-all-status" class="assembly-forge-all-status"></span>
         </div>
-        {% endif %}
+        <!-- Dynamic list -->
+        <div id="assembly-line-list" class="assembly-line-list">
+            <div class="assembly-loading" id="assembly-loading">Loading staged cards…</div>
+        </div>
     </div><!-- #tab-assembly -->
+
+    <!-- ── Publish Confirm Dialog ─────────────────────────────────────── -->
+    <dialog id="publish-confirm-dialog" class="confirm-dialog">
+        <div class="confirm-dialog-body">
+            <p class="confirm-dialog-message">Publish <strong id="confirm-staged-count">0</strong> staged change(s) to the deck?</p>
+            <p class="confirm-dialog-sub">Staged images will be copied to Cards/, Printing/ files regenerated, and Cockatrice export run.</p>
+            <div class="confirm-dialog-actions">
+                <button id="confirm-publish-btn" class="btn btn-publish-large" style="flex:1">Publish</button>
+                <button id="confirm-review-btn" class="btn btn-secondary">Review Changes</button>
+                <button id="confirm-cancel-btn" class="btn btn-editor-close">Cancel</button>
+            </div>
+        </div>
+    </dialog>
 
 </div><!-- .deck-details -->
 
