@@ -205,10 +205,14 @@
                        data-basic="{{ card_data.basic or card_data.front.basic or '' if card_data.front is defined else card_data.basic or '' }}"
                        data-tags="{{ card_data.tags | join(',') if card_data.tags is not string and card_data.tags else (card_data.tags or '') }}"
                        data-quantity="{{ card_data.quantity or 1 }}"
-                       data-real="{{ card_data.real or 0 }}">
+                       data-real="{{ card_data.real or 0 }}"
+                       data-staged="{{ 'true' if card_name in staged_cards else 'false' }}">
                         {% if card_data.image_base64 %}
                         <div class="card-image-container">
                             <img src="{{ card_data.image_base64 }}" alt="{{ card_name }}" class="card-image">
+                            {% if card_name in staged_cards %}
+                            <div class="staged-overlay">AWAITING<br>ASSEMBLY LINE</div>
+                            {% endif %}
                             {% if card_data.quantity and card_data.quantity > 1 %}
                             <div class="quantity-badge">x{{ card_data.quantity }}</div>
                             {% endif %}
@@ -217,6 +221,9 @@
                         <div class="card-image-placeholder">
                             <div class="placeholder-text">{{ card_name }}</div>
                             <div class="placeholder-text">No Image</div>
+                            {% if card_name in staged_cards %}
+                            <div class="staged-overlay">AWAITING<br>ASSEMBLY LINE</div>
+                            {% endif %}
                             {% if card_data.quantity and card_data.quantity > 1 %}
                             <div class="quantity-badge">x{{ card_data.quantity }}</div>
                             {% endif %}

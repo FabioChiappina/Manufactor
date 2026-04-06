@@ -1479,6 +1479,19 @@ function _doBasicAction(color, action, btn) {
             setArtworkStatus('found', 'Forged \u2713');
             updateButtonStates();
 
+            // Mark the gallery item as staged
+            var galItem = document.querySelector('.card-gallery-item[data-card-name="' + _currentCardName.replace(/"/g, '\\"') + '"]');
+            if (galItem) {
+                galItem.dataset.staged = 'true';
+                var imgCon = galItem.querySelector('.card-image-container, .card-image-placeholder');
+                if (imgCon && !imgCon.querySelector('.staged-overlay')) {
+                    var ov = document.createElement('div');
+                    ov.className = 'staged-overlay';
+                    ov.innerHTML = 'AWAITING<br>ASSEMBLY LINE';
+                    imgCon.appendChild(ov);
+                }
+            }
+
             if (closeAfter) closeCardEditor(true);
         })
         .catch(function () {

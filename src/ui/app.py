@@ -68,8 +68,9 @@ def deck_details(deck_name):
 
     staging = load_staging(deck_data['folder_path'])
     staged_count = len(staging)
+    staged_cards = set(staging.keys())
 
-    return render_template('deck.html', deck=deck_data, staged_count=staged_count)
+    return render_template('deck.html', deck=deck_data, staged_count=staged_count, staged_cards=staged_cards)
 
 
 @app.route('/deck/<deck_name>/toggle-complete', methods=['POST'])

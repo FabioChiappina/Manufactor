@@ -843,6 +843,32 @@ main {
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
 }
 
+.card-gallery-item[data-staged="true"] {
+    box-shadow: 0 0 0 3px #dc2626, 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card-gallery-item[data-staged="true"]:hover {
+    box-shadow: 0 0 0 3px #dc2626, 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.staged-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(180, 20, 20, 0.38);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+    line-height: 1.5;
+    pointer-events: none;
+}
+
 .card-image-container {
     width: 100%;
     aspect-ratio: 5 / 7; /* Standard Magic card aspect ratio */
