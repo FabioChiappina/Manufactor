@@ -928,6 +928,8 @@ function _doBasicAction(color, action, btn) {
     var _serverData      = null;
     var _currentTags     = [];   // tags on the current card
     var _deckTags        = [];   // all tags in the deck
+    var _subspellActive  = false;
+    var _multiSectionMode = null;   // null | 'saga' | 'class' | 'planeswalker'
 
     // ── Tiny helpers ──────────────────────────────────────────────────────────
     function $id(id) { return document.getElementById(id); }
@@ -942,8 +944,184 @@ function _doBasicAction(color, action, btn) {
         if (el) el.checked = !!checked;
     }
 
+    // ── Subspell helpers ──────────────────────────────────────────────────────
+    var _SS_FIELDS = ['name', 'mana', 'cardtype', 'subtype', 'rules'];
+
+    function _setSubspellActive(active) {
+        _subspellActive = active;
+        var section = $id('ef-subspell-section');
+        var addRow  = $id('ef-add-subspell-row');
+        if (section) section.style.display = active ? '' : 'none';
+        if (addRow)  addRow.style.display  = active ? 'none' : '';
+    }
+
+    function _captureSubspell() {
+        if (!_subspellActive) return null;
+        var ss = {};
+        _SS_FIELDS.forEach(function (k) {
+            var el = $id('ef-ss-' + k);
+            if (el && el.value.trim()) ss[k] = el.value.trim();
+        });
+        return Object.keys(ss).length > 0 ? ss : null;
+    }
+
+    function _populateSubspell(ss) {
+        _setSubspellActive(!!ss);
+        _SS_FIELDS.forEach(function (k) {
+            setVal('ef-ss-' + k, (ss && ss[k]) || '');
+        });
+    }
+
+    // ── Multi-section Rules helpers ───────────────────────────────────────────
+    var _ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+
+    function _getMultiSectionType() {
+        var ct  = ($id('ef-cardtype') || {}).value || '';
+        var st  = ($id('ef-subtype')  || {}).value || '';
+        var ctL = ct.toLowerCase();
+        var stL = st.toLowerCase();
+        if (ctL.includes('planeswalker')) return 'planeswalker';
+        if (ctL.includes('enchantment') && stL.includes('saga')) return 'saga';
+        if (stL.includes('class')) return 'class';
+        return null;
+    }
+
+    function _activateMultiSection(mode, sections) {
+        _multiSectionMode = mode;
+        var singleDiv = $id('ef-rules-single');
+        var multiDiv  = $id('ef-rules-multi');
+        var label     = $id('ef-rules-multi-label');
+        if (!singleDiv || !multiDiv) return;
+        if (mode === null) {
+            singleDiv.style.display = '';
+            multiDiv.style.display  = 'none';
+        } else {
+            singleDiv.style.display = 'none';
+            multiDiv.style.display  = '';
+            if (label) {
+                label.textContent = mode === 'saga'         ? 'Chapters'          :
+                                    mode === 'class'        ? 'Class Levels'      :
+                                    /* planeswalker */        'Loyalty Abilities';
+            }
+            _renderSections(mode, sections && sections.length ? sections : [{ text: '', loyalty: '' }]);
+        }
+    }
+
+    function _renderSections(mode, sections) {
+        var container = $id('ef-sections-container');
+        if (!container) return;
+        container.innerHTML = '';
+        sections.forEach(function (sec, idx) {
+            container.appendChild(_buildSectionRow(idx, mode, sec.text || '', sec.loyalty || ''));
+        });
+    }
+
+    function _buildSectionRow(idx, mode, text, loyalty) {
+        var row = document.createElement('div');
+        row.className = 'ef-section-row';
+        row.dataset.index = idx;
+
+        if (mode === 'saga') {
+            var lbl = document.createElement('span');
+            lbl.className = 'ef-section-label ef-section-label--saga';
+            lbl.textContent = _ROMAN[idx] || String(idx + 1);
+            row.appendChild(lbl);
+        } else if (mode === 'class') {
+            var lbl = document.createElement('span');
+            lbl.className = 'ef-section-label ef-section-label--class';
+            lbl.textContent = 'Level\u00a0' + (idx + 1);
+            row.appendChild(lbl);
+        } else if (mode === 'planeswalker') {
+            var loyInput = document.createElement('input');
+            loyInput.type = 'text';
+            loyInput.className = 'ef-input ef-loyalty-input';
+            loyInput.placeholder = '+1';
+            loyInput.value = loyalty;
+            loyInput.addEventListener('input',  onFormChange);
+            loyInput.addEventListener('change', onFormChange);
+            row.appendChild(loyInput);
+        }
+
+        var ta = document.createElement('textarea');
+        ta.className = 'ef-input ef-textarea ef-section-textarea';
+        ta.rows = 2;
+        ta.placeholder = 'Mana symbols: {w}{u}{b}{r}{g}{c}. Tap: {t}.';
+        ta.value = text;
+        ta.addEventListener('input',  onFormChange);
+        ta.addEventListener('change', onFormChange);
+        row.appendChild(ta);
+
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'btn btn-sm ef-section-remove-btn';
+        removeBtn.title = 'Remove section';
+        removeBtn.textContent = '−';
+        row.appendChild(removeBtn);
+
+        return row;
+    }
+
+    function _addSection() {
+        var container = $id('ef-sections-container');
+        if (!container) return;
+        if (container.querySelectorAll('.ef-section-row').length >= 6) return;
+        var newRow = _buildSectionRow(
+            container.querySelectorAll('.ef-section-row').length,
+            _multiSectionMode, '', '');
+        container.appendChild(newRow);
+        onFormChange();
+    }
+
+    function _renumberSections() {
+        var container = $id('ef-sections-container');
+        if (!container) return;
+        container.querySelectorAll('.ef-section-row').forEach(function (row, newIdx) {
+            row.dataset.index = newIdx;
+            var sagaLbl  = row.querySelector('.ef-section-label--saga');
+            var classLbl = row.querySelector('.ef-section-label--class');
+            if (sagaLbl)  sagaLbl.textContent  = _ROMAN[newIdx] || String(newIdx + 1);
+            if (classLbl) classLbl.textContent  = 'Level\u00a0' + (newIdx + 1);
+        });
+    }
+
+    function _captureSections() {
+        var container = $id('ef-sections-container');
+        if (!container) return [];
+        var results = [];
+        container.querySelectorAll('.ef-section-row').forEach(function (row) {
+            var ta       = row.querySelector('.ef-section-textarea');
+            var loyInput = row.querySelector('.ef-loyalty-input');
+            results.push({
+                text:    ta       ? ta.value       : '',
+                loyalty: loyInput ? loyInput.value : ''
+            });
+        });
+        return results;
+    }
+
+    function _onCardTypeChange() {
+        var newMode = _getMultiSectionType();
+        if (newMode === _multiSectionMode) return;
+
+        if (newMode === null) {
+            // Multi → Single: concatenate section texts
+            var combined = _captureSections().map(function (s) { return s.text; }).filter(Boolean).join('\n');
+            _activateMultiSection(null, []);
+            setVal('ef-rules', combined);
+        } else if (_multiSectionMode === null) {
+            // Single → Multi: move existing rules text into first section
+            var existing = ($id('ef-rules') || {}).value || '';
+            _activateMultiSection(newMode, [{ text: existing, loyalty: '' }]);
+        } else {
+            // Multi → different multi (e.g. saga → planeswalker): keep texts
+            var sections = _captureSections();
+            _activateMultiSection(newMode, sections);
+        }
+        onFormChange();
+    }
+
     // ── Face data helpers ─────────────────────────────────────────────────────
-    var _FACE_STR_FIELDS  = ['name', 'mana', 'cardtype', 'subtype', 'rules', 'power', 'toughness', 'flavor'];
+    var _FACE_STR_FIELDS  = ['name', 'mana', 'cardtype', 'subtype', 'rules', 'power', 'toughness', 'flavor', 'frame'];
     var _FACE_BOOL_FIELDS = ['legendary', 'basic', 'snow'];
 
     function buildFaceDict(faceData) {
@@ -951,6 +1129,10 @@ function _doBasicAction(color, action, btn) {
         var result = {};
         _FACE_STR_FIELDS.forEach(function (k)  { if (f[k]) result[k] = f[k]; });
         _FACE_BOOL_FIELDS.forEach(function (k) { if (f[k]) result[k] = 1; });
+        for (var i = 1; i <= 6; i++) {
+            if (f['rules'   + i]) result['rules'   + i] = f['rules'   + i];
+            if (f['loyalty' + i]) result['loyalty' + i] = f['loyalty' + i];
+        }
         return result;
     }
 
@@ -958,6 +1140,21 @@ function _doBasicAction(color, action, btn) {
         var f = faceDict || {};
         _FACE_STR_FIELDS.forEach(function (k)  { setVal('ef-' + k, f[k] || ''); });
         _FACE_BOOL_FIELDS.forEach(function (k) { setCheck('ef-' + k, f[k]); });
+        // After fields are set, determine if multi-section mode is needed
+        var mode = _getMultiSectionType();
+        var hasMultiRules = false;
+        for (var i = 1; i <= 6; i++) { if (f['rules' + i]) { hasMultiRules = true; break; } }
+        if (mode !== null || hasMultiRules) {
+            var sections = [];
+            for (var i = 1; i <= 6; i++) {
+                var text    = f['rules'   + i] || '';
+                var loyalty = f['loyalty' + i] || '';
+                if (text || loyalty) sections.push({ text: text, loyalty: loyalty });
+            }
+            _activateMultiSection(mode || 'saga', sections.length ? sections : [{ text: '', loyalty: '' }]);
+        } else {
+            _activateMultiSection(null, []);
+        }
     }
 
     function captureCurrentFace() {
@@ -970,6 +1167,13 @@ function _doBasicAction(color, action, btn) {
             var el = $id('ef-' + k);
             if (el) raw[k] = el.checked ? 1 : 0;
         });
+        if (_multiSectionMode !== null) {
+            raw.rules = '';   // suppress single rules field
+            _captureSections().forEach(function (sec, idx) {
+                if (sec.text)    raw['rules'   + (idx + 1)] = sec.text;
+                if (sec.loyalty) raw['loyalty' + (idx + 1)] = sec.loyalty;
+            });
+        }
         return buildFaceDict(raw);
     }
 
@@ -1084,6 +1288,7 @@ function _doBasicAction(color, action, btn) {
         _currentFace     = 'front';
         _faceCache       = { front: {}, back: {} };
         _serverData      = null;
+        _setSubspellActive(false);
 
         $id('editor-card-title').textContent  = 'New Card';
         $id('cards-tab-main').style.display   = 'none';
@@ -1105,6 +1310,8 @@ function _doBasicAction(color, action, btn) {
         _currentFace     = 'front';
         _faceCache       = { front: {}, back: {} };
         _serverData      = null;
+        _setSubspellActive(false);
+        _activateMultiSection(null, []);
 
         // Clear stale data so the next opened card doesn't briefly flash old content
         _currentTags = [];
@@ -1125,26 +1332,29 @@ function _doBasicAction(color, action, btn) {
     function populateForm(data) {
         var frontFace;
         if (data.front) {
-            frontFace = buildFaceDict(data.front);
+            // Backward compat: old JSONs store frame at top-level; inject into front face if not already set
+            var frontRaw = Object.assign({}, data.front);
+            if (!frontRaw.frame && data.frame) frontRaw.frame = data.frame;
+            frontFace = buildFaceDict(frontRaw);
         } else {
             frontFace = buildFaceDict({
                 name: data.name, mana: data.cost, cardtype: data.cardtype,
                 subtype: data.subtype, rules: data.rules, power: data.power,
                 toughness: data.toughness, flavor: data.flavor,
-                legendary: data.legendary, basic: data.basic, snow: data.snow
+                legendary: data.legendary, basic: data.basic, snow: data.snow,
+                frame: data.frame
             });
         }
         _faceCache   = { front: frontFace, back: buildFaceDict(data.back || {}) };
         _currentFace = 'front';
         var rarEl = $id('ef-rarity');
         if (rarEl) rarEl.value = (data.rarity || 'common').toLowerCase();
-        var frameEl = $id('ef-frame');
-        if (frameEl) frameEl.value = data.frame || '';
         var dfcEl = $id('ef-dfc-type');
         if (dfcEl) dfcEl.value = data.double_faced_type || '';
         var artistEl = $id('ef-artist');
         if (artistEl) artistEl.value = data.artist || '';
         populateFaceForm(frontFace);
+        _populateSubspell(data.subspell || null);
         updateFaceTabs();
     }
 
@@ -1152,7 +1362,6 @@ function _doBasicAction(color, action, btn) {
     function serializeForm() {
         _faceCache[_currentFace] = captureCurrentFace();
         var rarEl   = $id('ef-rarity');
-        var frameEl = $id('ef-frame');
         var dfcEl   = $id('ef-dfc-type');
         var result = {
             front:    _faceCache.front,
@@ -1167,8 +1376,8 @@ function _doBasicAction(color, action, btn) {
         var artistEl = $id('ef-artist');
         var artistVal = artistEl ? artistEl.value.trim() : '';
         if (artistVal) result.artist = artistVal;
-        var frameVal = frameEl ? frameEl.value.trim() : '';
-        if (frameVal) result.frame = frameVal;
+        var ss = _captureSubspell();
+        if (ss) result.subspell = ss;
         return result;
     }
 
@@ -1176,13 +1385,17 @@ function _doBasicAction(color, action, btn) {
     function normaliseCard(data) {
         var frontFace;
         if (data.front) {
-            frontFace = buildFaceDict(data.front);
+            // Backward compat: old JSONs store frame at top-level; inject into front face if not already set
+            var frontRaw = Object.assign({}, data.front);
+            if (!frontRaw.frame && data.frame) frontRaw.frame = data.frame;
+            frontFace = buildFaceDict(frontRaw);
         } else {
             frontFace = buildFaceDict({
                 name: data.name, mana: data.cost, cardtype: data.cardtype,
                 subtype: data.subtype, rules: data.rules, power: data.power,
                 toughness: data.toughness, flavor: data.flavor,
-                legendary: data.legendary, basic: data.basic, snow: data.snow
+                legendary: data.legendary, basic: data.basic, snow: data.snow,
+                frame: data.frame
             });
         }
         var result = { front: frontFace, rarity: (data.rarity || 'common').toLowerCase(), quantity: 1 };
@@ -1192,7 +1405,11 @@ function _doBasicAction(color, action, btn) {
         }
         if (data.double_faced_type) result.double_faced_type = data.double_faced_type;
         if (data.artist) result.artist = data.artist;
-        if (data.frame) result.frame = data.frame;
+        if (data.subspell) {
+            var normSs = {};
+            _SS_FIELDS.forEach(function (k) { if (data.subspell[k]) normSs[k] = data.subspell[k]; });
+            if (Object.keys(normSs).length > 0) result.subspell = normSs;
+        }
         return result;
     }
 
@@ -1471,6 +1688,12 @@ function _doBasicAction(color, action, btn) {
                 : data.image_base64;
             if (previewB64) updatePreview(previewB64);
 
+            // Update _serverData so face switching shows the freshly forged images
+            if (_serverData) {
+                if (data.image_base64) _serverData.image_base64 = data.image_base64;
+                if (data.back_image_base64) _serverData.back_image_base64 = data.back_image_base64;
+            }
+
             // Update assembly badge + publish bar count/button
             _updatePublishBar(data.staged_count || 0);
 
@@ -1478,6 +1701,12 @@ function _doBasicAction(color, action, btn) {
             if (_isNewCard && cardData.front && cardData.front.name) {
                 _currentCardName = cardData.front.name;
                 _isNewCard       = false;
+            }
+            // Card may have been renamed (e.g. subspell added/changed)
+            if (data.new_card_name) {
+                _currentCardName = data.new_card_name;
+                $id('editor-card-title').textContent = data.new_card_name;
+                history.replaceState(null, '', '#edit/' + encodeURIComponent(data.new_card_name));
             }
 
             _editorIsDirty = false;
@@ -1953,11 +2182,50 @@ function _doBasicAction(color, action, btn) {
         ['ef-name', 'ef-mana', 'ef-cardtype', 'ef-subtype', 'ef-rules',
          'ef-power', 'ef-toughness', 'ef-rarity', 'ef-flavor',
          'ef-legendary', 'ef-basic', 'ef-snow',
-         'ef-artist', 'ef-frame', 'ef-dfc-type'].forEach(function (id) {
+         'ef-artist', 'ef-frame', 'ef-dfc-type',
+         'ef-ss-name', 'ef-ss-mana', 'ef-ss-cardtype', 'ef-ss-subtype', 'ef-ss-rules'].forEach(function (id) {
             var el = $id(id);
             if (!el) return;
             el.addEventListener('input', onFormChange);
             el.addEventListener('change', onFormChange);
+        });
+
+        // Card type → may switch rules mode
+        ['ef-cardtype', 'ef-subtype'].forEach(function (id) {
+            var el = $id(id);
+            if (!el) return;
+            el.addEventListener('input',  _onCardTypeChange);
+            el.addEventListener('change', _onCardTypeChange);
+        });
+
+        // Add Section button
+        var addSectionBtn = $id('ef-add-section-btn');
+        if (addSectionBtn) addSectionBtn.addEventListener('click', function () { _addSection(); });
+
+        // Remove Section — event delegation on container
+        var sectionsContainer = $id('ef-sections-container');
+        if (sectionsContainer) {
+            sectionsContainer.addEventListener('click', function (e) {
+                if (!e.target.classList.contains('ef-section-remove-btn')) return;
+                var rows = sectionsContainer.querySelectorAll('.ef-section-row');
+                if (rows.length <= 1) return;
+                e.target.closest('.ef-section-row').remove();
+                _renumberSections();
+                onFormChange();
+            });
+        }
+
+        // Add / Remove Subspell buttons
+        var addSubspellBtn = $id('add-subspell-btn');
+        if (addSubspellBtn) addSubspellBtn.addEventListener('click', function () {
+            _setSubspellActive(true);
+            onFormChange();
+        });
+        var removeSubspellBtn = $id('remove-subspell-btn');
+        if (removeSubspellBtn) removeSubspellBtn.addEventListener('click', function () {
+            _SS_FIELDS.forEach(function (k) { setVal('ef-ss-' + k, ''); });
+            _setSubspellActive(false);
+            onFormChange();
         });
 
         // Populate card frames datalist

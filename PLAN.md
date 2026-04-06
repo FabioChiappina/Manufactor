@@ -208,7 +208,7 @@ Covered by Phase 5 publish log (inline log panel below the publish button). Show
 
 **Files to change:** `deck.html`, `main.js`, `app.py`, `style.css`
 
-### 🔲 8a. Double-faced cards (partially done)
+### ✅ 8a. Double-faced cards (Done)
 
 **What's implemented:**
 - Front/Back face tabs visible in the editor left pane (always present)
@@ -217,11 +217,9 @@ Covered by Phase 5 publish log (inline log panel below the publish button). Show
 - `double_faced_type` dropdown in the form (None / Transform / MDFC) — maps to top-level JSON field
 - Back face data serialized/deserialized in both form and JSON modes
 - `card-data` endpoint returns `back_image_base64` by looking up the back face's `name` in `Cards/`
-
-**What remains:**
 - When editing the back face of a card that has no back face yet (single-faced), the double faced type dropdown should automatically choose transform as the double faced type.
 - The double-faced type dropdown should always have the same value for both sides of a card, since it's a card-level attribute in the JSON (e.g., "double_faced_type" is at the same level as fields like "complete", "tags", "front", "back", ...). So editing the value of the dropdown on one face should cause the other face's value to update too, and forging that card should then cause BOTH the front and back face to be re-rendered.
-- Creating a brand-new back face from scratch (typing a back name for the first time) is untested — confirm the round-trip works correctly through Forge.
+- Creating a brand-new back face from scratch (typing a back name for the first time) is tested.
 - The `double_faced_type` value set in the UI should be passed through to the `Card` object during Forge so the renderer picks the correct MDFC/Transform frame automatically (Phase 3 dependency).
 
 ---

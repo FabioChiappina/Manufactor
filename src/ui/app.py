@@ -283,7 +283,9 @@ def card_data(deck_name):
     if staged_entry:
         card_json = dict(staged_entry['updated'])
         # Prefer staged image; fall back to Cards/
-        staged_img = os.path.join(staging_dir, f"{card_name}.jpg")
+        # Use front_name from entry (DFC deck keys differ from the image filename)
+        staged_front = staged_entry.get('front_name') or card_name
+        staged_img = os.path.join(staging_dir, f"{staged_front}.jpg")
         card_json['image_base64'] = _img_base64(staged_img) or get_card_image_base64(folder_path, card_name)
     else:
         card = deck_data['cards'].get(card_name)
@@ -468,6 +470,12 @@ def _do_forge(deck_data, card_name, is_new, data):
     if not front_name:
         return jsonify({'error': 'Card must have a name'}), 400
 
+    # Full deck-JSON key: "FrontName / SubspellName" for subspell cards only.
+    # DFC cards always use just the front name as the deck key (per deck.py convention).
+    front_card = cards[0]
+    full_deck_key = (f"{front_name} / {front_card.subspell.name}"
+                     if front_card.is_subspell() else front_name)
+
     # Generate images into Staging/
     gen = ImageGenerator()
     images = {}  # card_name -> base64 string
@@ -492,27 +500,44 @@ def _do_forge(deck_data, card_name, is_new, data):
     with open(deck_data['json_path'], 'r') as f:
         raw_deck = json.load(f)
 
-    original = raw_deck.get('cards', {}).get(card_name if not is_new else front_name)
+    original = raw_deck.get('cards', {}).get(card_name if not is_new else full_deck_key)
 
     # For brand-new cards: add a placeholder entry to the deck JSON
     if is_new or original is None:
         placeholder = dict(data)
         placeholder['complete'] = 0
-        raw_deck.setdefault('cards', {})[front_name] = placeholder
+        raw_deck.setdefault('cards', {})[full_deck_key] = placeholder
         with open(deck_data['json_path'], 'w') as f:
             json.dump(raw_deck, f, indent=2)
         original = {}
         is_new = True
+    elif full_deck_key != card_name:
+        # Subspell was added/changed — rename the deck JSON entry
+        existing = raw_deck.get('cards', {}).pop(card_name, {})
+        existing.update(data)
+        existing['complete'] = 0
+        raw_deck.setdefault('cards', {})[full_deck_key] = existing
+        with open(deck_data['json_path'], 'w') as f:
+            json.dump(raw_deck, f, indent=2)
 
-    # Update _staging.json sidecar
+    # Update _staging.json sidecar — always key by the full deck key
+    staging_key = full_deck_key
     staging = load_staging(folder_path)
-    staging[front_name] = {
+    # Remove any old staging entry under the previous name to avoid duplicates
+    if card_name != full_deck_key and card_name in staging:
+        del staging[card_name]
+    staging_entry = {
         'original': original,
         'updated': data,
         'staged_image_path': f"Staging/{front_name}.jpg",
+        'front_name': front_name,
         'disable_auto_tokens': data.get('disable_auto_tokens', False),
         'is_new': is_new,
     }
+    # Record the old deck-JSON key if the card was renamed (subspell added/changed/removed)
+    if not is_new and full_deck_key != card_name:
+        staging_entry['original_key'] = card_name
+    staging[staging_key] = staging_entry
     save_staging(folder_path, staging)
 
     result = {
@@ -521,6 +546,9 @@ def _do_forge(deck_data, card_name, is_new, data):
     }
     if len(cards) > 1:
         result['back_image_base64'] = images.get(cards[1].name)
+    # If the card was renamed (subspell added/changed), tell the client
+    if full_deck_key != card_name:
+        result['new_card_name'] = full_deck_key
 
     return jsonify(result)
 
@@ -545,7 +573,8 @@ def assembly_line_data(deck_name):
 
     items = []
     for card_name, entry in staging.items():
-        staged_b64 = _b64(os.path.join(staging_dir, f"{card_name}.jpg"))
+        front_name = entry.get('front_name') or card_name
+        staged_b64 = _b64(os.path.join(staging_dir, f"{front_name}.jpg"))
         original_b64 = get_card_image_base64(folder_path, card_name)
 
         # Back face images for double-faced cards
@@ -589,18 +618,28 @@ def discard_card(deck_name):
     staging = load_staging(folder_path)
     entry = staging.pop(card_name, None)
 
-    # If card was brand-new (placeholder only), remove it from the deck JSON too
-    if entry and entry.get('is_new'):
+    # If card was brand-new (placeholder only), remove it from the deck JSON too.
+    # If card was renamed (subspell added/changed), revert the rename.
+    original_key = entry.get('original_key') if entry else None
+    if entry and (entry.get('is_new') or original_key):
         with open(deck_data['json_path'], 'r') as f:
             raw_deck = json.load(f)
-        if card_name in raw_deck.get('cards', {}):
-            del raw_deck['cards'][card_name]
-            with open(deck_data['json_path'], 'w') as f:
-                json.dump(raw_deck, f, indent=2)
+        cards_dict = raw_deck.get('cards', {})
+        if entry.get('is_new'):
+            cards_dict.pop(card_name, None)
+        if original_key:
+            # Remove the renamed entry and restore the original
+            cards_dict.pop(card_name, None)
+            orig_data = entry.get('original')
+            if orig_data is not None:
+                cards_dict[original_key] = orig_data
+        with open(deck_data['json_path'], 'w') as f:
+            json.dump(raw_deck, f, indent=2)
 
     # Remove staged image file(s) — front and back face for DFCs
     staging_dir = get_staging_path(folder_path)
-    staged_img = os.path.join(staging_dir, f"{card_name}.jpg")
+    front_name = (entry.get('front_name') or card_name) if entry else card_name
+    staged_img = os.path.join(staging_dir, f"{front_name}.jpg")
     if os.path.isfile(staged_img):
         os.remove(staged_img)
     if entry:
@@ -656,10 +695,11 @@ def forge_all(deck_name):
 
         if success:
             front_name = cards[0].name
-            staging[front_name] = {
+            staging[card_name] = {
                 'original': raw_deck['cards'].get(card_name, {}),
                 'updated': card_dict,
                 'staged_image_path': f"Staging/{front_name}.jpg",
+                'front_name': front_name,
                 'disable_auto_tokens': card_dict.get('disable_auto_tokens', False),
                 'is_new': False,
             }
@@ -698,10 +738,11 @@ def publish_assembly_line(deck_name):
     printing_ok = True
 
     for card_name, entry in staging.items():
+        front_name = entry.get('front_name') or card_name
         # Copy staged image → Cards/
-        staged_img = os.path.join(staging_dir, f"{card_name}.jpg")
+        staged_img = os.path.join(staging_dir, f"{front_name}.jpg")
         if os.path.isfile(staged_img):
-            shutil.copy2(staged_img, os.path.join(cards_dir, f"{card_name}.jpg"))
+            shutil.copy2(staged_img, os.path.join(cards_dir, f"{front_name}.jpg"))
 
         # Also copy back face staged image for DFCs
         updated_data_entry = entry.get('updated', {})
@@ -712,16 +753,17 @@ def publish_assembly_line(deck_name):
             if os.path.isfile(staged_back):
                 shutil.copy2(staged_back, os.path.join(cards_dir, f"{back_face_name}.jpg"))
 
-        # Merge updated data into deck JSON and mark complete
+        # Replace the deck JSON entry with the updated data (not merge — merge would
+        # leave removed fields like subspell/back/double_faced_type in place).
+        # Preserve fields the editor doesn't manage: quantity, tags, real, colors.
         updated_data = entry.get('updated', {})
-        if card_name in raw_deck.get('cards', {}):
-            raw_deck['cards'][card_name].update(updated_data)
-            raw_deck['cards'][card_name]['complete'] = 1
-        else:
-            # New card — add it
-            new_entry = dict(updated_data)
-            new_entry['complete'] = 1
-            raw_deck.setdefault('cards', {})[card_name] = new_entry
+        old_entry = raw_deck.get('cards', {}).get(card_name, {})
+        new_entry = dict(updated_data)
+        for key in ('quantity', 'tags', 'real', 'colors'):
+            if key in old_entry:
+                new_entry[key] = old_entry[key]
+        new_entry['complete'] = 1
+        raw_deck.setdefault('cards', {})[card_name] = new_entry
 
         # Regenerate printing image from the staged image
         try:
@@ -745,7 +787,8 @@ def publish_assembly_line(deck_name):
 
     # Clear staging sidecar and staged images (including back faces for DFCs)
     for card_name, entry in staging.items():
-        staged_img = os.path.join(staging_dir, f"{card_name}.jpg")
+        entry_front = entry.get('front_name') or card_name
+        staged_img = os.path.join(staging_dir, f"{entry_front}.jpg")
         if os.path.isfile(staged_img):
             os.remove(staged_img)
         back_face_name = (entry.get('updated', {}).get('back') or {}).get('name')

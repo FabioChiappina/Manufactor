@@ -2168,6 +2168,145 @@ footer p {
     font-family: inherit;
 }
 
+/* ── Subspell section ────────────────────────────────────────────────────── */
+.ef-subspell-section {
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    padding: 10px 12px 8px;
+    background: #1a1a2e;
+    margin-top: 4px;
+}
+
+.ef-subspell-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.ef-subspell-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #a78bfa;
+}
+
+.ef-subspell-remove-btn {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    background: transparent;
+    border: 1px solid #555;
+    color: #aaa;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.ef-subspell-remove-btn:hover {
+    background: #3a1a1a;
+    border-color: #c84b4b;
+    color: #e57373;
+}
+
+.ef-add-subspell-row {
+    margin-top: 6px;
+}
+
+/* ── Multi-section Rules editor (Sagas, Classes, Planeswalkers) ──────────── */
+.ef-rules-multi-wrapper {
+    padding: 0;
+}
+
+.ef-rules-multi-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.ef-add-section-btn {
+    font-size: 0.72rem;
+    padding: 2px 10px;
+    background: transparent;
+    border: 1px solid #4a5568;
+    color: #a0aec0;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.ef-add-section-btn:hover {
+    background: #1a2a1a;
+    border-color: #68d391;
+    color: #68d391;
+}
+
+.ef-section-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.ef-section-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    min-height: 58px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.ef-section-label--saga {
+    background: #2d1f4e;
+    border: 1px solid #7c3aed;
+    color: #c4b5fd;
+}
+
+.ef-section-label--class {
+    background: #1a2e1a;
+    border: 1px solid #2f855a;
+    color: #68d391;
+    font-size: 0.65rem;
+    width: 46px;
+}
+
+.ef-loyalty-input {
+    flex-shrink: 0;
+    width: 52px;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.ef-section-textarea {
+    flex: 1;
+    min-height: 58px;
+    resize: vertical;
+}
+
+.ef-section-remove-btn {
+    flex-shrink: 0;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 2px 8px;
+    background: transparent;
+    border: 1px solid #555;
+    color: #aaa;
+    border-radius: 4px;
+    cursor: pointer;
+    align-self: flex-start;
+    margin-top: 2px;
+}
+.ef-section-remove-btn:hover {
+    background: #3a1a1a;
+    border-color: #c84b4b;
+    color: #e57373;
+}
+
 /* Combined supertype-checkbox + card-type + subtype row */
 .ef-row--type-line {
     display: flex;

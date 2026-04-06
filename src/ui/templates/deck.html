@@ -362,13 +362,56 @@
                                 </div>
                             </div>
                             <datalist id="card-frames-list"></datalist>
-                            <div class="ef-group ef-group--full">
+                            <!-- Single Rules Text (regular cards) -->
+                            <div class="ef-group ef-group--full" id="ef-rules-single">
                                 <label class="ef-label">Rules Text • Main</label>
                                 <textarea id="ef-rules" class="ef-input ef-textarea" rows="6" placeholder="Mana symbols use {w}{u}{b}{r}{g}{c} notation. Tap: {t}. Untap: {q}. <i>Italics</i>"></textarea>
+                            </div>
+                            <!-- Multi-section Rules Text (Sagas, Classes, Planeswalkers) -->
+                            <div id="ef-rules-multi" style="display:none;" class="ef-group ef-group--full ef-rules-multi-wrapper">
+                                <div class="ef-rules-multi-header">
+                                    <label class="ef-label" id="ef-rules-multi-label">Rules Sections</label>
+                                    <button type="button" id="ef-add-section-btn" class="btn btn-sm ef-add-section-btn">+ Add Section</button>
+                                </div>
+                                <div id="ef-sections-container"></div>
                             </div>
                             <div class="ef-group ef-group--full">
                                 <label class="ef-label">Flavor Text — Optional</label>
                                 <textarea id="ef-flavor" class="ef-input ef-textarea" rows="2" placeholder="Optional flavor text"></textarea>
+                            </div>
+                            <!-- Subspell section (Adventures, Omens, etc.) -->
+                            <div id="ef-subspell-section" class="ef-subspell-section" style="display:none;">
+                                <div class="ef-subspell-header">
+                                    <span class="ef-subspell-title">Subspell</span>
+                                    <button type="button" id="remove-subspell-btn" class="btn btn-sm ef-subspell-remove-btn">✕ Remove</button>
+                                </div>
+                                <div class="ef-row">
+                                    <div class="ef-group">
+                                        <label class="ef-label">Subspell Name</label>
+                                        <input type="text" id="ef-ss-name" class="ef-input" placeholder="e.g. Fertile Footsteps">
+                                    </div>
+                                    <div class="ef-group">
+                                        <label class="ef-label">Mana Cost</label>
+                                        <input type="text" id="ef-ss-mana" class="ef-input" placeholder="{2}{g}">
+                                    </div>
+                                </div>
+                                <div class="ef-row">
+                                    <div class="ef-group">
+                                        <label class="ef-label">Card Type</label>
+                                        <input type="text" id="ef-ss-cardtype" class="ef-input" placeholder="Instant or Sorcery">
+                                    </div>
+                                    <div class="ef-group">
+                                        <label class="ef-label">Subtype</label>
+                                        <input type="text" id="ef-ss-subtype" class="ef-input" placeholder="Adventure or Omen">
+                                    </div>
+                                </div>
+                                <div class="ef-group ef-group--full">
+                                    <label class="ef-label">Subspell Rules</label>
+                                    <textarea id="ef-ss-rules" class="ef-input ef-textarea" rows="3" placeholder="Subspell rules text"></textarea>
+                                </div>
+                            </div>
+                            <div id="ef-add-subspell-row" class="ef-add-subspell-row">
+                                <button type="button" id="add-subspell-btn" class="btn btn-sm btn-secondary">+ Add Subspell</button>
                             </div>
                         </div>
                     </div><!-- #editor-form-mode -->

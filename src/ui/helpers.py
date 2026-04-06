@@ -634,17 +634,19 @@ def card_from_editor_dict(card_dict, setname='UNK'):
     """
     from src.core.card import Card, CardFace
 
-    front_data = card_dict.get('front') or {}
-    back_data  = card_dict.get('back')  or {}
-    dfc_type   = card_dict.get('double_faced_type') or None
-    rarity     = card_dict.get('rarity')
-    quantity   = card_dict.get('quantity', 1)
-    complete   = card_dict.get('complete', 0)
-    real       = card_dict.get('real', 0)
-    tags       = card_dict.get('tags') or None
-    frame      = card_dict.get('frame') or None
-    front_name = front_data.get('name', '')
-    back_name  = back_data.get('name', '')
+    front_data  = card_dict.get('front') or {}
+    back_data   = card_dict.get('back')  or {}
+    dfc_type    = card_dict.get('double_faced_type') or None
+    rarity      = card_dict.get('rarity')
+    quantity    = card_dict.get('quantity', 1)
+    complete    = card_dict.get('complete', 0)
+    real        = card_dict.get('real', 0)
+    tags        = card_dict.get('tags') or None
+    # frame is face-specific; fall back to top-level for backward compat with old JSONs
+    front_frame = front_data.get('frame') or card_dict.get('frame') or None
+    back_frame  = back_data.get('frame') or None
+    front_name  = front_data.get('name', '')
+    back_name   = back_data.get('name', '')
 
     if dfc_type and back_name:
         # Double-faced card — build front and back Card objects
@@ -659,7 +661,7 @@ def card_from_editor_dict(card_dict, setname='UNK'):
             rules5=front_data.get('rules5'), rules6=front_data.get('rules6'),
             flavor=front_data.get('flavor'),
             special=f"{dfc_type}-front", related=back_name,
-            tags=tags, quantity=quantity, complete=complete, real=real, frame=frame,
+            tags=tags, quantity=quantity, complete=complete, real=real, frame=front_frame,
             legendary=front_data.get('legendary'),
             basic=front_data.get('basic'),
             snow=front_data.get('snow'),
@@ -706,12 +708,20 @@ def card_from_editor_dict(card_dict, setname='UNK'):
             rules5=back_data.get('rules5'), rules6=back_data.get('rules6'),
             flavor=back_data.get('flavor'),
             special=f"{dfc_type}-back", related=front_name,
-            complete=complete, real=real,
+            complete=complete, real=real, frame=back_frame,
             legendary=back_data.get('legendary'),
             basic=back_data.get('basic'),
             snow=back_data.get('snow'),
         )
         back_card.double_faced_type = dfc_type
+
+        # Set related_indicator for MDFC cards so the renderer draws the opposite-face box.
+        # Format expected by card_renderer: "OtherFaceName {mana}" (split on first '{').
+        if dfc_type == 'mdfc':
+            back_mana = back_data.get('mana') or ''
+            front_mana = front_data.get('mana') or ''
+            front_card.related_indicator = (back_name + (' ' + back_mana if back_mana else '')).strip()
+            back_card.related_indicator = (front_name + (' ' + front_mana if front_mana else '')).strip()
 
         return [front_card, back_card]
     else:
@@ -726,10 +736,22 @@ def card_from_editor_dict(card_dict, setname='UNK'):
             rules3=front_data.get('rules3'), rules4=front_data.get('rules4'),
             rules5=front_data.get('rules5'), rules6=front_data.get('rules6'),
             flavor=front_data.get('flavor'),
-            tags=tags, quantity=quantity, complete=complete, real=real, frame=frame,
+            tags=tags, quantity=quantity, complete=complete, real=real, frame=front_frame,
             legendary=front_data.get('legendary'),
             basic=front_data.get('basic'),
             snow=front_data.get('snow'),
             token=front_data.get('token'),
         )
+        # Attach subspell if present (Adventure/Omen)
+        subspell_data = card_dict.get('subspell') or {}
+        if subspell_data.get('name') and subspell_data.get('cardtype'):
+            subspell_face = CardFace(
+                name=subspell_data['name'],
+                mana=subspell_data.get('mana'),
+                cardtype=subspell_data.get('cardtype'),
+                subtype=subspell_data.get('subtype'),
+                rules=subspell_data.get('rules'),
+                flavor=subspell_data.get('flavor'),
+            )
+            card.subspell = subspell_face
         return [card]
