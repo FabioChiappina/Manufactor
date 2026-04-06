@@ -728,6 +728,7 @@ def publish_assembly_line(deck_name):
         'printing_ok': printing_ok,
         'cockatrice_ok': cockatrice_ok,
         'staged_count': 0,
+        'published_cards': list(staging.keys()),
     })
 
 

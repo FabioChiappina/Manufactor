@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const mvValueInput = document.getElementById('mv-value-input');
     const typeFilterSelect = document.getElementById('type-filter-select');
     const legitimacyFilterSelect = document.getElementById('legitimacy-filter-select');
+    const changedFilterSelect = document.getElementById('changed-filter-select');
     if (sortSelect && groupSelect) {
         sortSelect.addEventListener('change', applyCardControls);
         groupSelect.addEventListener('change', applyCardControls);
@@ -28,6 +29,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (mvValueInput) mvValueInput.addEventListener('input', applyCardControls);
         if (typeFilterSelect) typeFilterSelect.addEventListener('change', applyCardControls);
         if (legitimacyFilterSelect) legitimacyFilterSelect.addEventListener('change', applyCardControls);
+        if (changedFilterSelect) changedFilterSelect.addEventListener('change', applyCardControls);
         // Apply defaults immediately on page load
         applyCardControls();
     }
@@ -253,10 +255,12 @@ function applyCardControls() {
     const mvValEl = document.getElementById('mv-value-input');
     const typeFilterEl = document.getElementById('type-filter-select');
     const legitimacyEl = document.getElementById('legitimacy-filter-select');
+    const changedEl = document.getElementById('changed-filter-select');
     const mvOp = mvOpEl ? mvOpEl.value : 'any';
     const mvValue = mvValEl ? mvValEl.value : '';
     const typeFilter = typeFilterEl ? typeFilterEl.value : 'any';
     const legitimacyFilter = legitimacyEl ? legitimacyEl.value : 'any';
+    const changedFilter = changedEl ? changedEl.value : 'any';
 
     // Always work from the canonical snapshot, not whatever is currently in the DOM
     // (tag grouping leaves clones in the DOM that would inflate counts otherwise)
@@ -269,6 +273,8 @@ function applyCardControls() {
         if (!matchesTypeFilter(item, typeFilter)) return false;
         if (legitimacyFilter === 'real'   && !(parseInt(item.dataset.real, 10) === 1)) return false;
         if (legitimacyFilter === 'custom' &&   parseInt(item.dataset.real, 10) === 1)  return false;
+        if (changedFilter === 'yes' && item.dataset.staged !== 'true')  return false;
+        if (changedFilter === 'no'  && item.dataset.staged === 'true')  return false;
         return true;
     });
 
@@ -1208,8 +1214,6 @@ function _doBasicAction(color, action, btn) {
         }
         var closeForgeBtnEl = $id('close-forge-btn');
         if (closeForgeBtnEl) closeForgeBtnEl.disabled = !active;
-        var publishBtn = $id('publish-btn');
-        if (publishBtn) publishBtn.disabled = (_stagedCount === 0);
     }
 
     // ── Editor Mode Toggle ────────────────────────────────────────────────────
@@ -1462,13 +1466,8 @@ function _doBasicAction(color, action, btn) {
                 : data.image_base64;
             if (previewB64) updatePreview(previewB64);
 
-            // Update assembly badge
-            _stagedCount = data.staged_count || 0;
-            var badge = $id('assembly-badge');
-            if (badge) {
-                badge.textContent = _stagedCount;
-                badge.classList.toggle('assembly-badge--active', _stagedCount > 0);
-            }
+            // Update assembly badge + publish bar count/button
+            _updatePublishBar(data.staged_count || 0);
 
             // New card now exists in the deck — track its name
             if (_isNewCard && cardData.front && cardData.front.name) {
@@ -1550,10 +1549,24 @@ function _doBasicAction(color, action, btn) {
         row.className = 'assembly-card-row';
         row.dataset.cardName = item.card_name;
 
+        // Header: card name (left) + discard button (right)
+        var header = document.createElement('div');
+        header.className = 'assembly-card-header';
+
         var label = document.createElement('div');
         label.className = 'assembly-card-label';
         label.textContent = item.card_name + (item.is_new ? ' (new)' : '');
+        label.title = item.card_name;
 
+        var discardBtn = document.createElement('button');
+        discardBtn.className = 'btn assembly-discard-btn';
+        discardBtn.textContent = 'Discard';
+        discardBtn.addEventListener('click', function () { onDiscardCard(item.card_name, row); });
+
+        header.appendChild(label);
+        header.appendChild(discardBtn);
+
+        // Images: original → staged
         var images = document.createElement('div');
         images.className = 'assembly-card-images';
 
@@ -1605,15 +1618,8 @@ function _doBasicAction(color, action, btn) {
         images.appendChild(arrow);
         images.appendChild(stgWrap);
 
-        // Discard button
-        var discardBtn = document.createElement('button');
-        discardBtn.className = 'btn assembly-discard-btn';
-        discardBtn.textContent = 'Discard';
-        discardBtn.addEventListener('click', function () { onDiscardCard(item.card_name, row); });
-
-        row.appendChild(label);
+        row.appendChild(header);
         row.appendChild(images);
-        row.appendChild(discardBtn);
         return row;
     }
 
@@ -1677,12 +1683,14 @@ function _doBasicAction(color, action, btn) {
     }
 
     function doPublishAssembly() {
-        var dialog    = $id('publish-confirm-dialog');
+        var dialog     = $id('publish-confirm-dialog');
         var publishBtn = $id('publish-assembly-btn');
         var confirmBtn = $id('confirm-publish-btn');
+        var logEl      = $id('assembly-publish-log');
         if (dialog)     dialog.close();
         if (publishBtn) publishBtn.disabled = true;
         if (confirmBtn) confirmBtn.disabled = true;
+        if (logEl)      { logEl.innerHTML = ''; logEl.style.display = 'none'; }
 
         fetch('/deck/' + encodeURIComponent(_deckName) + '/publish-assembly-line', { method: 'POST' })
             .then(function (r) { return r.json(); })
@@ -1693,25 +1701,73 @@ function _doBasicAction(color, action, btn) {
                     if (publishBtn) publishBtn.disabled = (_stagedCount === 0);
                     return;
                 }
+
                 _updatePublishBar(0);
                 loadAssemblyLineData();
-                // Clear all staged-overlay badges in gallery
+
+                // Clear staged-overlay badges and update data-staged in gallery
                 document.querySelectorAll('.card-gallery-item[data-staged="true"]').forEach(function (item) {
                     item.dataset.staged = 'false';
                     var ov = item.querySelector('.staged-overlay');
                     if (ov) ov.remove();
                 });
-                var msg = 'Published ' + data.cards_updated + ' card(s).';
-                if (data.cockatrice_ok === true)  msg += ' Cockatrice export OK.';
-                if (data.cockatrice_ok === false) msg += ' Cockatrice export failed.';
-                if (!data.printing_ok)            msg += ' Some printing images failed.';
-                _showToast(msg, data.cockatrice_ok === false || !data.printing_ok ? 'warning' : 'success');
+
+                // Refresh card images in the gallery for each published card
+                if (data.published_cards && data.published_cards.length) {
+                    _refreshGalleryImages(data.published_cards);
+                }
+
+                // Show publish log
+                if (logEl) {
+                    var entries = [];
+                    entries.push({ ok: true,  text: data.cards_updated + ' card image' + (data.cards_updated !== 1 ? 's' : '') + ' updated in Cards/' });
+                    entries.push({ ok: data.printing_ok, text: data.printing_ok ? 'Printing images regenerated' : 'Some printing images failed — check server log' });
+                    if (data.cockatrice_ok === true)  entries.push({ ok: true,  text: 'Cockatrice export complete' });
+                    if (data.cockatrice_ok === false) entries.push({ ok: false, text: 'Cockatrice export failed — check server log' });
+                    if (data.cockatrice_ok === null)  entries.push({ ok: null,  text: 'Cockatrice not configured — skipped' });
+                    logEl.innerHTML = entries.map(function(e) {
+                        var cls = e.ok === true ? 'publish-log-ok' : e.ok === false ? 'publish-log-err' : 'publish-log-skip';
+                        var icon = e.ok === true ? '\u2713' : e.ok === false ? '\u2717' : '\u2014';
+                        return '<div class="publish-log-entry ' + cls + '">' + icon + ' ' + e.text + '</div>';
+                    }).join('');
+                    logEl.style.display = '';
+                }
             })
             .catch(function () {
                 if (confirmBtn) confirmBtn.disabled = false;
                 _showToast('Publish error \u2014 check server log', 'error');
                 if (publishBtn) publishBtn.disabled = (_stagedCount === 0);
             });
+    }
+
+    function _refreshGalleryImages(cardNames) {
+        cardNames.forEach(function (cardName) {
+            fetch('/deck/' + encodeURIComponent(_deckName) + '/card-data?name=' + encodeURIComponent(cardName))
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data.image_base64) return;
+                    var galItem = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
+                    if (!galItem) return;
+                    var img = galItem.querySelector('.card-image');
+                    if (img) {
+                        img.src = data.image_base64;
+                    } else {
+                        // Was a placeholder — replace with an image container
+                        var placeholder = galItem.querySelector('.card-image-placeholder');
+                        if (placeholder) {
+                            var con = document.createElement('div');
+                            con.className = 'card-image-container';
+                            var newImg = document.createElement('img');
+                            newImg.src = data.image_base64;
+                            newImg.alt = cardName;
+                            newImg.className = 'card-image';
+                            con.appendChild(newImg);
+                            placeholder.replaceWith(con);
+                        }
+                    }
+                })
+                .catch(function () {});
+        });
     }
 
     function _showToast(message, type) {
@@ -1843,17 +1899,10 @@ function _doBasicAction(color, action, btn) {
         var confirmPublishBtn = $id('confirm-publish-btn');
         if (confirmPublishBtn) confirmPublishBtn.addEventListener('click', doPublishAssembly);
 
-        var confirmCancelBtn = $id('confirm-cancel-btn');
-        if (confirmCancelBtn) confirmCancelBtn.addEventListener('click', function () {
-            var dialog = $id('publish-confirm-dialog');
-            if (dialog) dialog.close();
-        });
-
         var confirmReviewBtn = $id('confirm-review-btn');
         if (confirmReviewBtn) confirmReviewBtn.addEventListener('click', function () {
             var dialog = $id('publish-confirm-dialog');
             if (dialog) dialog.close();
-            // Already on assembly tab, just close the dialog
         });
 
         // Initial hash routing

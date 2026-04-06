@@ -119,54 +119,55 @@ Stored at `DECK_PATH/<FolderName>/<FolderName>_staging.json`.
 - `app.py` `card_data` endpoint: now checks `_staging.json` first and returns staged `updated` data + staged image when available, so reopening a staged card shows the pending state
 - `deck.html` / `main.js`: `close-forge-btn` starts `disabled`; `updateButtonStates()` now also manages `close-forge-btn` (enabled iff dirty/new, same as Forge button)
 
-### Known limitations / deferred to later phases
-- Assembly Line tab content is server-rendered at page load; dynamically forging cards updates the badge but the tab body (card list + publish button count) won't reflect new forges until page reload — **Phase 4 will replace with AJAX content**
-- The "Publish Assembly Line" button in the editor header (`publish-btn`) is wired but has no endpoint yet — **Phase 5**
-
 ---
 
-## ⬜ Phase 4 — Assembly Line Tab
+## ✅ Phase 4 — Assembly Line Tab
 
-**Files to change:** `deck.html`, `style.css`, `main.js`, `app.py`
+**Files changed:** `deck.html`, `style.css`, `main.js`, `app.py`
 
-### 4a. Assembly Line tab content (loaded via AJAX on tab click)
-- `GET /deck/<name>/assembly-line-data` → JSON list: `[{ card_name, original_image_base64, staged_image_base64 }, ...]`
-- For each staged card render:
-  ```
-  [Original image]  →  [Staged image]   [Discard button]
-  ```
-- Discard button: `POST /deck/<name>/card/<card>/discard` → removes from `_staging.json`, returns new `staged_count`
-- "Add Entire Deck to Assembly Line" button: `POST /deck/<name>/forge-all` (long-running; use SSE or polling for progress)
-- Pinned "Publish Assembly Line" button (full-width green, always visible while scrolling)
-  - Disabled if `staged_count = 0`
+### Completed
+- **AJAX-loaded tab content**: Assembly Line tab body is fetched fresh on every tab switch via `GET /deck/<name>/assembly-line-data`
+- **3-column responsive grid**: Cards displayed 3-per-row at full width, 2-per-row ≤1100px, 1-per-row ≤768px; column dividers via CSS `nth-child`
+- **Card row layout**: `.assembly-card-header` flex row with card name (left) + Discard button (top-right); below it `.assembly-card-images` showing Original → arrow → Staged at 240px wide
+- **Discard**: `POST /deck/<name>/card/<card>/discard` removes from `_staging.json`, row animates out, `_updatePublishBar()` refreshes count
+- **Forge Entire Deck**: `POST /deck/<name>/forge-all` forges every non-real card in the deck into staging; on success calls `_updatePublishBar()` + `loadAssemblyLineData()`
+- **Publish Assembly Line button**: full-width green, always visible; disabled when `staged_count = 0`; shows live count `Publish Assembly Line (N)`
+- **Empty state**: "No staged changes…" message spans all 3 columns via `grid-column: 1 / -1`
+- **`_updatePublishBar(count)`**: single source of truth — updates tab badge, publish-count span, and button disabled state
 
-### 4b. New routes
+### New routes
 ```
-GET  /deck/<name>/assembly-line-data         → JSON list of staged cards with image paths
+GET  /deck/<name>/assembly-line-data         → JSON list of staged cards with image data
 POST /deck/<name>/card/<card>/discard        → remove from staging, return new staged_count
 POST /deck/<name>/forge-all                  → forge every card into staging
 ```
 
 ---
 
-## ⬜ Phase 5 — Publish Assembly Line
+## ✅ Phase 5 — Publish Assembly Line
 
-**Files to change:** `app.py`, new `src/services/publisher.py`
+**Files changed:** `app.py`, `deck.html`, `style.css`, `main.js`
 
-### 5a. Confirmation dialog
-- `<dialog>` element: "Publish **N** staged changes?" → [Yes] [Review Changes] [Cancel]
-- "Review Changes" switches to Assembly Line tab
+### Completed
+- **Confirmation dialog** (`<dialog>`): "Publish N staged change(s)?" → [Publish] [Review Changes]; centered in viewport via `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%)`
+- **Publish endpoint**: `POST /deck/<name>/publish-assembly-line`
+  1. Load `_staging.json`
+  2. For each staged card: copy `Staging/<CardName>.jpg` → `Cards/<CardName>.jpg` via `shutil.copy2`
+  3. Regenerate printing image via `create_printing_image_from_Card`
+  4. Update `complete: 1` flag in deck JSON
+  5. Run `CockatriceExporter.export_deck()`
+  6. Clear `_staging.json`
+  7. Return `{ published_cards, cards_updated, printing_ok, cockatrice_ok }`
+- **Publish log**: inline log panel below the publish button shows per-step status (cards updated, printing regen, Cockatrice export) with green/red/gray entries
+- **Gallery image refresh**: after publish, `_refreshGalleryImages(cardNames)` fetches `/card-data?name=...` for each published card and swaps the `<img src>` in the Cards tab gallery — no page reload needed
+- **Changed filter**: "Changed" dropdown (Any / Yes / No) in Cards tab toolbar; filters by `data-staged` attribute on gallery items
+- **Publish count always current**: `onForgeClick` now calls `_updatePublishBar(data.staged_count)` instead of manually patching the badge, so count stays in sync after every Forge
 
-### 5b. Publish endpoint: `POST /deck/<name>/publish-assembly-line`
-1. Load `_staging.json`
-2. For each staged card:
-   - Copy `Staging/<CardName>.jpg` → `Cards/<CardName>.jpg`
-   - Regenerate printing image → `Printing/<CardName>.jpg`
-   - Update `complete` flag in deck JSON
-3. Run `CockatriceExporter.export_deck(...)`
-4. Clear `_staging.json`
-5. Return: `{ "cards_updated": N, "total_cards": M, "printing_ok": true, "cockatrice_ok": true }`
-6. Frontend: toast with stats, reset badge to 0
+---
+
+## ✅ Phase 10 — Publish Result Message
+
+Covered by Phase 5 publish log (inline log panel below the publish button). Shows per-card and per-step status with color-coded entries (`publish-log-ok`, `publish-log-err`, `publish-log-skip`).
 
 ---
 
@@ -207,7 +208,7 @@ POST /deck/<name>/forge-all                  → forge every card into staging
 
 **Files to change:** `deck.html`, `main.js`, `app.py`, `style.css`
 
-### ✅ 8a. Double-faced cards (partially done)
+### 🔲 8a. Double-faced cards (partially done)
 
 **What's implemented:**
 - Front/Back face tabs visible in the editor left pane (always present)
@@ -256,12 +257,6 @@ Some card types use multiple named rules-text keys instead of a single `"rules"`
 
 ---
 
-## ⬜ Phase 10 — Publish Result Message
-
-Covered by Phase 5 return payload. Display as a persistent toast/banner with `cards_updated`, `total_cards`, `printing_ok`, `cockatrice_ok`.
-
----
-
 ## ⬜ Phase 11 — Unit Tests
 
 **New files:** `tests/test_ui/`, `tests/test_services/`
@@ -286,33 +281,27 @@ Covered by Phase 5 return payload. Display as a persistent toast/banner with `ca
 
 | File | Role |
 |---|---|
-| `src/ui/templates/deck.html` | Tab system, editor panel, tag section, token gallery ✅ |
-| `src/ui/static/js/main.js` | Tab switching, editor, filters, tag editing, Forge/Publish ✅ (Forge stub) |
+| `src/ui/templates/deck.html` | Tab system, editor panel, tag section, token gallery, assembly line, confirm dialog ✅ |
+| `src/ui/static/js/main.js` | Tab switching, editor, filters, tag editing, Forge, Assembly Line, Publish ✅ |
 | `src/ui/static/css/style.css` | All new styles ✅ |
-| `src/ui/app.py` | Routes: card_data ✅, card-frames ✅, add/remove-card-tag ✅, forge 🔲, discard 🔲, publish 🔲, assembly-line-data 🔲, forge-all 🔲 |
-| `src/ui/helpers.py` | Staging helpers ✅, compute_setname ⬜ |
-| `src/services/image_generator.py` | Single-card render for Forge 🔲 |
-| `src/services/cockatrice_exporter.py` | Called from Publish — verify standalone 🔲 |
+| `src/ui/app.py` | Routes: card_data ✅, card-frames ✅, add/remove-card-tag ✅, forge ✅, discard ✅, publish ✅, assembly-line-data ✅, forge-all ✅ |
+| `src/ui/helpers.py` | Staging helpers ✅, card_from_editor_dict ✅, compute_setname ⬜ |
+| `src/services/image_generator.py` | Single-card render used by Forge ✅ |
+| `src/services/cockatrice_exporter.py` | Called from Publish endpoint ✅ |
 
 ## New Files Needed
 
 | File | Purpose |
 |---|---|
 | `src/ui/templates/create_deck.html` | Create new deck form ⬜ |
-| `src/services/publisher.py` | Orchestrates copy-to-Cards, printing regen, Cockatrice export, staging clear ⬜ |
 
 ---
 
-## Next Session: Start with Phase 3
+## Next Steps
 
-**Goal**: Make the Forge button actually generate and stage a card image.
-
-**Entry point investigation needed first**:
-- Look at `src/services/image_generator.py` to find the right method for single-card rendering
-- Check how `CardBuilder` or `Deck.from_json` builds a `Card` object from a raw dict
-- Confirm `ImageGenerator` can accept a custom save path
-- Verify that `frame` (custom frame override) and `double_faced_type` from the form are passed through correctly when constructing the `Card` object
-
-**Then implement**:
-1. `POST /deck/<name>/card/<card>/forge` in `app.py`
-2. Update `onForgeClick` in `main.js` to call the real endpoint and handle the response
+**Recommended order:**
+1. **Phase 8a remaining** — DFC dropdown sync, auto-select Transform on back face, `double_faced_type` passed to renderer
+2. **Phase 6** — Create Deck page (Create Card already works via Forge)
+3. **Phase 7** — Deck metadata editing + token association in editor
+4. **Phase 8b–d** — Multi-section rules text, subspells, token flag
+5. **Phase 11** — Unit tests

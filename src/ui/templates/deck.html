@@ -178,11 +178,19 @@
                         </select>
                     </div>
                     <div class="control-group">
-                        <label for="legitimacy-filter-select">Card Legitimacy</label>
+                        <label for="legitimacy-filter-select">Legitimacy</label>
                         <select id="legitimacy-filter-select">
                             <option value="any">Any</option>
                             <option value="real">Only Real</option>
                             <option value="custom">Only Custom</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="changed-filter-select">Changed</label>
+                        <select id="changed-filter-select">
+                            <option value="any">Any</option>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
                         </select>
                     </div>
                 </div>
@@ -245,7 +253,6 @@
                 <span id="editor-card-title" class="editor-card-title"></span>
                 <div class="editor-panel-actions">
                     <button id="forge-btn" class="btn btn-forge" disabled>Forge</button>
-                    <button id="publish-btn" class="btn btn-publish" disabled>Publish Assembly Line</button>
                     <button id="close-forge-btn" class="btn btn-close-forge" disabled>✕ Close &amp; Forge</button>
                     <button id="editor-back-btn" class="btn btn-editor-close">✕ Close</button>
                 </div>
@@ -415,6 +422,7 @@
             <button id="publish-assembly-btn" class="btn btn-publish-large"{% if staged_count == 0 %} disabled{% endif %}>
                 Publish Assembly Line (<span id="publish-count">{{ staged_count }}</span>)
             </button>
+            <div id="assembly-publish-log" class="assembly-publish-log" style="display:none;"></div>
         </div>
         <!-- Forge All Bar -->
         <div class="assembly-forge-all-bar">
@@ -435,7 +443,6 @@
             <div class="confirm-dialog-actions">
                 <button id="confirm-publish-btn" class="btn btn-publish-large" style="flex:1">Publish</button>
                 <button id="confirm-review-btn" class="btn btn-secondary">Review Changes</button>
-                <button id="confirm-cancel-btn" class="btn btn-editor-close">Cancel</button>
             </div>
         </div>
     </dialog>
