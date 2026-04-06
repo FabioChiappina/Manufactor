@@ -217,7 +217,13 @@
                        data-staged="{{ 'true' if card_name in staged_cards else 'false' }}">
                         {% if card_data.image_base64 %}
                         <div class="card-image-container">
-                            <img src="{{ card_data.image_base64 }}" alt="{{ card_name }}" class="card-image">
+                            <img src="{{ card_data.image_base64 }}"
+                                 data-front-src="{{ card_data.image_base64 }}"
+                                 data-back-src="{{ card_data.back_image_base64 or '' }}"
+                                 alt="{{ card_name }}" class="card-image">
+                            {% if card_data.double_faced_type and card_data.back %}
+                            <button class="card-flip-btn" title="Flip card" type="button">↻</button>
+                            {% endif %}
                             {% if card_name in staged_cards %}
                             <div class="staged-overlay">AWAITING<br>ASSEMBLY LINE</div>
                             {% endif %}
@@ -396,7 +402,13 @@
                data-quantity="1">
                 {% if token_data.image_base64 %}
                 <div class="card-image-container">
-                    <img src="{{ token_data.image_base64 }}" alt="{{ token_data.name }}" class="card-image">
+                    <img src="{{ token_data.image_base64 }}"
+                         data-front-src="{{ token_data.image_base64 }}"
+                         data-back-src="{{ token_data.back_image_base64 or '' }}"
+                         alt="{{ token_data.name }}" class="card-image">
+                    {% if token_data.double_faced_type and token_data.back %}
+                    <button class="card-flip-btn" title="Flip token" type="button">↻</button>
+                    {% endif %}
                     <div class="token-label-badge">TOKEN</div>
                 </div>
                 {% else %}

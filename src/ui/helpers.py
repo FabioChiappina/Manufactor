@@ -460,9 +460,17 @@ def load_deck_by_name(deck_name):
                 if isinstance(card_data, dict):
                     quantity = card_data.get('quantity', 1)
 
+                # Load back face image for double-faced cards
+                back_image = None
+                if isinstance(card_data, dict) and card_data.get('double_faced_type'):
+                    back_name = (card_data.get('back') or {}).get('name')
+                    if back_name:
+                        back_image = get_card_image_base64(deck_folder_path, back_name)
+
                 cards_with_images[card_name] = {
                     **(card_data if isinstance(card_data, dict) else {}),
                     'image_base64': card_image,
+                    'back_image_base64': back_image,
                     'quantity': quantity
                 }
 
@@ -505,9 +513,26 @@ def load_deck_by_name(deck_name):
                                 break
                         if token_image:
                             break
+                # Load back face image for double-faced tokens
+                token_back_image = None
+                if token_data.get('double_faced_type'):
+                    token_back_name = (token_data.get('back') or {}).get('name')
+                    if token_back_name and os.path.isdir(tokens_folder):
+                        for ext in ['.jpg', '.jpeg', '.png']:
+                            back_img_path = os.path.join(tokens_folder, f"{token_back_name}{ext}")
+                            if os.path.isfile(back_img_path):
+                                try:
+                                    with open(back_img_path, 'rb') as f:
+                                        b64 = base64.b64encode(f.read()).decode('utf-8')
+                                        token_back_image = f"data:image/jpeg;base64,{b64}"
+                                except Exception:
+                                    pass
+                                break
+
                 tokens_with_images[token_key] = {
                     **token_data,
                     'image_base64': token_image,
+                    'back_image_base64': token_back_image,
                     'quantity': token_data.get('quantity', 1),
                 }
 

@@ -547,11 +547,29 @@ def assembly_line_data(deck_name):
     for card_name, entry in staging.items():
         staged_b64 = _b64(os.path.join(staging_dir, f"{card_name}.jpg"))
         original_b64 = get_card_image_base64(folder_path, card_name)
+
+        # Back face images for double-faced cards
+        orig_card = entry.get('original') or {}
+        updated_card = entry.get('updated') or {}
+        orig_back_name = (orig_card.get('back') or {}).get('name') if orig_card.get('double_faced_type') else None
+        staged_back_name = (updated_card.get('back') or {}).get('name') if updated_card.get('double_faced_type') else None
+
+        orig_back_b64 = None
+        if orig_back_name:
+            orig_back_b64 = get_card_image_base64(folder_path, orig_back_name)
+
+        staged_back_b64 = None
+        if staged_back_name:
+            staged_back_path = os.path.join(staging_dir, f"{staged_back_name}.jpg")
+            staged_back_b64 = _b64(staged_back_path) or get_card_image_base64(folder_path, staged_back_name)
+
         items.append({
             'card_name': card_name,
             'is_new': entry.get('is_new', False),
             'original_image_base64': original_b64,
             'staged_image_base64': staged_b64,
+            'original_back_image_base64': orig_back_b64,
+            'staged_back_image_base64': staged_back_b64,
         })
 
     return jsonify(items)

@@ -914,6 +914,47 @@ main {
     position: relative;
 }
 
+/* ── Card flip button (gallery + tokens) ─────────────────────────────────── */
+.card-flip-btn {
+    position: absolute;
+    left: 15%;
+    top: 15%;
+    transform: translate(-50%, -50%);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    border: 1.5px solid rgba(255, 255, 255, 0.7);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    padding: 0;
+    transition: background 0.15s, transform 0.15s;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.card-flip-btn:hover {
+    background: rgba(0, 0, 0, 0.82);
+    transform: translate(-50%, -50%) scale(1.12);
+}
+
+/* Overlay shown when flipped to back but back has no rendered image */
+.card-flip-no-image {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #e0e0e0 0%, #c0c0c0 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-size: 13px;
+    font-weight: 500;
+}
+
 .placeholder-text {
     color: #999;
     font-size: 14px;
@@ -1538,10 +1579,22 @@ footer p {
     gap: 5px;
 }
 
+.assembly-img-inner {
+    position: relative;
+    display: inline-block;
+}
+
+.assembly-img-inner .card-flip-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+}
+
 .assembly-card-img {
     width: 220px;
     border-radius: 6px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    display: block;
 }
 
 .assembly-card-placeholder {

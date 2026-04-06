@@ -1552,6 +1552,86 @@ function _doBasicAction(color, action, btn) {
             });
     }
 
+    // ── Flip button helpers ───────────────────────────────────────────────
+    function _flipImgInner(innerEl) {
+        // innerEl is an .assembly-img-inner; the img inside has data-front-src / data-back-src
+        var img = innerEl.querySelector('img');
+        if (!img) return;
+        var isBack = innerEl.dataset.face === 'back';
+        if (!isBack) {
+            var backSrc = img.dataset.backSrc || '';
+            if (backSrc) { img.src = backSrc; }
+            innerEl.dataset.face = 'back';
+        } else {
+            var frontSrc = img.dataset.frontSrc || '';
+            if (frontSrc) { img.src = frontSrc; }
+            innerEl.dataset.face = 'front';
+        }
+    }
+
+    function _handleAssemblyFlip(clickedInner, pairedInner) {
+        // Flip the clicked inner; if both should stay in sync, flip paired too
+        var clickedIsBack = clickedInner.dataset.face === 'back';
+        var pairedIsBack = pairedInner ? pairedInner.dataset.face === 'back' : null;
+        // If paired exists and both are on same face, flip together
+        if (pairedInner) {
+            if (clickedIsBack === pairedIsBack) {
+                _flipImgInner(clickedInner);
+                _flipImgInner(pairedInner);
+            } else {
+                // Out of sync — just sync them both to clicked's new state
+                _flipImgInner(clickedInner);
+                // Force paired to match new state of clicked
+                var newFace = clickedInner.dataset.face;
+                var pairedImg = pairedInner.querySelector('img');
+                if (pairedImg) {
+                    pairedImg.src = newFace === 'back'
+                        ? (pairedImg.dataset.backSrc || pairedImg.dataset.frontSrc || '')
+                        : (pairedImg.dataset.frontSrc || '');
+                    pairedInner.dataset.face = newFace;
+                }
+            }
+        } else {
+            _flipImgInner(clickedInner);
+        }
+    }
+
+    function _handleGalleryFlip(flipBtn) {
+        var container = flipBtn.closest('.card-image-container');
+        if (!container) return;
+        var img = container.querySelector('.card-image');
+        if (!img) return;
+
+        var isBack = container.dataset.face === 'back';
+        if (!isBack) {
+            var backSrc = img.dataset.backSrc || '';
+            if (backSrc) {
+                img.src = backSrc;
+            } else {
+                // No back image rendered yet — show a placeholder overlay
+                var overlay = container.querySelector('.card-flip-no-image');
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.className = 'card-flip-no-image';
+                    overlay.textContent = 'No Image';
+                    container.appendChild(overlay);
+                }
+                overlay.style.display = 'flex';
+                img.style.visibility = 'hidden';
+            }
+            container.dataset.face = 'back';
+        } else {
+            var frontSrc = img.dataset.frontSrc || '';
+            if (frontSrc) {
+                img.src = frontSrc;
+                img.style.visibility = '';
+            }
+            var overlay2 = container.querySelector('.card-flip-no-image');
+            if (overlay2) overlay2.style.display = 'none';
+            container.dataset.face = 'front';
+        }
+    }
+
     function _buildAssemblyRow(item) {
         var row = document.createElement('div');
         row.className = 'assembly-card-row';
@@ -1578,6 +1658,10 @@ function _doBasicAction(color, action, btn) {
         var images = document.createElement('div');
         images.className = 'assembly-card-images';
 
+        var origHasBack = !!(item.original_back_image_base64);
+        var stgHasBack = !!(item.staged_back_image_base64);
+        var bothHaveBack = origHasBack && stgHasBack;
+
         // Original image
         var origWrap = document.createElement('div');
         origWrap.className = 'assembly-img-wrap';
@@ -1585,11 +1669,28 @@ function _doBasicAction(color, action, btn) {
         origCaption.className = 'assembly-img-caption';
         origCaption.textContent = item.is_new ? 'New' : 'Original';
         if (item.original_image_base64 && !item.is_new) {
+            var origImgEl = document.createElement('div');
+            origImgEl.className = 'assembly-img-inner';
             var origImg = document.createElement('img');
             origImg.src = item.original_image_base64;
+            origImg.dataset.frontSrc = item.original_image_base64;
+            origImg.dataset.backSrc = item.original_back_image_base64 || '';
             origImg.className = 'assembly-card-img';
             origImg.alt = 'Original';
-            origWrap.appendChild(origImg);
+            origImgEl.appendChild(origImg);
+            if (origHasBack) {
+                var origFlipBtn = document.createElement('button');
+                origFlipBtn.className = 'card-flip-btn assembly-flip-btn';
+                origFlipBtn.title = 'Flip card';
+                origFlipBtn.type = 'button';
+                origFlipBtn.textContent = '↻';
+                origFlipBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    _handleAssemblyFlip(origImgEl, stgHasBack && bothHaveBack ? stgImgEl : null);
+                });
+                origImgEl.appendChild(origFlipBtn);
+            }
+            origWrap.appendChild(origImgEl);
         } else {
             var origPlaceholder = document.createElement('div');
             origPlaceholder.className = 'assembly-card-placeholder';
@@ -1602,18 +1703,36 @@ function _doBasicAction(color, action, btn) {
         arrow.className = 'assembly-arrow';
         arrow.textContent = '→';
 
-        // Staged image
+        // Staged image — declare stgImgEl in scope so origFlipBtn closure can reference it
+        var stgImgEl;
         var stgWrap = document.createElement('div');
         stgWrap.className = 'assembly-img-wrap';
         var stgCaption = document.createElement('div');
         stgCaption.className = 'assembly-img-caption';
         stgCaption.textContent = 'Staged';
         if (item.staged_image_base64) {
+            stgImgEl = document.createElement('div');
+            stgImgEl.className = 'assembly-img-inner';
             var stgImg = document.createElement('img');
             stgImg.src = item.staged_image_base64;
+            stgImg.dataset.frontSrc = item.staged_image_base64;
+            stgImg.dataset.backSrc = item.staged_back_image_base64 || '';
             stgImg.className = 'assembly-card-img';
             stgImg.alt = 'Staged';
-            stgWrap.appendChild(stgImg);
+            stgImgEl.appendChild(stgImg);
+            if (stgHasBack) {
+                var stgFlipBtn = document.createElement('button');
+                stgFlipBtn.className = 'card-flip-btn assembly-flip-btn';
+                stgFlipBtn.title = 'Flip card';
+                stgFlipBtn.type = 'button';
+                stgFlipBtn.textContent = '↻';
+                stgFlipBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    _handleAssemblyFlip(stgImgEl, origHasBack && bothHaveBack ? origImgEl : null);
+                });
+                stgImgEl.appendChild(stgFlipBtn);
+            }
+            stgWrap.appendChild(stgImgEl);
         } else {
             var stgPlaceholder = document.createElement('div');
             stgPlaceholder.className = 'assembly-card-placeholder';
@@ -1807,6 +1926,9 @@ function _doBasicAction(color, action, btn) {
 
         // Card clicks (delegated so grouped / cloned items also fire)
         document.body.addEventListener('click', function (e) {
+            // Flip button — must check before card-gallery-item to stop propagation
+            var flipBtn = e.target.closest('.card-flip-btn');
+            if (flipBtn) { e.preventDefault(); e.stopPropagation(); _handleGalleryFlip(flipBtn); return; }
             var item = e.target.closest('.card-gallery-item[data-card-name]');
             if (item) { e.preventDefault(); openCardEditor(item.dataset.cardName); return; }
             var cmd = e.target.closest('[data-commander-name]');
