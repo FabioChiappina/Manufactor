@@ -235,12 +235,13 @@ def get_card_artwork_base64(deck_folder_path, card_name):
         return None
 
 
-def get_decks_with_metadata(filter_status='all'):
+def get_decks_with_metadata(filter_status='all', sort_order='recent'):
     """
     Get decks with full metadata for display.
 
     Args:
         filter_status: "all", "complete", or "incomplete"
+        sort_order: "recent" (default, newest last_modified first) or "alpha" (A-Z by name)
 
     Returns:
         List of dicts with deck info
@@ -330,7 +331,14 @@ def get_decks_with_metadata(filter_status='all'):
             'folder_path': deck_folder_path,
             'colors_wubrg': colors_wubrg,
             'banner_style': banner_style,
+            'last_modified': metadata.get('last_modified', ''),
         })
+
+    if sort_order == 'alpha':
+        result.sort(key=lambda d: d['name'].lower())
+    else:
+        # Default: most recently modified first; decks without a timestamp go last
+        result.sort(key=lambda d: d['last_modified'] or '', reverse=True)
 
     return result
 

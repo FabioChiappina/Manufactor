@@ -31,6 +31,12 @@ app = Flask(__name__)
 app.secret_key = 'manufactor-secret-key-change-in-production'
 
 
+def _touch_last_modified(raw_deck):
+    """Update last_modified timestamp in deck metadata dict (in-place)."""
+    from datetime import datetime
+    raw_deck.setdefault('metadata', {})['last_modified'] = datetime.utcnow().isoformat() + 'Z'
+
+
 @app.route('/symbols/<filename>')
 def serve_symbol(filename):
     """Serve mana symbol images from Assets/Symbols/."""
@@ -41,6 +47,9 @@ def serve_symbol(filename):
 def index():
     """Home page with deck grid."""
     filter_status = request.args.get('filter', 'all')
+    sort_order = request.args.get('sort', 'recent')
+    if sort_order not in ('recent', 'alpha'):
+        sort_order = 'recent'
 
     settings = SettingsManager()
     deck_path = settings.get_deck_path()
@@ -48,14 +57,14 @@ def index():
     # Check if deck path is configured
     if not deck_path or not deck_path.strip():
         flash('Deck path is not configured. Please configure it in Settings.', 'warning')
-        return render_template('index.html', decks=[], filter_status=filter_status)
+        return render_template('index.html', decks=[], filter_status=filter_status, sort_order=sort_order)
 
     if not os.path.isdir(deck_path):
         flash(f'Deck path does not exist: {deck_path}', 'error')
-        return render_template('index.html', decks=[], filter_status=filter_status)
+        return render_template('index.html', decks=[], filter_status=filter_status, sort_order=sort_order)
 
-    decks = get_decks_with_metadata(filter_status)
-    return render_template('index.html', decks=decks, filter_status=filter_status)
+    decks = get_decks_with_metadata(filter_status, sort_order)
+    return render_template('index.html', decks=decks, filter_status=filter_status, sort_order=sort_order)
 
 
 @app.route('/deck/new', methods=['GET', 'POST'])
@@ -215,6 +224,7 @@ def toggle_complete(deck_name):
         full_deck_data['metadata'] = {}
 
     full_deck_data['metadata']['complete'] = new_status
+    _touch_last_modified(full_deck_data)
 
     # Save back to JSON
     with open(json_path, 'w') as f:
@@ -290,6 +300,7 @@ def add_basic(deck_name, color):
         }
         new_qty = 1
 
+    _touch_last_modified(full_deck_data)
     with open(json_path, 'w') as f:
         json.dump(full_deck_data, f, indent=2)
 
@@ -353,6 +364,7 @@ def remove_basic(deck_name, color):
         cards[found_name]['quantity'] = current_qty - 1
         new_qty = current_qty - 1
 
+    _touch_last_modified(full_deck_data)
     with open(json_path, 'w') as f:
         json.dump(full_deck_data, f, indent=2)
 
@@ -482,6 +494,7 @@ def add_card_tag(deck_name):
         meta_tags.append(tag)
         meta_tags.sort()
     raw_deck.setdefault('metadata', {})['tags'] = meta_tags
+    _touch_last_modified(raw_deck)
 
     with open(deck_data['json_path'], 'w') as f:
         json.dump(raw_deck, f, indent=2)
@@ -523,6 +536,7 @@ def remove_card_tag(deck_name):
     if not tag_still_used and tag in meta_tags:
         meta_tags.remove(tag)
     raw_deck.setdefault('metadata', {})['tags'] = meta_tags
+    _touch_last_modified(raw_deck)
 
     with open(deck_data['json_path'], 'w') as f:
         json.dump(raw_deck, f, indent=2)
@@ -624,6 +638,7 @@ def _do_forge(deck_data, card_name, is_new, data):
         placeholder = dict(data)
         placeholder['complete'] = 0
         raw_deck.setdefault('cards', {})[full_deck_key] = placeholder
+        _touch_last_modified(raw_deck)
         with open(deck_data['json_path'], 'w') as f:
             json.dump(raw_deck, f, indent=2)
         original = {}
@@ -634,6 +649,7 @@ def _do_forge(deck_data, card_name, is_new, data):
         existing.update(data)
         existing['complete'] = 0
         raw_deck.setdefault('cards', {})[full_deck_key] = existing
+        _touch_last_modified(raw_deck)
         with open(deck_data['json_path'], 'w') as f:
             json.dump(raw_deck, f, indent=2)
 
@@ -750,6 +766,7 @@ def discard_card(deck_name):
             orig_data = entry.get('original')
             if orig_data is not None:
                 cards_dict[original_key] = orig_data
+        _touch_last_modified(raw_deck)
         with open(deck_data['json_path'], 'w') as f:
             json.dump(raw_deck, f, indent=2)
 
@@ -899,6 +916,7 @@ def publish_assembly_line(deck_name):
         cards_updated += 1
 
     # Persist updated deck JSON
+    _touch_last_modified(raw_deck)
     with open(deck_data['json_path'], 'w') as f:
         json.dump(raw_deck, f, indent=2)
 
@@ -978,6 +996,7 @@ def save_card(deck_name, card_name):
 
     # Update the card
     full_deck_data['cards'][card_name] = updated_card
+    _touch_last_modified(full_deck_data)
 
     # Save back to JSON
     with open(json_path, 'w') as f:
