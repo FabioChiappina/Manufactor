@@ -2313,6 +2313,179 @@ function _doBasicAction(color, action, btn) {
         // Initial hash routing
         handleHash(window.location.hash);
         window.addEventListener('hashchange', function () { handleHash(window.location.hash); });
+
+        // ── Deck metadata hammer-button editing ──────────────────────────
+        (function () {
+            var dialog    = $id('meta-edit-dialog');
+            if (!dialog) return;
+
+            var titleEl   = $id('meta-edit-title');
+            var container = $id('meta-edit-field-container');
+            var saveBtn   = $id('meta-edit-save-btn');
+            var cancelBtn = $id('meta-edit-cancel-btn');
+            var errorEl   = $id('meta-edit-error');
+            var deckNameEncoded = dialog.dataset.deckName || '';
+            var currentSetname  = dialog.dataset.currentSetname || 'UNK';
+
+            var _currentField = null;
+
+            var FIELD_CONFIG = {
+                deck_name: {
+                    title: 'Edit Deck Name',
+                    build: function (current) {
+                        var inp = document.createElement('input');
+                        inp.type = 'text'; inp.id = 'meta-edit-input';
+                        inp.value = current; inp.maxLength = 120;
+                        return inp;
+                    },
+                    value: function () { return $id('meta-edit-input').value.trim(); },
+                },
+                format: {
+                    title: 'Edit Format',
+                    build: function (current) {
+                        var sel = document.createElement('select');
+                        sel.id = 'meta-edit-input';
+                        ['Commander','Standard','Modern','Legacy','Vintage','Draft','Casual'].forEach(function (f) {
+                            var opt = document.createElement('option');
+                            opt.value = opt.textContent = f;
+                            if (f === current) opt.selected = true;
+                            sel.appendChild(opt);
+                        });
+                        return sel;
+                    },
+                    value: function () { return $id('meta-edit-input').value; },
+                },
+                setname: {
+                    title: 'Edit Set Code',
+                    build: function (current) {
+                        var wrap = document.createElement('div');
+                        wrap.style.display = 'flex'; wrap.style.flexDirection = 'column'; wrap.style.gap = '6px';
+                        var inp = document.createElement('input');
+                        inp.type = 'text'; inp.id = 'meta-edit-input';
+                        inp.value = current; inp.maxLength = 3;
+                        inp.style.textTransform = 'uppercase'; inp.style.width = '90px';
+                        inp.addEventListener('input', function () { inp.value = inp.value.toUpperCase(); });
+                        var hint = document.createElement('span');
+                        hint.className = 'form-hint';
+                        hint.textContent = '3-letter code used in Cockatrice. Changing this takes effect on next Publish.';
+                        wrap.appendChild(inp); wrap.appendChild(hint);
+                        return wrap;
+                    },
+                    value: function () { return $id('meta-edit-input').value.trim().toUpperCase(); },
+                },
+                description: {
+                    title: 'Edit Description',
+                    build: function (current) {
+                        var ta = document.createElement('textarea');
+                        ta.id = 'meta-edit-input'; ta.rows = 4;
+                        ta.value = current; ta.placeholder = 'Describe your deck...';
+                        return ta;
+                    },
+                    value: function () { return $id('meta-edit-input').value.trim(); },
+                },
+            };
+
+            function getCurrentValue(field) {
+                if (field === 'deck_name')   return ($id('deck-display-name')   || {}).textContent || '';
+                if (field === 'format')      return ($id('deck-display-format') || {}).textContent || '';
+                if (field === 'setname')     return currentSetname;
+                if (field === 'description') return ($id('deck-display-description') || {}).textContent || '';
+                return '';
+            }
+
+            function openMetaDialog(field) {
+                var cfg = FIELD_CONFIG[field];
+                if (!cfg) return;
+                _currentField = field;
+                titleEl.textContent = cfg.title;
+                container.innerHTML = '';
+                container.appendChild(cfg.build(getCurrentValue(field)));
+                errorEl.style.display = 'none';
+                dialog.showModal();
+                var inp = $id('meta-edit-input');
+                if (inp) { inp.focus(); if (inp.select) inp.select(); }
+            }
+
+            // Wire up all hammer buttons
+            document.querySelectorAll('.hammer-btn[data-meta-field]').forEach(function (btn) {
+                btn.addEventListener('click', function () { openMetaDialog(btn.dataset.metaField); });
+            });
+
+            cancelBtn.addEventListener('click', function () { dialog.close(); });
+            dialog.addEventListener('click', function (e) {
+                if (e.target === dialog) dialog.close();
+            });
+
+            saveBtn.addEventListener('click', function () {
+                var cfg = FIELD_CONFIG[_currentField];
+                if (!cfg) return;
+                var val = cfg.value();
+                if (!val && _currentField !== 'description') {
+                    errorEl.textContent = 'Value cannot be empty.';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+                if (_currentField === 'setname' && val.length !== 3) {
+                    errorEl.textContent = 'Set code must be exactly 3 characters.';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+
+                var payload = {};
+                payload[_currentField] = val;
+
+                saveBtn.disabled = true;
+                fetch('/deck/' + deckNameEncoded + '/update-metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    saveBtn.disabled = false;
+                    if (data.error) {
+                        errorEl.textContent = data.error;
+                        errorEl.style.display = 'block';
+                        return;
+                    }
+                    // Update displayed values in-page
+                    if (_currentField === 'deck_name') {
+                        var el = $id('deck-display-name');
+                        if (el) el.textContent = val;
+                        document.title = val + ' - Manufactor';
+                    } else if (_currentField === 'format') {
+                        var el = $id('deck-display-format');
+                        if (el) el.textContent = val;
+                    } else if (_currentField === 'setname') {
+                        var el = $id('deck-display-setname');
+                        if (el) el.textContent = 'Set: ' + val;
+                        currentSetname = val;
+                        dialog.dataset.currentSetname = val;
+                    } else if (_currentField === 'description') {
+                        var el = $id('deck-display-description');
+                        if (el) {
+                            el.textContent = val;
+                            el.classList.toggle('deck-description-empty', !val);
+                        }
+                    }
+                    dialog.close();
+                })
+                .catch(function () {
+                    saveBtn.disabled = false;
+                    errorEl.textContent = 'Save failed. Please try again.';
+                    errorEl.style.display = 'block';
+                });
+            });
+
+            // Save on Enter for single-line inputs
+            dialog.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                    e.preventDefault();
+                    saveBtn.click();
+                }
+            });
+        }());
+
     });
 
 }());

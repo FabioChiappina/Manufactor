@@ -618,6 +618,71 @@ def save_staging(deck_folder_path, data):
         json.dump(data, f, indent=2)
 
 
+def compute_setname(deck_name: str, exclude_setname: str = None) -> str:
+    """
+    Auto-compute a 3-letter set code from a deck name.
+
+    - Strips leading "The ", "A ", "An " (case-insensitive)
+    - Takes first 3 alpha characters, uppercase
+    - Checks uniqueness against existing decks' setnames
+    - Appends digits or substitutes last letter if collision
+
+    Args:
+        deck_name: The proposed deck name
+        exclude_setname: Current setname to exclude from collision check (for editing)
+
+    Returns:
+        A unique 3-letter set code
+    """
+    import string as _string
+    from src.core.card_set import CardSet
+
+    # Collect existing set names
+    existing_setnames = set()
+    try:
+        for _, __, _jpath in get_available_decks():
+            with open(_jpath, 'r') as _f:
+                _data = json.load(_f)
+            _sn = _data.get('metadata', {}).get('setname', '')
+            if _sn and (exclude_setname is None or _sn.upper() != exclude_setname.upper()):
+                existing_setnames.add(_sn.upper())
+    except Exception:
+        pass
+
+    # Strip leading articles
+    name = deck_name.strip()
+    for prefix in ('the ', 'a ', 'an '):
+        if name.lower().startswith(prefix):
+            name = name[len(prefix):]
+            break
+
+    # Get first 3 alpha characters
+    letters = ''.join(c for c in name if c.isalpha())
+    if len(letters) >= 3:
+        base = letters[:3].upper()
+    elif letters:
+        base = letters.upper().ljust(3, 'X')
+    else:
+        base = 'NEW'
+
+    # Try base, then digits, then letter substitutions
+    candidate = CardSet.adjust_forbidden_custom_setname(base)
+    if candidate not in existing_setnames:
+        return candidate
+
+    for digit in '23456789':
+        candidate = CardSet.adjust_forbidden_custom_setname(base[:2] + digit)
+        if candidate not in existing_setnames:
+            return candidate
+
+    for char in _string.ascii_uppercase:
+        candidate = CardSet.adjust_forbidden_custom_setname(base[:2] + char)
+        if candidate not in existing_setnames:
+            return candidate
+
+    return base  # Fallback
+
+
 def card_from_editor_dict(card_dict, setname='UNK'):
     """
     Build Card object(s) from the card editor JSON dict.

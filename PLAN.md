@@ -171,44 +171,11 @@ Covered by Phase 5 publish log (inline log panel below the publish button). Show
 
 ---
 
-## ⬜ Phase 6 — Create Card & Create Deck
-
-**Files to change:** `deck.html`, `app.py`, new `templates/create_deck.html`
-
-### 6a. Create Card
-- Already wired: `+ Create Card` button opens blank editor, always dirty
-- **Remaining**: On Forge of a new card, add placeholder entry to deck JSON (`complete: 0`) and add to staging
-- On Publish: card becomes permanent in deck JSON
-
-### 6b. Create Deck
-- `GET /deck/new` → `create_deck.html`
-- Fields: Deck Name, Set Name (auto-computed, user-overridable), Description, Format
-- Set name auto-computation: strip "The/A/An", take first 3 letters uppercase, check uniqueness against existing decks, append digits on collision
-- `POST /deck/new` → creates folder + empty deck JSON + empty staging JSON → redirect to `/deck/<name>#cards`
-
----
-
-## ⬜ Phase 7 — Deck Info Editing & Token Association
-
-**Files to change:** `deck.html`, `app.py`, `style.css`
-
-### 7a. Deck info editing
-- Pencil icon in summary section → inline edit form (Deck Name, Set Name, Description, Format, Commander)
-- `POST /deck/<name>/update-metadata` → save; renaming also renames the folder and JSON file
-
-### 7b. Token association in card editor
-- Collapsible "Tokens" section in editor right panel
-- Shows tokens detected from rules text via `token_parser.parse_tokens_from_rules_text()`
-- Per-token checkbox: "Disable auto-generation" → saves `disable_auto_tokens: true` in card JSON
-- On Forge: auto-forge + stage associated tokens (unless disabled)
-
----
-
-## ⬜ Phase 8 — Advanced Card Types
+## ✅ Phase 8 — Advanced Card Types
 
 **Files to change:** `deck.html`, `main.js`, `app.py`, `style.css`
 
-### ✅ 8a. Double-faced cards (Done)
+### ✅ 8a. Double-faced cards
 
 **What's implemented:**
 - Front/Back face tabs visible in the editor left pane (always present)
@@ -224,7 +191,7 @@ Covered by Phase 5 publish log (inline log panel below the publish button). Show
 
 ---
 
-### ⬜ 8b. Multi-section rules text (Sagas, Planeswalkers, and similar)
+### ✅ 8b. Multi-section rules text (Sagas, Planeswalkers, and similar)
 
 Some card types use multiple named rules-text keys instead of a single `"rules"` field:
 
@@ -240,9 +207,6 @@ Some card types use multiple named rules-text keys instead of a single `"rules"`
 - The form serializer/deserializer must map between `rules1`/`rules2`/etc. and the multi-section UI.
 - The renderer (`card_renderer.py`) already handles `rules1`/`rules2` for Sagas; check whether Planeswalker rendering is stubbed or fully absent before planning that sub-task.
 
-**What remains:**
-Issue where subtracting chapters doesn't register as a change that needs Forging.
-
 **Note:** Full Planeswalker support also requires new Photoshop frame assets and updated rendering code — treat this as a separate sub-epic within Phase 8. Sagas and Classes are lower-hanging fruit since frame assets exist.
 
 ---
@@ -251,13 +215,71 @@ Issue where subtracting chapters doesn't register as a change that needs Forging
 - "Add Subspell" toggle expands: Subspell Name, Mana (plain text), Type, Subtype, Rules
 - Maps to `card["subspell"]` — renderer already handles this
 
-### ⬜ 8d. Token flag
+### ✅ 8d. Token flag
 - "This is a Token" checkbox already in form → sets `front.token: 1`
 - Token cards already show "TOKEN" badge in gallery grid (implemented)
 
 ---
 
-## ⬜ Phase 11 — Unit Tests
+## ✅ Phase 6 — Create Card & Create Deck
+
+**Files changed:** `deck.html`, `app.py`, `helpers.py`, `index.html`, `style.css`, `main.js`, new `templates/create_deck.html`
+
+### 6a. Create Card
+- Already wired: `+ Create Card` button opens blank editor, always dirty
+- On Forge of a new card: placeholder entry added to deck JSON (`complete: 0`) and added to staging ✅
+- On Publish: card becomes permanent in deck JSON ✅
+
+### 6b. Create Deck ✅
+- `✚ New Deck` button on index page
+- `GET /deck/new` → `create_deck.html` with fields: Deck Name, Set Code (auto-computed, user-overridable), Format (default Commander), Description (optional)
+- Set code auto-computation (`compute_setname()` in `helpers.py`): strips "The/A/An", takes first 3 alpha letters uppercase, checks uniqueness against existing decks' `metadata.setname`, falls back to digit suffix (`SLI2`) then letter substitution
+- `/api/compute-setname?name=<n>` endpoint used by JS to preview the computed code as user types (debounced; stops updating if user edits the field)
+- `POST /deck/new` → creates folder + `Cards/`, `Tokens/`, `Artwork/`, `Printing/`, `Staging/` subdirs + deck JSON + empty `_staging.json` → redirect to `/deck/<name>#cards`
+
+### 6c. Set code in Deck Details header ✅
+- `Set: XXX` badge added to the deck title row, styled with a vertical `|` separator matching the format badge
+- Cockatrice exporter (`cockatrice.py`) updated to use `deck.setname` from metadata instead of always recomputing from name — so changing set code via UI takes effect on next Publish
+
+---
+
+## ✅ Phase 7a — Deck Info Editing (metadata fields)
+
+**Files changed:** `deck.html`, `app.py`, `style.css`, `main.js`
+
+### Completed
+- 🔨 Hammer icon buttons next to: deck name, format, Set code, and description in the deck header
+- Clicking a hammer opens a modal dialog with the appropriate field (text input, select dropdown, or textarea)
+- `POST /deck/<name>/update-metadata` saves changes and updates `last_modified`; JS updates all displayed values in-place without a page reload
+- Description consolidated into a single `deck-description-row` shown above the commander section regardless of whether commander is set
+
+## ⬜ Phase 7b — Token Association in Card Editor
+
+**Files to change:** `deck.html`, `app.py`, `style.css`
+
+- Collapsible "Tokens" section in editor right panel
+- Shows tokens detected from rules text via `token_parser.parse_tokens_from_rules_text()`
+- Per-token checkbox: "Disable auto-generation" → saves `disable_auto_tokens: true` in card JSON
+- On Forge: auto-forge + stage associated tokens (unless disabled)
+
+---
+
+## ⬜ Phase 11 — Detailed Token Support
+
+- Automatic token generation logic (needs some tuning and testing), plus the ability to disable automatic tokens.
+- Manual token editing within the Tokens tab.
+- More details to come
+
+---
+
+## ⬜ Phase 12 — Real Card Support
+
+- Adding real cards to deck through search functionality that goes through some API to find possible real MTG card names
+- Search for card/token arts for real cards by clicking the card image in the cards/tokens view of the Deck Details page and searching through existing printings (again may need to find some API that shows existing printings of a card)
+
+---
+
+## ⬜ Phase 13 — Unit Tests
 
 **New files:** `tests/test_ui/`, `tests/test_services/`
 
@@ -284,24 +306,24 @@ Issue where subtracting chapters doesn't register as a change that needs Forging
 | `src/ui/templates/deck.html` | Tab system, editor panel, tag section, token gallery, assembly line, confirm dialog ✅ |
 | `src/ui/static/js/main.js` | Tab switching, editor, filters, tag editing, Forge, Assembly Line, Publish ✅ |
 | `src/ui/static/css/style.css` | All new styles ✅ |
-| `src/ui/app.py` | Routes: card_data ✅, card-frames ✅, add/remove-card-tag ✅, forge ✅, discard ✅, publish ✅, assembly-line-data ✅, forge-all ✅ |
-| `src/ui/helpers.py` | Staging helpers ✅, card_from_editor_dict ✅, compute_setname ⬜ |
+| `src/ui/app.py` | Routes: card_data ✅, card-frames ✅, add/remove-card-tag ✅, forge ✅, discard ✅, publish ✅, assembly-line-data ✅, forge-all ✅, new_deck ✅, api_compute_setname ✅, update_deck_metadata ✅ |
+| `src/ui/helpers.py` | Staging helpers ✅, card_from_editor_dict ✅, compute_setname ✅ |
 | `src/services/image_generator.py` | Single-card render used by Forge ✅ |
 | `src/services/cockatrice_exporter.py` | Called from Publish endpoint ✅ |
+| `src/integration/cockatrice.py` | Uses `deck.setname` from metadata (not recomputed from name) ✅ |
 
-## New Files Needed
+## New Files Added
 
 | File | Purpose |
 |---|---|
-| `src/ui/templates/create_deck.html` | Create new deck form ⬜ |
+| `src/ui/templates/create_deck.html` | Create new deck form ✅ |
 
 ---
 
 ## Next Steps
 
 **Recommended order:**
-1. **Phase 8a remaining** — DFC dropdown sync, auto-select Transform on back face, `double_faced_type` passed to renderer
-2. **Phase 6** — Create Deck page (Create Card already works via Forge)
-3. **Phase 7** — Deck metadata editing + token association in editor
-4. **Phase 8b–d** — Multi-section rules text, subspells, token flag
-5. **Phase 11** — Unit tests
+1. **Phase 7b** — Token association in card editor
+2. **Phase 11** - Better token support
+3. **Phase 12** - Real card support
+4. **Phase 13** — Unit tests

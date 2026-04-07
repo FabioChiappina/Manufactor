@@ -10,10 +10,12 @@
 <div class="deck-details">
     <div class="deck-header">
         <div class="deck-title-row">
-            <h1>{{ deck.name }}</h1>
-            {% if deck.metadata.format %}
-            <span class="deck-format-badge">{{ deck.metadata.format }}</span>
-            {% endif %}
+            <h1 id="deck-display-name">{{ deck.name }}</h1>
+            <button class="hammer-btn" data-meta-field="deck_name" title="Edit deck name">🔨</button>
+            <span class="deck-format-badge" id="deck-display-format">{{ deck.metadata.format or 'Commander' }}</span>
+            <button class="hammer-btn" data-meta-field="format" title="Edit format">🔨</button>
+            <span class="deck-setcode-badge" id="deck-display-setname">Set: {{ deck.metadata.setname or 'UNK' }}</span>
+            <button class="hammer-btn" data-meta-field="setname" title="Edit set code">🔨</button>
         </div>
         <div class="deck-header-right">
             <span class="deck-card-count">{{ deck.total_cards }} Cards / {{ deck.unique_cards }} Unique / {{ deck.custom_cards }} Custom</span>
@@ -27,6 +29,15 @@
                 </button>
             </form>
         </div>
+    </div>
+
+    <div class="deck-description-row" id="deck-description-row">
+        {% if deck.metadata.description %}
+        <p class="deck-description-text" id="deck-display-description">{{ deck.metadata.description }}</p>
+        {% else %}
+        <p class="deck-description-text deck-description-empty" id="deck-display-description"></p>
+        {% endif %}
+        <button class="hammer-btn hammer-btn--description" data-meta-field="description" title="Edit description">🔨</button>
     </div>
 
     {% if deck.metadata.commander %}
@@ -72,17 +83,7 @@
             </div>
         </div>
     </div>
-    {% if deck.metadata.description %}
-    <div class="deck-info-card deck-description-full">
-        <p>{{ deck.metadata.description }}</p>
-    </div>
-    {% endif %}
     {% else %}
-    {% if deck.metadata.description %}
-    <div class="deck-info-card">
-        <p>{{ deck.metadata.description }}</p>
-    </div>
-    {% endif %}
     {% endif %}
 
     <!-- Mana Production Breakdown -->
@@ -499,6 +500,21 @@
                 <button id="confirm-publish-btn" class="btn btn-publish-large" style="flex:1">Publish</button>
                 <button id="confirm-review-btn" class="btn btn-secondary">Review Changes</button>
             </div>
+        </div>
+    </dialog>
+
+    <!-- ── Deck Metadata Edit Dialog ──────────────────────────────────── -->
+    <dialog id="meta-edit-dialog" class="confirm-dialog meta-edit-dialog"
+            data-deck-name="{{ deck.name | urlencode }}"
+            data-current-setname="{{ deck.metadata.setname or 'UNK' }}">
+        <div class="confirm-dialog-body">
+            <p class="confirm-dialog-message" id="meta-edit-title">Edit</p>
+            <div id="meta-edit-field-container" class="meta-edit-field-container"></div>
+            <div class="confirm-dialog-actions">
+                <button id="meta-edit-save-btn" class="btn btn-primary">Save</button>
+                <button id="meta-edit-cancel-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+            <p id="meta-edit-error" class="meta-edit-error" style="display:none"></p>
         </div>
     </dialog>
 

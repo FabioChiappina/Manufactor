@@ -24,6 +24,7 @@ from src.ui.helpers import (
     get_staging_path,
     get_card_image_base64,
     card_from_editor_dict,
+    compute_setname,
 )
 
 app = Flask(__name__)
@@ -55,6 +56,122 @@ def index():
 
     decks = get_decks_with_metadata(filter_status)
     return render_template('index.html', decks=decks, filter_status=filter_status)
+
+
+@app.route('/deck/new', methods=['GET', 'POST'])
+def new_deck():
+    """Create a new deck."""
+    import re
+    from datetime import datetime
+
+    if request.method == 'GET':
+        return render_template('create_deck.html')
+
+    deck_name = request.form.get('deck_name', '').strip()
+    setname_raw = request.form.get('setname', '').strip().upper()
+    description = request.form.get('description', '').strip()
+    format_ = request.form.get('format', 'Commander').strip()
+
+    if not deck_name:
+        flash('Deck name is required.', 'error')
+        return render_template('create_deck.html',
+                               deck_name=deck_name, setname=setname_raw,
+                               description=description, format=format_)
+
+    setname_val = setname_raw if setname_raw else compute_setname(deck_name)
+
+    # Build folder name: keep letters, digits, spaces, hyphens → replace spaces with underscores
+    folder_name = re.sub(r'[^\w\s-]', '', deck_name).strip().replace(' ', '_') or 'NewDeck'
+
+    settings = SettingsManager()
+    deck_path = settings.get_deck_path()
+    if not deck_path or not os.path.isdir(deck_path):
+        flash('Deck path is not configured or does not exist.', 'error')
+        return redirect(url_for('settings'))
+
+    # Resolve folder name collision
+    base_folder = folder_name
+    counter = 2
+    folder_path = os.path.join(deck_path, folder_name)
+    while os.path.exists(folder_path):
+        folder_name = f"{base_folder}_{counter}"
+        folder_path = os.path.join(deck_path, folder_name)
+        counter += 1
+
+    os.makedirs(folder_path)
+    for subdir in ('Cards', 'Tokens', 'Artwork', 'Printing', 'Staging'):
+        os.makedirs(os.path.join(folder_path, subdir), exist_ok=True)
+
+    now = datetime.utcnow().isoformat() + 'Z'
+    deck_json = {
+        'metadata': {
+            'folder_name': folder_name,
+            'deck_name': deck_name,
+            'description': description,
+            'format': format_,
+            'setname': setname_val,
+            'created': now,
+            'last_modified': now,
+            'complete': 0,
+            'tags': [],
+        },
+        'cards': {},
+        'tokens': {},
+    }
+
+    json_path = os.path.join(folder_path, f"{folder_name}.json")
+    with open(json_path, 'w') as f:
+        json.dump(deck_json, f, indent=2)
+
+    save_staging(folder_path, {})
+
+    flash(f'Deck "{deck_name}" created!', 'success')
+    return redirect(url_for('deck_details', deck_name=deck_name) + '#cards')
+
+
+@app.route('/api/compute-setname')
+def api_compute_setname():
+    """Auto-compute a set code from a deck name."""
+    name = request.args.get('name', '').strip()
+    exclude = request.args.get('exclude', None)
+    if not name:
+        return jsonify({'setname': ''})
+    return jsonify({'setname': compute_setname(name, exclude_setname=exclude)})
+
+
+@app.route('/deck/<deck_name>/update-metadata', methods=['POST'])
+def update_deck_metadata(deck_name):
+    """Update top-level deck metadata (name, description, format, setname)."""
+    from datetime import datetime
+    deck_name = unquote(deck_name)
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    data = request.get_json() or {}
+
+    json_path = deck_data['json_path']
+    with open(json_path, 'r') as f:
+        raw_deck = json.load(f)
+
+    metadata = raw_deck.setdefault('metadata', {})
+
+    if 'deck_name' in data and data['deck_name'].strip():
+        metadata['deck_name'] = data['deck_name'].strip()
+    if 'description' in data:
+        metadata['description'] = data['description'].strip()
+    if 'format' in data and data['format'].strip():
+        metadata['format'] = data['format'].strip()
+    if 'setname' in data and data['setname'].strip():
+        metadata['setname'] = data['setname'].strip().upper()
+
+    metadata['last_modified'] = datetime.utcnow().isoformat() + 'Z'
+
+    with open(json_path, 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    return jsonify({'success': True, 'metadata': metadata})
 
 
 @app.route('/deck/<deck_name>')

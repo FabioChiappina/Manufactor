@@ -49,7 +49,11 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
         json_filepath_tokens = COCKATRICE_MANUFACTOR_PATH
     if not json_filepath_tokens.endswith(".json"):
         json_filepath_tokens = os.path.join(json_filepath_tokens, "custom_tokens.json")
-    setname = CardSet.adjust_forbidden_custom_setname((deck.name.lower().replace("the ",""))[0:3].upper())
+    # Prefer stored setname from deck metadata; fall back to auto-computing from name
+    if deck.setname and deck.setname not in ('UNK', ''):
+        setname = deck.setname
+    else:
+        setname = CardSet.adjust_forbidden_custom_setname((deck.name.lower().replace("the ",""))[0:3].upper())
     # Get any tokens that must be updated in Cockatrice
     tokens_deck = None
     try:

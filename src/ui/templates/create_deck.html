@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}New Deck - Manufactor{% endblock %}
+
+{% block content %}
+<div class="page-header-row">
+    <div class="page-header">
+        <h2>New Deck</h2>
+        <p>Fill in the details to create a new deck.</p>
+    </div>
+</div>
+
+<div class="create-deck-form-container">
+    <form method="POST" action="/deck/new" class="create-deck-form" id="create-deck-form">
+
+        <div class="form-group">
+            <label for="deck_name">Deck Name <span class="field-required">*</span></label>
+            <input type="text" id="deck_name" name="deck_name"
+                   value="{{ deck_name or '' }}"
+                   placeholder="e.g. Sliver Hive"
+                   required autofocus autocomplete="off">
+        </div>
+
+        <div class="form-group">
+            <label for="setname">Set Code</label>
+            <div class="setname-input-row">
+                <input type="text" id="setname" name="setname"
+                       value="{{ setname or '' }}"
+                       placeholder="Auto"
+                       maxlength="3"
+                       autocomplete="off"
+                       style="width:90px; text-transform:uppercase;">
+                <span class="form-hint">3-letter code used in Cockatrice (auto-computed from deck name)</span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="format">Format</label>
+            <select id="format" name="format">
+                {% for fmt in ['Commander','Standard','Modern','Legacy','Vintage','Draft','Casual'] %}
+                <option value="{{ fmt }}" {% if (format or 'Commander') == fmt %}selected{% endif %}>{{ fmt }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description <span class="field-optional">(optional)</span></label>
+            <textarea id="description" name="description" rows="3"
+                      placeholder="Describe your deck strategy...">{{ description or '' }}</textarea>
+        </div>
+
+        <div class="create-deck-actions">
+            <a href="/" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">Create Deck</button>
+        </div>
+
+    </form>
+</div>
+
+<script>
+(function () {
+    var nameInput = document.getElementById('deck_name');
+    var setnameInput = document.getElementById('setname');
+    var userEditedSetname = setnameInput.value.length > 0;
+
+    setnameInput.addEventListener('input', function () {
+        userEditedSetname = setnameInput.value.length > 0;
+        setnameInput.value = setnameInput.value.toUpperCase();
+    });
+    setnameInput.addEventListener('change', function () {
+        if (!setnameInput.value) userEditedSetname = false;
+    });
+
+    var debounce = null;
+    nameInput.addEventListener('input', function () {
+        if (userEditedSetname) return;
+        clearTimeout(debounce);
+        debounce = setTimeout(function () {
+            var name = nameInput.value.trim();
+            if (!name) { setnameInput.placeholder = 'Auto'; return; }
+            fetch('/api/compute-setname?name=' + encodeURIComponent(name))
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (!userEditedSetname) {
+                        setnameInput.placeholder = d.setname || 'Auto';
+                    }
+                });
+        }, 280);
+    });
+}());
+</script>
+{% endblock %}
