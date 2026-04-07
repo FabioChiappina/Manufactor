@@ -234,18 +234,20 @@ Some card types use multiple named rules-text keys instead of a single `"rules"`
 | **Planeswalker** | `rules1`, `rules2`, `rules3` (+ loyalty costs) | Each loyalty ability is a separate field; loyalty cost (e.g. `+1`, `-2`, `-8`) is stored alongside each rules section |
 | **Class** | `rules1`, `rules2`, `rules3` | Each level-up tier has its own text block |
 
-**What needs to happen in the UI:**
 - When the card type is Saga, Planeswalker, or Class, the single Rules Text textarea should be replaced by a **dynamic multi-section editor**: one text area per chapter/ability, with `+` / `−` buttons to add or remove sections.
 - For Sagas specifically, the chapter label (I, II, III, …) should be shown automatically.
 - For Planeswalkers, each section needs an additional loyalty-cost input field (e.g. `"+1"`, `"−3"`, `"−8"`).
 - The form serializer/deserializer must map between `rules1`/`rules2`/etc. and the multi-section UI.
 - The renderer (`card_renderer.py`) already handles `rules1`/`rules2` for Sagas; check whether Planeswalker rendering is stubbed or fully absent before planning that sub-task.
 
+**What remains:**
+Issue where subtracting chapters doesn't register as a change that needs Forging.
+
 **Note:** Full Planeswalker support also requires new Photoshop frame assets and updated rendering code — treat this as a separate sub-epic within Phase 8. Sagas and Classes are lower-hanging fruit since frame assets exist.
 
 ---
 
-### ⬜ 8c. Subspells (Adventures, Omens)
+### ✅ 8c. Subspells (Adventures, Omens)
 - "Add Subspell" toggle expands: Subspell Name, Mana (plain text), Type, Subtype, Rules
 - Maps to `card["subspell"]` — renderer already handles this
 

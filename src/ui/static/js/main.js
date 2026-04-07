@@ -1061,6 +1061,13 @@ function _doBasicAction(color, action, btn) {
         return row;
     }
 
+    function _markSectionChange() {
+        // Structural add/remove is always a meaningful change — don't rely on JSON comparison.
+        if (!_currentCardName && !_isNewCard) return;
+        _editorIsDirty = true;
+        updateButtonStates();
+    }
+
     function _addSection() {
         var container = $id('ef-sections-container');
         if (!container) return;
@@ -1069,7 +1076,7 @@ function _doBasicAction(color, action, btn) {
             container.querySelectorAll('.ef-section-row').length,
             _multiSectionMode, '', '');
         container.appendChild(newRow);
-        onFormChange();
+        _markSectionChange();
     }
 
     function _renumberSections() {
@@ -2211,7 +2218,7 @@ function _doBasicAction(color, action, btn) {
                 if (rows.length <= 1) return;
                 e.target.closest('.ef-section-row').remove();
                 _renumberSections();
-                onFormChange();
+                _markSectionChange();
             });
         }
 
