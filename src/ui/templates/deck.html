@@ -117,7 +117,7 @@
     </div>
 
     <!-- ── Tab Navigation ────────────────────────────────────────────── -->
-    <div class="deck-tabs" data-staged-count="{{ staged_count }}" data-commander-names="{% if deck.metadata.commander is string %}{{ [deck.metadata.commander] | tojson }}{% elif deck.metadata.commander %}{{ deck.metadata.commander | tojson }}{% else %}[]{% endif %}">
+    <div class="deck-tabs" data-staged-count="{{ staged_count }}" data-commander-names="{% if deck.metadata.commander is string %}{{ [deck.metadata.commander] | tojson | forceescape }}{% elif deck.metadata.commander %}{{ deck.metadata.commander | tojson | forceescape }}{% else %}[]{% endif %}">
         <button class="deck-tab deck-tab--active" data-tab="cards">Cards<span class="tab-count">{{ deck.total_cards - deck.commander_count }}</span></button>
         <button class="deck-tab" data-tab="tokens">Tokens
             {% if deck.tokens %}<span class="tab-count">{{ deck.tokens | length }}</span>{% endif %}

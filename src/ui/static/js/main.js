@@ -1271,6 +1271,7 @@ function _doBasicAction(color, action, btn) {
         _currentCardName = cardName;
         _isNewCard       = false;
         _editorIsDirty   = false;
+        _editorOpenedAt  = Date.now();
         _currentFace     = 'front';
         _faceCache       = { front: {}, back: {} };
         _serverData      = null;
@@ -2377,6 +2378,7 @@ function _doBasicAction(color, action, btn) {
         var setCmdBtn = $id('set-commander-btn');
         if (setCmdBtn) setCmdBtn.addEventListener('click', function () {
             if (!_currentCardName) return;
+            if (Date.now() - _editorOpenedAt < 400) return;
             fetch('/deck/' + encodeURIComponent(_deckName) + '/toggle-commander', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2388,7 +2390,8 @@ function _doBasicAction(color, action, btn) {
                 _commanderNames = data.commanders;
                 _updateCommanderBtn(_currentCardName);
                 // Reload so the commander section in the deck header reflects the change
-                window.location.reload();
+                // Strip hash so the editor doesn't auto-reopen after reload
+                window.location.replace(window.location.pathname + window.location.search);
             })
             .catch(function () { alert('Failed to update commander status.'); });
         });
