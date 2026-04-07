@@ -9,6 +9,7 @@ import json
 import os
 import base64
 import io
+import unicodedata
 from pathlib import Path
 from PIL import Image, ImageDraw
 from src.services.settings_manager import SettingsManager
@@ -84,6 +85,15 @@ def get_available_decks():
     return sorted(decks, key=lambda x: x[0])
 
 
+_ARTWORK_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif']
+_APOSTROPHE_TABLE = str.maketrans({'\u2019': "'", '\u2018': "'", '\u02bc': "'"})
+
+
+def _normalize_artwork_name(s):
+    """Normalize a name for fuzzy file matching: NFC + lowercase + apostrophe variants → plain apostrophe."""
+    return unicodedata.normalize('NFC', s).lower().translate(_APOSTROPHE_TABLE)
+
+
 def get_card_artwork_path(deck_folder_path, card_name):
     """
     Get the file path for a card's artwork.
@@ -98,25 +108,36 @@ def get_card_artwork_path(deck_folder_path, card_name):
     if not card_name:
         return None
 
-    # Look for the artwork file in the Artwork subfolder
     artwork_folder = os.path.join(deck_folder_path, "Artwork")
     if not os.path.isdir(artwork_folder):
         return None
 
-    # List of card names to try (for double-faced cards)
     names_to_try = [card_name]
-
-    # If it's a double-faced card (contains " / "), try the front face
     if " / " in card_name:
-        front_face = card_name.split(" / ")[0]
-        names_to_try.append(front_face)
+        names_to_try.append(card_name.split(" / ")[0])
 
-    # Try to find the image file (support common image extensions)
+    # Fast path: exact filename match
     for name in names_to_try:
-        for ext in ['.jpg', '.jpeg', '.png', '.gif']:
-            artwork_path = os.path.join(artwork_folder, f"{name}{ext}")
-            if os.path.isfile(artwork_path):
-                return artwork_path
+        for ext in _ARTWORK_EXTENSIONS:
+            path = os.path.join(artwork_folder, f"{name}{ext}")
+            if os.path.isfile(path):
+                return path
+
+    # Fallback: scan directory with normalized comparison
+    # Handles apostrophe variants (U+0027 vs U+2019) and case differences
+    try:
+        files = os.listdir(artwork_folder)
+    except OSError:
+        return None
+
+    for name in names_to_try:
+        target = _normalize_artwork_name(name)
+        for f in files:
+            base, ext = os.path.splitext(f)
+            if ext.lower() not in _ARTWORK_EXTENSIONS:
+                continue
+            if _normalize_artwork_name(base) == target:
+                return os.path.join(artwork_folder, f)
 
     return None
 
@@ -455,10 +476,12 @@ def load_deck_by_name(deck_name):
                             commander_images.append(commander_img)
 
             # Get card images from Cards folder, excluding commanders
+            commander_cards = {}
             cards_with_images = {}
             for card_name, card_data in deck_data.get('cards', {}).items():
                 # Skip commander cards to avoid duplication
                 if card_name in commander_names:
+                    commander_cards[card_name] = card_data if isinstance(card_data, dict) else {}
                     continue
                 # Get the card image (from Cards folder, not Artwork folder)
                 card_image = get_card_image_base64(deck_folder_path, card_name)
@@ -552,6 +575,7 @@ def load_deck_by_name(deck_name):
                 'metadata': metadata,
                 'cards': cards_with_images,
                 'tokens': tokens_with_images,
+                'commander_cards': commander_cards,
                 'commander_images': commander_images if commander_images else None,
                 'total_cards': total_cards,
                 'unique_cards': unique_cards,

@@ -8,6 +8,14 @@ import unicodedata
 from typing import List
 
 
+_APOSTROPHE_TABLE = str.maketrans({'\u2019': "'", '\u2018': "'", '\u02bc': "'"})
+
+
+def _norm(s: str) -> str:
+    """NFC-normalize and collapse apostrophe variants to plain ASCII apostrophe."""
+    return unicodedata.normalize('NFC', s).translate(_APOSTROPHE_TABLE)
+
+
 def find_cards_with_card_name(
     cardname: str,
     search_path: str
@@ -27,9 +35,10 @@ def find_cards_with_card_name(
         List of matching filenames
     """
     matching_files = []
-    pattern1 = re.compile(rf"^{re.escape(unicodedata.normalize('NFC', cardname))}\.jpg$")
-    pattern2 = re.compile(rf"^{re.escape(unicodedata.normalize('NFC', cardname))}_\d+\.jpg$")
+    norm_name = _norm(cardname)
+    pattern1 = re.compile(rf"^{re.escape(norm_name)}\.jpg$")
+    pattern2 = re.compile(rf"^{re.escape(norm_name)}_\d+\.jpg$")
     for file in os.listdir(search_path):
-        if pattern1.match(unicodedata.normalize('NFC', file)) or pattern2.match(unicodedata.normalize('NFC', file)):
-            matching_files.append(unicodedata.normalize('NFC', file))
+        if pattern1.match(_norm(file)) or pattern2.match(_norm(file)):
+            matching_files.append(file)
     return matching_files

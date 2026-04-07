@@ -1019,9 +1019,8 @@ class CardDraw:
         """
         if artwork_path is None:
             artwork_path = os.path.join(".", "Artwork")
-        pattern1 = re.compile(rf"^{re.escape(self.card.name)}\.jpg$")
-        pattern2 = re.compile(rf"^{re.escape(self.card.name)}_\d+\.jpg$")
-        if not (pattern1.match(os.path.basename(artwork_path)) or pattern2.match(os.path.basename(artwork_path))):
+        # If artwork_path is a directory (not an existing file), build the filename from card name.
+        if not os.path.isfile(artwork_path):
             artwork_path = os.path.join(artwork_path, self.card.name+".jpg")
         try:
             artwork_image = Image.open(artwork_path)

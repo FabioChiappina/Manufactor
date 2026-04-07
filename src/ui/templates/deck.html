@@ -117,7 +117,7 @@
     </div>
 
     <!-- ── Tab Navigation ────────────────────────────────────────────── -->
-    <div class="deck-tabs" data-staged-count="{{ staged_count }}">
+    <div class="deck-tabs" data-staged-count="{{ staged_count }}" data-commander-names="{% if deck.metadata.commander is string %}{{ [deck.metadata.commander] | tojson }}{% elif deck.metadata.commander %}{{ deck.metadata.commander | tojson }}{% else %}[]{% endif %}">
         <button class="deck-tab deck-tab--active" data-tab="cards">Cards<span class="tab-count">{{ deck.total_cards - deck.commander_count }}</span></button>
         <button class="deck-tab" data-tab="tokens">Tokens
             {% if deck.tokens %}<span class="tab-count">{{ deck.tokens | length }}</span>{% endif %}
@@ -125,6 +125,7 @@
         <button class="deck-tab" data-tab="assembly">
             Assembly Line&nbsp;<span class="assembly-badge{% if staged_count > 0 %} assembly-badge--active{% endif %}" id="assembly-badge">{{ staged_count }}</span>
         </button>
+        <button class="deck-tab" data-tab="opening-hand">Opening Hand</button>
     </div>
 
     <!-- ── Cards Tab ─────────────────────────────────────────────────── -->
@@ -201,6 +202,23 @@
                 </div>
             </div>
 
+            <!-- Hidden stat items for commanders — picked up by charts/breakdown but excluded from gallery display -->
+            <div id="commander-stat-items" style="display:none" aria-hidden="true">
+                {% for cmd_name, cmd_data in deck.commander_cards.items() %}
+                <a class="card-gallery-item"
+                   data-card-name="{{ cmd_name }}"
+                   data-name="{{ cmd_name }}"
+                   data-cost="{{ cmd_data.cost or cmd_data.front.mana or '' if cmd_data.front is defined else cmd_data.cost or '' }}"
+                   data-cardtype="{{ cmd_data.cardtype or cmd_data.front.cardtype or '' if cmd_data.front is defined else cmd_data.cardtype or '' }}"
+                   data-subtype="{{ cmd_data.subtype or cmd_data.front.subtype or '' if cmd_data.front is defined else cmd_data.subtype or '' }}"
+                   data-basic="{{ cmd_data.basic or cmd_data.front.basic or '' if cmd_data.front is defined else cmd_data.basic or '' }}"
+                   data-quantity="1"
+                   data-commander-stat="true"
+                   data-real="{{ cmd_data.real or 0 }}"
+                   data-staged="false"></a>
+                {% endfor %}
+            </div>
+
             <div class="card-list">
                 <div class="card-gallery">
                     {% for card_name, card_data in deck.cards.items() %}
@@ -258,6 +276,8 @@
                     <button class="editor-mode-btn" data-mode="json">JSON</button>
                 </div>
                 <span id="editor-card-title" class="editor-card-title"></span>
+                <button id="delete-card-btn" class="btn btn-delete-card" style="display:none;" title="Stage this card for deletion">Delete Card</button>
+                <button id="set-commander-btn" class="btn btn-set-commander" style="display:none;" title="Toggle commander status for this card"></button>
                 <div class="editor-panel-actions">
                     <button id="forge-btn" class="btn btn-forge" disabled>Forge</button>
                     <button id="close-forge-btn" class="btn btn-close-forge" disabled>✕ Close &amp; Forge</button>
@@ -490,6 +510,17 @@
             <div class="assembly-loading" id="assembly-loading">Loading staged cards…</div>
         </div>
     </div><!-- #tab-assembly -->
+
+    <!-- ── Opening Hand Tab ─────────────────────────────────────────── -->
+    <div id="tab-opening-hand" class="tab-pane" style="display:none;">
+        <div class="oh-toolbar">
+            <button id="oh-restart-btn" class="btn btn-secondary">Restart</button>
+            <button id="oh-draw-btn" class="btn btn-primary" disabled>Draw</button>
+            <span id="oh-draw-status" class="oh-draw-status"></span>
+        </div>
+        <div id="oh-hand-row" class="oh-hand-row"></div>
+        <div id="oh-drawn-row" class="oh-drawn-row" style="display:none;"></div>
+    </div>
 
     <!-- ── Publish Confirm Dialog ─────────────────────────────────────── -->
     <dialog id="publish-confirm-dialog" class="confirm-dialog">

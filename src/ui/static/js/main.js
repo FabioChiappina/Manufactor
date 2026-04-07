@@ -267,8 +267,9 @@ function applyCardControls() {
     const allItems = [...getCanonicalItems()];
     if (!allItems.length) return;
 
-    // Apply filters
+    // Apply filters (commander stat items are always excluded from gallery display)
     const filteredItems = allItems.filter(function(item) {
+        if (item.dataset.commanderStat) return false;
         if (!matchesManaFilter(item, mvOp, mvValue)) return false;
         if (!matchesTypeFilter(item, typeFilter)) return false;
         if (legitimacyFilter === 'real'   && !(parseInt(item.dataset.real, 10) === 1)) return false;
@@ -918,6 +919,7 @@ function _doBasicAction(color, action, btn) {
     var _deckName        = '';
     var _currentCardName = null;
     var _isNewCard       = false;
+    var _editorOpenedAt  = 0;
     var _originalJson    = '';
     var _editorIsDirty   = false;
     var _editorMode      = 'form';
@@ -930,6 +932,11 @@ function _doBasicAction(color, action, btn) {
     var _deckTags        = [];   // all tags in the deck
     var _subspellActive  = false;
     var _multiSectionMode = null;   // null | 'saga' | 'class' | 'planeswalker'
+    var _commanderNames  = [];      // card names currently set as commanders
+    var _ohPool        = [];        // shuffled deck pool for Opening Hand
+    var _ohPosition    = 0;         // index of next card to deal from pool
+    var _ohDrawnCount  = 0;         // how many extra draws have been made
+    var _ohInitialized = false;     // whether the opening hand has been seeded
 
     // ── Tiny helpers ──────────────────────────────────────────────────────────
     function $id(id) { return document.getElementById(id); }
@@ -1218,7 +1225,7 @@ function _doBasicAction(color, action, btn) {
         document.querySelectorAll('.deck-tab').forEach(function (btn) {
             btn.classList.toggle('deck-tab--active', btn.dataset.tab === tabName);
         });
-        ['cards', 'tokens', 'assembly'].forEach(function (key) {
+        ['cards', 'tokens', 'assembly', 'opening-hand'].forEach(function (key) {
             var pane = $id('tab-' + key);
             if (!pane) return;
             var show = (key === tabName);
@@ -1227,12 +1234,14 @@ function _doBasicAction(color, action, btn) {
         });
         if (pushHash) history.replaceState(null, '', '#' + tabName);
         if (tabName === 'assembly') loadAssemblyLineData();
+        if (tabName === 'opening-hand') _ohInitOnFirstSwitch();
     }
 
     function handleHash(hash) {
         if (!hash || hash === '#' || hash === '#cards') { switchTab('cards', false); return; }
         if (hash === '#tokens')   { switchTab('tokens', false);   return; }
         if (hash === '#assembly') { switchTab('assembly', false); return; }
+        if (hash === '#opening-hand') { switchTab('opening-hand', false); return; }
         if (hash.startsWith('#edit/')) {
             var cardName = decodeURIComponent(hash.slice(6));
             switchTab('cards', false);
@@ -1247,6 +1256,16 @@ function _doBasicAction(color, action, btn) {
         switchTab('cards', false);
     }
 
+    // ── Commander Button ──────────────────────────────────────────────────────
+    function _updateCommanderBtn(cardName) {
+        var btn = $id('set-commander-btn');
+        if (!btn) return;
+        var isCmd = _commanderNames.indexOf(cardName) !== -1;
+        btn.textContent = isCmd ? '★ Unset as Commander' : '☆ Set As Commander';
+        btn.classList.toggle('btn-set-commander--active', isCmd);
+        btn.style.display = '';
+    }
+
     // ── Open / Close Editor ───────────────────────────────────────────────────
     function openCardEditor(cardName) {
         _currentCardName = cardName;
@@ -1257,6 +1276,9 @@ function _doBasicAction(color, action, btn) {
         _serverData      = null;
 
         $id('editor-card-title').textContent = cardName;
+        _updateCommanderBtn(cardName);
+        var delBtn = $id('delete-card-btn');
+        if (delBtn) delBtn.style.display = '';
         $id('cards-tab-main').style.display  = 'none';
         $id('card-editor-panel').style.display = '';
 
@@ -1283,6 +1305,7 @@ function _doBasicAction(color, action, btn) {
                 _deckTags    = Array.isArray(data._deck_tags) ? data._deck_tags.slice() : [];
                 renderTags();
                 updateButtonStates();
+                _updateCommanderBtn(_currentCardName);
             })
             .catch(function () { setArtworkStatus('missing', 'Failed to load card'); });
     }
@@ -1298,6 +1321,10 @@ function _doBasicAction(color, action, btn) {
         _setSubspellActive(false);
 
         $id('editor-card-title').textContent  = 'New Card';
+        var scBtn = $id('set-commander-btn');
+        if (scBtn) scBtn.style.display = 'none';
+        var delBtn2 = $id('delete-card-btn');
+        if (delBtn2) delBtn2.style.display = 'none';
         $id('cards-tab-main').style.display   = 'none';
         $id('card-editor-panel').style.display = '';
 
@@ -1328,6 +1355,10 @@ function _doBasicAction(color, action, btn) {
         updatePreview(null);
         setArtworkStatus('', '');
         $id('editor-card-title').textContent = '';
+        var scBtn = $id('set-commander-btn');
+        if (scBtn) scBtn.style.display = 'none';
+        var delBtnC = $id('delete-card-btn');
+        if (delBtnC) delBtnC.style.display = 'none';
 
         $id('card-editor-panel').style.display = 'none';
         $id('cards-tab-main').style.display    = '';
@@ -1878,8 +1909,8 @@ function _doBasicAction(color, action, btn) {
         header.className = 'assembly-card-header';
 
         var label = document.createElement('div');
-        label.className = 'assembly-card-label';
-        label.textContent = item.card_name + (item.is_new ? ' (new)' : '');
+        label.className = 'assembly-card-label' + (item.pending_delete ? ' assembly-card-label--delete' : '');
+        label.textContent = item.card_name + (item.is_new ? ' (new)' : '') + (item.pending_delete ? ' — pending delete' : '');
         label.title = item.card_name;
 
         var discardBtn = document.createElement('button');
@@ -1945,8 +1976,13 @@ function _doBasicAction(color, action, btn) {
         stgWrap.className = 'assembly-img-wrap';
         var stgCaption = document.createElement('div');
         stgCaption.className = 'assembly-img-caption';
-        stgCaption.textContent = 'Staged';
-        if (item.staged_image_base64) {
+        stgCaption.textContent = item.pending_delete ? 'Result' : 'Staged';
+        if (item.pending_delete) {
+            var deleteBanner = document.createElement('div');
+            deleteBanner.className = 'assembly-delete-banner';
+            deleteBanner.textContent = '✕ DELETED';
+            stgWrap.appendChild(deleteBanner);
+        } else if (item.staged_image_base64) {
             stgImgEl = document.createElement('div');
             stgImgEl.className = 'assembly-img-inner';
             var stgImg = document.createElement('img');
@@ -2066,19 +2102,6 @@ function _doBasicAction(color, action, btn) {
                 }
 
                 _updatePublishBar(0);
-                loadAssemblyLineData();
-
-                // Clear staged-overlay badges and update data-staged in gallery
-                document.querySelectorAll('.card-gallery-item[data-staged="true"]').forEach(function (item) {
-                    item.dataset.staged = 'false';
-                    var ov = item.querySelector('.staged-overlay');
-                    if (ov) ov.remove();
-                });
-
-                // Refresh card images in the gallery for each published card
-                if (data.published_cards && data.published_cards.length) {
-                    _refreshGalleryImages(data.published_cards);
-                }
 
                 // Show publish log
                 if (logEl) {
@@ -2088,6 +2111,7 @@ function _doBasicAction(color, action, btn) {
                     if (data.cockatrice_ok === true)  entries.push({ ok: true,  text: 'Cockatrice export complete' });
                     if (data.cockatrice_ok === false) entries.push({ ok: false, text: 'Cockatrice export failed — check server log' });
                     if (data.cockatrice_ok === null)  entries.push({ ok: null,  text: 'Cockatrice not configured — skipped' });
+                    entries.push({ ok: null, text: 'Refreshing\u2026' });
                     logEl.innerHTML = entries.map(function(e) {
                         var cls = e.ok === true ? 'publish-log-ok' : e.ok === false ? 'publish-log-err' : 'publish-log-skip';
                         var icon = e.ok === true ? '\u2713' : e.ok === false ? '\u2717' : '\u2014';
@@ -2095,42 +2119,16 @@ function _doBasicAction(color, action, btn) {
                     }).join('');
                     logEl.style.display = '';
                 }
+
+                // Reload so Cards/Tokens galleries reflect all published changes
+                // (handles new cards, token images, complete-status updates, etc.)
+                setTimeout(function () { window.location.reload(); }, 1200);
             })
             .catch(function () {
                 if (confirmBtn) confirmBtn.disabled = false;
                 _showToast('Publish error \u2014 check server log', 'error');
                 if (publishBtn) publishBtn.disabled = (_stagedCount === 0);
             });
-    }
-
-    function _refreshGalleryImages(cardNames) {
-        cardNames.forEach(function (cardName) {
-            fetch('/deck/' + encodeURIComponent(_deckName) + '/card-data?name=' + encodeURIComponent(cardName))
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    if (!data.image_base64) return;
-                    var galItem = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
-                    if (!galItem) return;
-                    var img = galItem.querySelector('.card-image');
-                    if (img) {
-                        img.src = data.image_base64;
-                    } else {
-                        // Was a placeholder — replace with an image container
-                        var placeholder = galItem.querySelector('.card-image-placeholder');
-                        if (placeholder) {
-                            var con = document.createElement('div');
-                            con.className = 'card-image-container';
-                            var newImg = document.createElement('img');
-                            newImg.src = data.image_base64;
-                            newImg.alt = cardName;
-                            newImg.className = 'card-image';
-                            con.appendChild(newImg);
-                            placeholder.replaceWith(con);
-                        }
-                    }
-                })
-                .catch(function () {});
-        });
     }
 
     function _showToast(message, type) {
@@ -2145,6 +2143,97 @@ function _doBasicAction(color, action, btn) {
         }, 5000);
     }
 
+    // ── Opening Hand ──────────────────────────────────────────────────────────
+
+    function _buildDeckPool() {
+        var pool  = [];
+        var items = document.querySelectorAll('#cards-tab-main .card-gallery .card-gallery-item[data-card-name]');
+        items.forEach(function (item) {
+            var name = item.dataset.cardName;
+            if (_commanderNames.indexOf(name) !== -1) return;
+            var qty = parseInt(item.dataset.quantity, 10) || 1;
+            var img = item.querySelector('img.card-image');
+            var src = img ? img.getAttribute('src') : '';
+            for (var i = 0; i < qty; i++) {
+                pool.push({ name: name, src: src });
+            }
+        });
+        return pool;
+    }
+
+    function _shufflePool(arr) {
+        var a = arr.slice();
+        for (var i = a.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var t = a[i]; a[i] = a[j]; a[j] = t;
+        }
+        return a;
+    }
+
+    function _makeOhCard(card) {
+        var div = document.createElement('div');
+        div.className = 'oh-card';
+        if (card.src) {
+            var img = document.createElement('img');
+            img.src = card.src;
+            img.alt = card.name;
+            img.className = 'oh-card-img';
+            div.appendChild(img);
+        } else {
+            var span = document.createElement('span');
+            span.textContent = card.name;
+            div.appendChild(span);
+            div.classList.add('oh-card--placeholder');
+        }
+        return div;
+    }
+
+    function _updateOhUi() {
+        var drawBtn  = $id('oh-draw-btn');
+        var statusEl = $id('oh-draw-status');
+        var drawnRow = $id('oh-drawn-row');
+        var canDraw  = _ohDrawnCount < 7 && _ohPosition < _ohPool.length;
+        if (drawBtn)  drawBtn.disabled = !canDraw;
+        if (statusEl) {
+            statusEl.textContent = _ohDrawnCount > 0
+                ? (_ohDrawnCount + '\u202f/\u202f7 extra card' + (_ohDrawnCount !== 1 ? 's' : '') + ' drawn')
+                : '';
+        }
+        if (drawnRow) drawnRow.style.display = _ohDrawnCount > 0 ? '' : 'none';
+    }
+
+    function initOpeningHand() {
+        _ohPool        = _shufflePool(_buildDeckPool());
+        _ohPosition    = Math.min(7, _ohPool.length);
+        _ohDrawnCount  = 0;
+        _ohInitialized = true;
+
+        var handRow  = $id('oh-hand-row');
+        var drawnRow = $id('oh-drawn-row');
+        if (!handRow) return;
+
+        handRow.innerHTML  = '';
+        drawnRow.innerHTML = '';
+
+        for (var i = 0; i < _ohPosition; i++) {
+            handRow.appendChild(_makeOhCard(_ohPool[i]));
+        }
+        _updateOhUi();
+    }
+
+    function _ohDraw() {
+        if (_ohDrawnCount >= 7 || _ohPosition >= _ohPool.length) return;
+        var card     = _ohPool[_ohPosition++];
+        _ohDrawnCount++;
+        var drawnRow = $id('oh-drawn-row');
+        if (drawnRow) drawnRow.appendChild(_makeOhCard(card));
+        _updateOhUi();
+    }
+
+    function _ohInitOnFirstSwitch() {
+        if (!_ohInitialized) initOpeningHand();
+    }
+
     // ── Bootstrap ─────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', function () {
         var tabsEl = document.querySelector('.deck-tabs');
@@ -2152,8 +2241,9 @@ function _doBasicAction(color, action, btn) {
 
         // Deck name from URL: /deck/<name>
         var parts = window.location.pathname.split('/');
-        _deckName    = parts[2] ? decodeURIComponent(parts[2]) : '';
-        _stagedCount = parseInt(tabsEl.dataset.stagedCount || '0', 10);
+        _deckName       = parts[2] ? decodeURIComponent(parts[2]) : '';
+        _stagedCount    = parseInt(tabsEl.dataset.stagedCount || '0', 10);
+        try { _commanderNames = JSON.parse(tabsEl.dataset.commanderNames || '[]'); } catch (e) { _commanderNames = []; }
 
         // Tab buttons
         tabsEl.querySelectorAll('.deck-tab').forEach(function (btn) {
@@ -2283,6 +2373,44 @@ function _doBasicAction(color, action, btn) {
             }
         });
 
+        // Set As Commander button
+        var setCmdBtn = $id('set-commander-btn');
+        if (setCmdBtn) setCmdBtn.addEventListener('click', function () {
+            if (!_currentCardName) return;
+            fetch('/deck/' + encodeURIComponent(_deckName) + '/toggle-commander', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ card_name: _currentCardName })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) { alert('Error: ' + data.error); return; }
+                _commanderNames = data.commanders;
+                _updateCommanderBtn(_currentCardName);
+                // Reload so the commander section in the deck header reflects the change
+                window.location.reload();
+            })
+            .catch(function () { alert('Failed to update commander status.'); });
+        });
+
+        // Delete Card button
+        var deleteCardBtn = $id('delete-card-btn');
+        if (deleteCardBtn) deleteCardBtn.addEventListener('click', function () {
+            if (!_currentCardName) return;
+            if (!confirm('Stage "' + _currentCardName + '" for deletion?\n\nThe card will be removed from the deck when you publish the Assembly Line.')) return;
+            fetch('/deck/' + encodeURIComponent(_deckName) + '/stage-delete?name=' + encodeURIComponent(_currentCardName), {
+                method: 'POST'
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) { alert('Error: ' + data.error); return; }
+                _updatePublishBar(data.staged_count);
+                closeCardEditor(true);
+                switchTab('assembly', true);
+            })
+            .catch(function (err) { alert('Failed to stage deletion: ' + err); });
+        });
+
         // Forge buttons
         var forgeBtn = $id('forge-btn');
         if (forgeBtn) forgeBtn.addEventListener('click', function () { onForgeClick(false); });
@@ -2292,6 +2420,12 @@ function _doBasicAction(color, action, btn) {
         // Create Card button
         var createCardBtn = $id('create-card-btn');
         if (createCardBtn) createCardBtn.addEventListener('click', openNewCardEditor);
+
+        // Opening Hand buttons
+        var ohRestartBtn = $id('oh-restart-btn');
+        if (ohRestartBtn) ohRestartBtn.addEventListener('click', initOpeningHand);
+        var ohDrawBtn = $id('oh-draw-btn');
+        if (ohDrawBtn) ohDrawBtn.addEventListener('click', _ohDraw);
 
         // Assembly Line buttons
         var forgeAllBtn = $id('forge-all-btn');

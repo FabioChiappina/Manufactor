@@ -23,6 +23,7 @@ from src.ui.helpers import (
     save_staging,
     get_staging_path,
     get_card_image_base64,
+    get_card_artwork_path,
     card_from_editor_dict,
     compute_setname,
 )
@@ -181,6 +182,54 @@ def update_deck_metadata(deck_name):
         json.dump(raw_deck, f, indent=2)
 
     return jsonify({'success': True, 'metadata': metadata})
+
+
+@app.route('/deck/<deck_name>/toggle-commander', methods=['POST'])
+def toggle_commander(deck_name):
+    """Add or remove a card from the deck's commander list."""
+    from datetime import datetime
+    deck_name = unquote(deck_name)
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    data = request.get_json() or {}
+    card_name = data.get('card_name', '').strip()
+    if not card_name:
+        return jsonify({'error': 'card_name required'}), 400
+
+    json_path = deck_data['json_path']
+    with open(json_path, 'r') as f:
+        raw_deck = json.load(f)
+
+    metadata = raw_deck.setdefault('metadata', {})
+    commander = metadata.get('commander', [])
+
+    # Normalize to list
+    if isinstance(commander, str):
+        commander = [commander] if commander else []
+    elif not isinstance(commander, list):
+        commander = []
+
+    if card_name in commander:
+        commander.remove(card_name)
+        is_commander = False
+    else:
+        commander.append(card_name)
+        is_commander = True
+
+    if not commander:
+        metadata.pop('commander', None)
+    else:
+        metadata['commander'] = commander
+
+    metadata['last_modified'] = datetime.utcnow().isoformat() + 'Z'
+
+    with open(json_path, 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    return jsonify({'success': True, 'is_commander': is_commander, 'commanders': commander})
 
 
 @app.route('/deck/<deck_name>')
@@ -432,21 +481,9 @@ def card_data(deck_name):
             card_json = dict(card)
 
     # Check whether artwork exists for this card
-    artwork_folder = os.path.join(folder_path, 'Artwork')
-    artwork_found = False
-    artwork_hint = None
-    names_to_check = [card_name]
-    if ' / ' in card_name:
-        names_to_check.append(card_name.split(' / ')[0])
-    for name in names_to_check:
-        for ext in ['.jpg', '.jpeg', '.png']:
-            candidate = os.path.join(artwork_folder, f"{name}{ext}")
-            if os.path.isfile(candidate):
-                artwork_found = True
-                artwork_hint = f"Artwork/{name}{ext}"
-                break
-        if artwork_found:
-            break
+    artwork_path = get_card_artwork_path(folder_path, card_name)
+    artwork_found = artwork_path is not None
+    artwork_hint = f"Artwork/{os.path.basename(artwork_path)}" if artwork_path else None
 
     card_json['_artwork_found'] = artwork_found
     card_json['_artwork_hint'] = artwork_hint
@@ -614,13 +651,22 @@ def _do_forge(deck_data, card_name, is_new, data):
         success = gen.generate_single_card_image(card, save_path=staging_dir, include_printing=False)
         if not success:
             return jsonify({'error': f'Image generation failed for "{card.name}"'}), 500
-        # Read the generated image back as base64
+        # Read the generated image back as base64.
+        # The renderer names the output after the artwork file, which may differ
+        # in apostrophe variant (e.g. U+2019 vs U+0027).  Normalize both sides,
+        # then rename the file to the canonical card.name so all downstream
+        # lookups (staging sidecar, assembly line, publish) use a consistent path.
+        def _anorm(s):
+            return s.replace('\u2019', "'").replace('\u2018', "'").replace('\u02bc', "'").lower()
         img_path = os.path.join(staging_dir, f"{card.name}.jpg")
         if not os.path.isfile(img_path):
-            # Renderer may have used the artwork filename — find it
+            canon = _anorm(card.name)
             for fname in sorted(os.listdir(staging_dir)):
-                if fname.startswith(card.name) and fname.endswith('.jpg'):
-                    img_path = os.path.join(staging_dir, fname)
+                if not fname.endswith('.jpg'):
+                    continue
+                if _anorm(fname[:-4]) == canon:
+                    actual = os.path.join(staging_dir, fname)
+                    os.rename(actual, img_path)
                     break
         if os.path.isfile(img_path):
             with open(img_path, 'rb') as f:
@@ -728,6 +774,7 @@ def assembly_line_data(deck_name):
         items.append({
             'card_name': card_name,
             'is_new': entry.get('is_new', False),
+            'pending_delete': entry.get('pending_delete', False),
             'original_image_base64': original_b64,
             'staged_image_base64': staged_b64,
             'original_back_image_base64': orig_back_b64,
@@ -785,6 +832,57 @@ def discard_card(deck_name):
 
     save_staging(folder_path, staging)
     return jsonify({'staged_count': len(staging)})
+
+
+@app.route('/deck/<deck_name>/stage-delete', methods=['POST'])
+def stage_delete(deck_name):
+    """Stage a card for deletion; the removal is applied when the assembly line is published."""
+    deck_name = unquote(deck_name)
+    card_name = request.args.get('name', '').strip()
+    if not card_name:
+        return jsonify({'error': 'name required'}), 400
+
+    try:
+        deck_data = load_deck_by_name(deck_name)
+        if not deck_data:
+            return jsonify({'error': 'Deck not found'}), 404
+
+        folder_path = deck_data['folder_path']
+        staging = load_staging(folder_path)
+
+        with open(deck_data['json_path'], 'r') as f:
+            raw_deck = json.load(f)
+        original = raw_deck.get('cards', {}).get(card_name, {})
+
+        # Discard any existing staged image for this card first
+        staging_dir = get_staging_path(folder_path)
+        old_entry = staging.get(card_name, {})
+        old_front = old_entry.get('front_name') or card_name
+        old_updated = old_entry.get('updated') or {}
+        old_back_name = (old_updated.get('back') or {}).get('name', '')
+
+        for fname in [f"{old_front}.jpg"] + ([f"{old_back_name}.jpg"] if old_back_name else []):
+            p = os.path.join(staging_dir, fname)
+            if os.path.isfile(p):
+                os.remove(p)
+
+        # Preserve is_new from the old entry so the assembly line shows the correct
+        # placeholder ("New Card" vs "No Image") for cards that were never published.
+        was_new = old_entry.get('is_new', False)
+
+        staging[card_name] = {
+            'original': original,
+            'updated': None,
+            'front_name': card_name,
+            'pending_delete': True,
+            'is_new': was_new,
+        }
+        save_staging(folder_path, staging)
+        return jsonify({'success': True, 'staged_count': len(staging)})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to stage deletion: {e}'}), 500
 
 
 @app.route('/deck/<deck_name>/forge-all', methods=['POST'])
@@ -872,6 +970,15 @@ def publish_assembly_line(deck_name):
     printing_ok = True
 
     for card_name, entry in staging.items():
+        # Pending-delete: remove from deck JSON and Cards/ image
+        if entry.get('pending_delete'):
+            raw_deck.get('cards', {}).pop(card_name, None)
+            card_img = os.path.join(cards_dir, f"{card_name}.jpg")
+            if os.path.isfile(card_img):
+                os.remove(card_img)
+            cards_updated += 1
+            continue
+
         front_name = entry.get('front_name') or card_name
         # Copy staged image → Cards/
         staged_img = os.path.join(staging_dir, f"{front_name}.jpg")
@@ -926,7 +1033,8 @@ def publish_assembly_line(deck_name):
         staged_img = os.path.join(staging_dir, f"{entry_front}.jpg")
         if os.path.isfile(staged_img):
             os.remove(staged_img)
-        back_face_name = (entry.get('updated', {}).get('back') or {}).get('name')
+        updated_entry = entry.get('updated') or {}
+        back_face_name = (updated_entry.get('back') or {}).get('name')
         if back_face_name:
             staged_back = os.path.join(staging_dir, f"{back_face_name}.jpg")
             if os.path.isfile(staged_back):
