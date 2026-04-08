@@ -231,7 +231,7 @@ function matchesTypeFilter(item, typeFilter) {
         case 'instant-sorcery':    return ct.includes('instant') || ct.includes('sorcery');
         case 'planeswalker':       return ct.includes('planeswalker');
         case 'nonland':            return !ct.includes('land');
-        case 'noncreature-nonland':return !ct.includes('creature') && !ct.includes('land');
+        case 'noncreature':        return !ct.includes('creature');
         case 'other':
             return !ct.includes('creature') && !ct.includes('artifact') &&
                    !ct.includes('enchantment') && !ct.includes('land') &&
@@ -933,6 +933,13 @@ function _doBasicAction(color, action, btn) {
     var _subspellActive  = false;
     var _multiSectionMode = null;   // null | 'saga' | 'class' | 'planeswalker'
     var _commanderNames  = [];      // card names currently set as commanders
+
+    // ── Real Card Dialog state ─────────────────────────────────────────────────
+    var _rcdMode           = 'add';  // 'add' | 'edit'
+    var _rcdSelectedCard   = null;   // card object from Scryfall search
+    var _rcdSelectedPrinting = null; // printing object from Scryfall
+    var _rcdSearchTimer    = null;
+    var _rcdCardBeingEdited = null;  // card name when mode === 'edit'
     var _ohPool        = [];        // shuffled deck pool for Opening Hand
     var _ohPosition    = 0;         // index of next card to deal from pool
     var _ohDrawnCount  = 0;         // how many extra draws have been made
@@ -1269,6 +1276,17 @@ function _doBasicAction(color, action, btn) {
 
     // ── Open / Close Editor ───────────────────────────────────────────────────
     function openCardEditor(cardName) {
+        // If this is a real card, open the real card editor dialog instead
+        var _galEl = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
+        if (!_galEl) {
+            _galEl = document.querySelector('#commander-stat-items [data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
+        }
+        if (_galEl && parseInt(_galEl.dataset.real, 10) === 1) {
+            history.replaceState(null, '', '#cards');
+            openRealCardEditorForCard(cardName);
+            return;
+        }
+
         _currentCardName = cardName;
         _isNewCard       = false;
         _editorIsDirty   = false;
@@ -1366,6 +1384,337 @@ function _doBasicAction(color, action, btn) {
         $id('cards-tab-main').style.display    = '';
 
         if (updateHash !== false) history.replaceState(null, '', '#cards');
+    }
+
+    // ── Real Card Dialog ──────────────────────────────────────────────────────
+
+    function openRealCardDialogAdd() {
+        _rcdMode            = 'add';
+        _rcdSelectedCard    = null;
+        _rcdSelectedPrinting = null;
+        _rcdCardBeingEdited = null;
+
+        var dialog = $id('real-card-dialog');
+        if (!dialog) return;
+
+        $id('rcd-title').textContent              = 'Add Real Card';
+        $id('rcd-search-section').style.display   = '';
+        $id('rcd-card-name-row').style.display    = 'none';
+        $id('rcd-printing-section').style.display = 'none';
+        var addBtn = $id('rcd-add-btn');
+        if (addBtn) { addBtn.textContent = 'Add to Deck'; addBtn.disabled = true; }
+        var delBtn = $id('rcd-delete-btn');
+        if (delBtn) delBtn.style.display = 'none';
+        $id('rcd-quantity').value = '1';
+        $id('rcd-search-input').value = '';
+        $id('rcd-search-results').innerHTML = '';
+        $id('rcd-search-results').style.display = 'none';
+        $id('rcd-search-status').style.display = 'none';
+        _rcdClearStatus();
+
+        dialog.showModal();
+        setTimeout(function () { var inp = $id('rcd-search-input'); if (inp) inp.focus(); }, 50);
+    }
+
+    function openRealCardEditorForCard(cardName) {
+        _rcdMode            = 'edit';
+        _rcdSelectedCard    = null;
+        _rcdSelectedPrinting = null;
+        _rcdCardBeingEdited = cardName;
+
+        var dialog = $id('real-card-dialog');
+        if (!dialog) return;
+
+        $id('rcd-title').textContent              = 'Edit Real Card';
+        $id('rcd-search-section').style.display   = 'none';
+        $id('rcd-card-name-row').style.display    = '';
+        $id('rcd-card-name-display').textContent  = cardName;
+        $id('rcd-printing-section').style.display = '';
+        $id('rcd-printing-list').innerHTML        = '';
+        $id('rcd-printings-loading').style.display = '';
+        $id('rcd-preview-img').style.display       = 'none';
+        $id('rcd-preview-placeholder').style.display = '';
+        $id('rcd-preview-placeholder').textContent   = 'Select a printing';
+        var addBtn = $id('rcd-add-btn');
+        if (addBtn) { addBtn.textContent = 'Update Card'; addBtn.disabled = true; }
+        var delBtn = $id('rcd-delete-btn');
+        if (delBtn) delBtn.style.display = '';
+        _rcdClearStatus();
+
+        var galItem = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
+        var qtyEl = $id('rcd-quantity');
+        if (qtyEl) qtyEl.value = galItem ? (parseInt(galItem.dataset.quantity, 10) || 1) : 1;
+
+        dialog.showModal();
+
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/card-data?name=' + encodeURIComponent(cardName))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                _rcdSelectedCard = { name: cardName };
+                _rcdLoadPrintings(cardName, data.scryfall_id || null);
+            })
+            .catch(function () { _rcdShowStatus('error', 'Failed to load card data.'); });
+    }
+
+    function _rcdClearStatus() {
+        var el = $id('rcd-status');
+        if (!el) return;
+        el.style.display = 'none'; el.textContent = ''; el.className = 'rcd-status';
+    }
+
+    function _rcdShowStatus(type, msg) {
+        var el = $id('rcd-status');
+        if (!el) return;
+        el.textContent = msg; el.className = 'rcd-status rcd-status--' + type; el.style.display = '';
+    }
+
+    function _rcdGetColors() {
+        var colors = '';
+        ['w', 'u', 'b', 'r', 'g'].forEach(function (c) {
+            var cb = $id('rcd-color-' + c);
+            if (cb && cb.checked) colors += c;
+        });
+        return colors || 'wubrg';
+    }
+
+    function _rcdDoSearch() {
+        var q = ($id('rcd-search-input').value || '').trim();
+        var statusEl  = $id('rcd-search-status');
+        var resultsEl = $id('rcd-search-results');
+        if (q.length < 2) { resultsEl.style.display = 'none'; statusEl.style.display = 'none'; return; }
+
+        statusEl.textContent = 'Searching\u2026'; statusEl.style.display = '';
+        resultsEl.style.display = 'none';
+
+        fetch('/api/scryfall/search?q=' + encodeURIComponent(q) + '&colors=' + encodeURIComponent(_rcdGetColors()))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                statusEl.style.display = 'none';
+                var cards = data.cards || [];
+                resultsEl.innerHTML = '';
+                if (cards.length === 0) {
+                    resultsEl.innerHTML = '<div class="rcd-no-results">No cards found.</div>';
+                    resultsEl.style.display = ''; return;
+                }
+                cards.forEach(function (card) {
+                    var item = document.createElement('div');
+                    item.className = 'rcd-result-item';
+                    var nameEl = document.createElement('span');
+                    nameEl.className = 'rcd-result-name'; nameEl.textContent = card.name;
+                    var typeEl = document.createElement('span');
+                    typeEl.className = 'rcd-result-type'; typeEl.textContent = card.type_line || '';
+                    item.appendChild(nameEl); item.appendChild(typeEl);
+                    item.addEventListener('click', function () { _rcdSelectCard(card); });
+                    resultsEl.appendChild(item);
+                });
+                resultsEl.style.display = '';
+            })
+            .catch(function () { statusEl.textContent = 'Search failed. Check your connection.'; });
+    }
+
+    function _rcdSelectCard(card) {
+        _rcdSelectedCard = card; _rcdSelectedPrinting = null;
+        $id('rcd-search-results').style.display = 'none';
+        $id('rcd-search-status').style.display  = 'none';
+        $id('rcd-search-input').value = card.name;
+        $id('rcd-printing-section').style.display    = '';
+        $id('rcd-printing-list').innerHTML           = '';
+        $id('rcd-printings-loading').style.display   = '';
+        $id('rcd-preview-img').style.display         = 'none';
+        $id('rcd-preview-placeholder').style.display = '';
+        $id('rcd-preview-placeholder').textContent   = 'Select a printing';
+        var addBtn = $id('rcd-add-btn'); if (addBtn) addBtn.disabled = true;
+        _rcdLoadPrintings(card.name, null);
+    }
+
+    function _rcdLoadPrintings(cardName, currentScryfallId) {
+        fetch('/api/scryfall/printings?name=' + encodeURIComponent(cardName))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var loadingEl = $id('rcd-printings-loading');
+                if (loadingEl) loadingEl.style.display = 'none';
+                var listEl = $id('rcd-printing-list');
+                listEl.innerHTML = '';
+                var printings = data.printings || [];
+                if (printings.length === 0) {
+                    listEl.innerHTML = '<div class="rcd-no-results">No printings found.</div>'; return;
+                }
+                var preSelected = null;
+                printings.forEach(function (printing) {
+                    var item = document.createElement('div');
+                    item.className = 'rcd-printing-item';
+                    if (currentScryfallId && printing.id === currentScryfallId) {
+                        item.classList.add('rcd-printing-item--selected');
+                        preSelected = printing;
+                    }
+                    var setCode = document.createElement('span');
+                    setCode.className = 'rcd-printing-set'; setCode.textContent = printing.set;
+                    var setName = document.createElement('span');
+                    setName.className = 'rcd-printing-name'; setName.textContent = printing.set_name;
+                    var year = document.createElement('span');
+                    year.className = 'rcd-printing-year';
+                    year.textContent = printing.released_at ? printing.released_at.slice(0, 4) : '';
+                    var artist = document.createElement('span');
+                    artist.className = 'rcd-printing-artist';
+                    artist.textContent = printing.artist ? '\u2014 ' + printing.artist : '';
+                    item.appendChild(setCode); item.appendChild(setName);
+                    item.appendChild(year); item.appendChild(artist);
+                    item.addEventListener('click', function () {
+                        listEl.querySelectorAll('.rcd-printing-item').forEach(function (el) {
+                            el.classList.remove('rcd-printing-item--selected');
+                        });
+                        item.classList.add('rcd-printing-item--selected');
+                        _rcdSelectPrinting(printing);
+                    });
+                    listEl.appendChild(item);
+                });
+                if (preSelected) {
+                    _rcdSelectedPrinting = preSelected;
+                    _rcdUpdatePreview(preSelected.image_uri);
+                    var addBtn = $id('rcd-add-btn'); if (addBtn) addBtn.disabled = false;
+                }
+            })
+            .catch(function () {
+                var loadingEl = $id('rcd-printings-loading');
+                if (loadingEl) { loadingEl.textContent = 'Failed to load printings.'; }
+            });
+    }
+
+    function _rcdSelectPrinting(printing) {
+        _rcdSelectedPrinting = printing;
+        _rcdUpdatePreview(printing.image_uri);
+        var addBtn = $id('rcd-add-btn'); if (addBtn) addBtn.disabled = false;
+    }
+
+    function _rcdUpdatePreview(imageUri) {
+        var img = $id('rcd-preview-img'), placeholder = $id('rcd-preview-placeholder');
+        if (!imageUri) { if (img) img.style.display = 'none'; if (placeholder) placeholder.style.display = ''; return; }
+        img.src = imageUri;
+        img.onload  = function () { img.style.display = ''; if (placeholder) placeholder.style.display = 'none'; };
+        img.onerror = function () {
+            img.style.display = 'none';
+            if (placeholder) { placeholder.style.display = ''; placeholder.textContent = 'Image unavailable'; }
+        };
+    }
+
+    function _rcdSubmit() {
+        if (!_rcdSelectedPrinting) return;
+        var addBtn = $id('rcd-add-btn'); if (addBtn) addBtn.disabled = true;
+        _rcdClearStatus();
+
+        var cardName = _rcdMode === 'edit' ? _rcdCardBeingEdited : (_rcdSelectedCard ? _rcdSelectedCard.name : '');
+        if (!cardName) { _rcdShowStatus('error', 'No card selected.'); if (addBtn) addBtn.disabled = false; return; }
+        var qty = parseInt(($id('rcd-quantity') || {}).value, 10) || 1;
+        var p   = _rcdSelectedPrinting;
+
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/add-real-card', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: cardName, image_uri: p.image_uri, quantity: qty,
+                scryfall_id: p.id, oracle_id: p.oracle_id,
+                mana_cost: p.mana_cost, type_line: p.type_line, oracle_text: p.oracle_text,
+                power: p.power, toughness: p.toughness,
+                colors: p.colors, color_identity: p.color_identity,
+                rarity: p.rarity, set: p.set, set_name: p.set_name, artist: p.artist,
+            }),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (addBtn) addBtn.disabled = false;
+            if (data.error) { _rcdShowStatus('error', 'Error: ' + data.error); return; }
+            _updatePublishBar(data.staged_count || 0);
+            if (_rcdMode === 'add') {
+                _rcdAddGalleryItem(cardName, qty, p, data);
+                _rcdShowStatus('ok', '\u2713 \u201c' + cardName + '\u201d added! Publish the Assembly Line to finalize.');
+            } else {
+                _rcdUpdateGalleryItem(cardName, qty, data);
+                _rcdShowStatus('ok', '\u2713 \u201c' + cardName + '\u201d updated!');
+            }
+            setTimeout(function () {
+                var dialog = $id('real-card-dialog');
+                if (dialog && dialog.open) dialog.close();
+            }, 1800);
+        })
+        .catch(function () {
+            if (addBtn) addBtn.disabled = false;
+            _rcdShowStatus('error', 'Request failed. Please try again.');
+        });
+    }
+
+    function _rcdAddGalleryItem(cardName, qty, printing, serverData) {
+        var typeLine = printing.type_line || '';
+        var cardtype = typeLine.includes('\u2014') ? typeLine.split('\u2014')[0].trim() : typeLine;
+        cardtype     = cardtype.replace(/\b(Legendary|Basic|Snow)\b/g, '').trim();
+        var subtype  = typeLine.includes('\u2014') ? typeLine.split('\u2014')[1].trim() : '';
+
+        var gallery = document.querySelector('#cards-tab-main .card-gallery');
+        if (!gallery) return;
+
+        var a = document.createElement('a');
+        a.href = '#edit/' + encodeURIComponent(cardName);
+        a.className = 'card-gallery-item';
+        a.dataset.cardName = cardName; a.dataset.name = cardName;
+        a.dataset.cost = printing.mana_cost || '';
+        a.dataset.cardtype = cardtype; a.dataset.subtype = subtype;
+        a.dataset.quantity = String(qty); a.dataset.real = '1'; a.dataset.staged = 'true';
+
+        var container;
+        if (serverData && serverData.image_base64) {
+            container = document.createElement('div');
+            container.className = 'card-image-container';
+            var img = document.createElement('img');
+            img.src = serverData.image_base64; img.dataset.frontSrc = serverData.image_base64;
+            img.alt = cardName; img.className = 'card-image';
+            container.appendChild(img);
+        } else {
+            container = document.createElement('div');
+            container.className = 'card-image-placeholder';
+            var pname = document.createElement('div');
+            pname.className = 'placeholder-text'; pname.textContent = cardName;
+            container.appendChild(pname);
+        }
+        var overlay = document.createElement('div');
+        overlay.className = 'staged-overlay'; overlay.innerHTML = 'AWAITING<br>ASSEMBLY LINE';
+        container.appendChild(overlay);
+        if (qty > 1) {
+            var qtyBadge = document.createElement('div');
+            qtyBadge.className = 'quantity-badge'; qtyBadge.textContent = 'x' + qty;
+            container.appendChild(qtyBadge);
+        }
+        a.appendChild(container);
+        gallery.appendChild(a);
+        if (_canonicalCardItems) _canonicalCardItems.push(a);
+        applyCardControls();
+
+        var countHdr = $id('cards-count-header');
+        if (countHdr) {
+            var m = countHdr.textContent.match(/\d+/);
+            countHdr.textContent = 'Cards (' + (m ? parseInt(m[0], 10) + qty : qty) + ')';
+        }
+    }
+
+    function _rcdUpdateGalleryItem(cardName, qty, data) {
+        var galItem = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
+        if (!galItem) return;
+        galItem.dataset.staged = 'true'; galItem.dataset.quantity = String(qty);
+        var container = galItem.querySelector('.card-image-container') || galItem.querySelector('.card-image-placeholder');
+        if (container) {
+            if (!container.querySelector('.staged-overlay')) {
+                var overlay = document.createElement('div');
+                overlay.className = 'staged-overlay'; overlay.innerHTML = 'AWAITING<br>ASSEMBLY LINE';
+                container.appendChild(overlay);
+            }
+            var qtyBadge = container.querySelector('.quantity-badge');
+            if (qty > 1) {
+                if (!qtyBadge) { qtyBadge = document.createElement('div'); qtyBadge.className = 'quantity-badge'; container.appendChild(qtyBadge); }
+                qtyBadge.textContent = 'x' + qty;
+            } else if (qtyBadge) { qtyBadge.remove(); }
+            if (data.image_base64) {
+                var imgEl = galItem.querySelector('.card-image');
+                if (imgEl) { imgEl.src = data.image_base64; imgEl.dataset.frontSrc = data.image_base64; }
+            }
+        }
     }
 
     // ── Form Population ───────────────────────────────────────────────────────
@@ -2015,7 +2364,7 @@ function _doBasicAction(color, action, btn) {
         } else {
             var origPlaceholder = document.createElement('div');
             origPlaceholder.className = 'assembly-card-placeholder';
-            origPlaceholder.textContent = item.is_new ? 'New Card' : 'No Image';
+            origPlaceholder.textContent = item.is_new ? (item.is_real ? 'New Real Card' : 'New Card') : 'No Image';
             origWrap.appendChild(origPlaceholder);
         }
         origWrap.appendChild(origCaption);
@@ -2557,6 +2906,72 @@ function _doBasicAction(color, action, btn) {
         // Create Card button
         var createCardBtn = $id('create-card-btn');
         if (createCardBtn) createCardBtn.addEventListener('click', openNewCardEditor);
+
+        // Add Real Card button
+        var addRealCardBtn = $id('add-real-card-btn');
+        if (addRealCardBtn) addRealCardBtn.addEventListener('click', openRealCardDialogAdd);
+
+        // ── Real Card Dialog wiring ───────────────────────────────────────────
+        (function () {
+            var rcdDialog = $id('real-card-dialog');
+            if (!rcdDialog) return;
+
+            // Close button
+            var closeBtn = $id('rcd-close-btn');
+            if (closeBtn) closeBtn.addEventListener('click', function () { rcdDialog.close(); });
+
+            // Close on backdrop click
+            rcdDialog.addEventListener('click', function (e) {
+                if (e.target === rcdDialog) rcdDialog.close();
+            });
+
+            // Search input — debounced
+            var searchInput = $id('rcd-search-input');
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    clearTimeout(_rcdSearchTimer);
+                    _rcdSearchTimer = setTimeout(_rcdDoSearch, 350);
+                });
+                searchInput.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') {
+                        $id('rcd-search-results').style.display = 'none';
+                        $id('rcd-search-status').style.display  = 'none';
+                    }
+                });
+            }
+
+            // Color filter checkboxes — re-trigger search on change
+            ['w', 'u', 'b', 'r', 'g'].forEach(function (c) {
+                var cb = $id('rcd-color-' + c);
+                if (cb) cb.addEventListener('change', function () {
+                    clearTimeout(_rcdSearchTimer);
+                    _rcdSearchTimer = setTimeout(_rcdDoSearch, 150);
+                });
+            });
+
+            // Add / Update button
+            var addBtn = $id('rcd-add-btn');
+            if (addBtn) addBtn.addEventListener('click', _rcdSubmit);
+
+            // Delete button — reuse stage-delete endpoint
+            var delBtn = $id('rcd-delete-btn');
+            if (delBtn) delBtn.addEventListener('click', function () {
+                var cardName = _rcdCardBeingEdited;
+                if (!cardName) return;
+                if (!confirm('Stage "' + cardName + '" for deletion?\n\nThe card will be removed when you publish the Assembly Line.')) return;
+                fetch('/deck/' + encodeURIComponent(_deckName) + '/stage-delete?name=' + encodeURIComponent(cardName), { method: 'POST' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data.error) { _rcdShowStatus('error', 'Error: ' + data.error); return; }
+                        _updatePublishBar(data.staged_count);
+                        rcdDialog.close();
+                        // Mark gallery item as staged
+                        var galItem = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
+                        if (galItem) galItem.dataset.staged = 'true';
+                    })
+                    .catch(function () { _rcdShowStatus('error', 'Delete failed.'); });
+            });
+        }());
 
         // Opening Hand buttons
         var ohRestartBtn = $id('oh-restart-btn');

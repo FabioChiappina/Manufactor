@@ -383,13 +383,18 @@ def get_card_image_path(deck_folder_path, card_name):
     if not os.path.isdir(cards_folder):
         return None
 
-    # List of card names to try (for double-faced cards)
-    names_to_try = [card_name]
+    # Sanitize name for filesystem (e.g. "Foo // Bar" → "Foo -- Bar")
+    safe_name = card_name.replace(' // ', ' -- ').replace('/', '-')
 
-    # If it's a double-faced card (contains " / "), try the front face
-    if " / " in card_name:
-        front_face = card_name.split(" / ")[0]
-        names_to_try.append(front_face)
+    # List of card names to try (original, sanitized, and front face for DFCs)
+    names_to_try = [card_name, safe_name]
+
+    # If it's a double-faced card (contains " / " or " // "), try the front face
+    for sep in [' // ', ' / ']:
+        if sep in card_name:
+            front_face = card_name.split(sep)[0]
+            names_to_try.append(front_face)
+            break
 
     # Try to find the image file (support common image extensions)
     for name in names_to_try:
@@ -485,6 +490,9 @@ def load_deck_by_name(deck_name):
                     continue
                 # Get the card image (from Cards folder, not Artwork folder)
                 card_image = get_card_image_base64(deck_folder_path, card_name)
+                # For real cards without a local image, fall back to the Scryfall URI
+                if not card_image and isinstance(card_data, dict) and card_data.get('real') and card_data.get('image_uri'):
+                    card_image = card_data['image_uri']
 
                 # Get quantity (default to 1 if not specified)
                 quantity = 1

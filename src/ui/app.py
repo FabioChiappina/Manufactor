@@ -9,7 +9,8 @@ import base64
 import json
 import os
 import shutil
-from urllib.parse import unquote, quote
+import urllib.request as _url_req
+from urllib.parse import unquote, quote, urlencode
 from src.services.settings_manager import SettingsManager
 from src.services.image_generator import ImageGenerator
 from src.utils.paths import SYMBOL_PATH, CARD_FRAMES_PATH
@@ -791,7 +792,9 @@ def assembly_line_data(deck_name):
     items = []
     for card_name, entry in staging.items():
         front_name = entry.get('front_name') or card_name
-        staged_b64 = _b64(os.path.join(staging_dir, f"{front_name}.jpg"))
+        staged_img_rel = entry.get('staged_image_path', '')
+        staged_img_filename = os.path.basename(staged_img_rel) if staged_img_rel else f"{front_name}.jpg"
+        staged_b64 = _b64(os.path.join(staging_dir, staged_img_filename))
         original_b64 = get_card_image_base64(folder_path, card_name)
 
         # Back face images for double-faced cards
@@ -822,6 +825,7 @@ def assembly_line_data(deck_name):
         items.append({
             'card_name': card_name,
             'is_new': is_new,
+            'is_real': entry.get('is_real', False),
             'pending_delete': pending_delete,
             'original_image_base64': original_b64,
             'staged_image_base64': staged_b64,
@@ -1143,10 +1147,13 @@ def publish_assembly_line(deck_name):
             continue
 
         front_name = entry.get('front_name') or card_name
+        # Use staged_image_path if present (handles sanitized filenames for DFC real cards)
+        staged_img_rel = entry.get('staged_image_path', '')
+        staged_img_filename = os.path.basename(staged_img_rel) if staged_img_rel else f"{front_name}.jpg"
+        staged_img = os.path.join(staging_dir, staged_img_filename)
         # Copy staged image → Cards/
-        staged_img = os.path.join(staging_dir, f"{front_name}.jpg")
         if os.path.isfile(staged_img):
-            shutil.copy2(staged_img, os.path.join(cards_dir, f"{front_name}.jpg"))
+            shutil.copy2(staged_img, os.path.join(cards_dir, staged_img_filename))
 
         # Also copy back face staged image for DFCs
         updated_data_entry = entry.get('updated', {})
@@ -1169,19 +1176,20 @@ def publish_assembly_line(deck_name):
         new_entry['complete'] = 1
         raw_deck.setdefault('cards', {})[card_name] = new_entry
 
-        # Regenerate printing image from the staged image
-        try:
-            card_list = card_from_editor_dict(updated_data, setname=setname)
-            if card_list:
-                from src.rendering.card_renderer import create_printing_image_from_Card
-                create_printing_image_from_Card(
-                    card_list[0],
-                    saved_image_path=cards_dir,
-                    save_path=printing_dir,
-                )
-        except Exception as e:
-            print(f"Printing regen failed for {card_name}: {e}")
-            printing_ok = False
+        # Regenerate printing image from the staged image (skip for real cards)
+        if not updated_data.get('real'):
+            try:
+                card_list = card_from_editor_dict(updated_data, setname=setname)
+                if card_list:
+                    from src.rendering.card_renderer import create_printing_image_from_Card
+                    create_printing_image_from_Card(
+                        card_list[0],
+                        saved_image_path=cards_dir,
+                        save_path=printing_dir,
+                    )
+            except Exception as e:
+                print(f"Printing regen failed for {card_name}: {e}")
+                printing_ok = False
 
         cards_updated += 1
 
@@ -1192,8 +1200,9 @@ def publish_assembly_line(deck_name):
 
     # Clear staging sidecar and staged images (including back faces for DFCs)
     for card_name, entry in staging.items():
-        entry_front = entry.get('front_name') or card_name
-        staged_img = os.path.join(staging_dir, f"{entry_front}.jpg")
+        staged_img_rel = entry.get('staged_image_path', '')
+        staged_img_filename = os.path.basename(staged_img_rel) if staged_img_rel else f"{(entry.get('front_name') or card_name)}.jpg"
+        staged_img = os.path.join(staging_dir, staged_img_filename)
         if os.path.isfile(staged_img):
             os.remove(staged_img)
         updated_entry = entry.get('updated') or {}
@@ -1275,6 +1284,229 @@ def save_card(deck_name, card_name):
 
     flash(f'Card "{card_name}" saved successfully!', 'success')
     return redirect(url_for('card_editor', deck_name=deck_name, card_name=card_name))
+
+
+# ── Scryfall API proxy endpoints ──────────────────────────────────────────────
+
+@app.route('/api/scryfall/search')
+def scryfall_search():
+    """Proxy Scryfall card search by name with optional color filter."""
+    q = request.args.get('q', '').strip()
+    colors = request.args.get('colors', 'wubrg').strip().lower()
+    if not q or len(q) < 2:
+        return jsonify({'cards': []})
+
+    included = set(colors) & set('wubrg')
+    excluded = set('wubrg') - included
+
+    # Build Scryfall search query using partial name match
+    params = urlencode({'q': q, 'unique': 'cards', 'order': 'name'})
+    url = f'https://api.scryfall.com/cards/search?{params}'
+
+    _scryfall_headers = {'User-Agent': 'MagicManufactor/1.0', 'Accept': 'application/json'}
+    try:
+        req = _url_req.Request(url, headers=_scryfall_headers)
+        with _url_req.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+
+        cards = []
+        for card in data.get('data', []):
+            ci = set(c.lower() for c in card.get('color_identity', []))
+            # Exclude if card has any excluded color
+            if excluded and ci & excluded:
+                continue
+            cards.append({
+                'name': card.get('name', ''),
+                'oracle_id': card.get('oracle_id', ''),
+                'mana_cost': card.get('mana_cost', ''),
+                'type_line': card.get('type_line', ''),
+                'color_identity': card.get('color_identity', []),
+            })
+        return jsonify({'cards': cards[:20]})
+
+    except Exception as e:
+        # 404 from Scryfall means no results
+        return jsonify({'cards': [], 'error': str(e)})
+
+
+@app.route('/api/scryfall/printings')
+def scryfall_printings():
+    """Get all printings of a card by exact name."""
+    name = request.args.get('name', '').strip()
+    if not name:
+        return jsonify({'printings': []})
+
+    params = urlencode({'q': f'!"{name}"', 'unique': 'prints', 'order': 'released', 'dir': 'asc'})
+    url = f'https://api.scryfall.com/cards/search?{params}'
+
+    _scryfall_headers = {'User-Agent': 'MagicManufactor/1.0', 'Accept': 'application/json'}
+    try:
+        req = _url_req.Request(url, headers=_scryfall_headers)
+        with _url_req.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+
+        printings = []
+        for card in data.get('data', []):
+            images = card.get('image_uris', {})
+            # Double-faced cards store images per face
+            if not images and card.get('card_faces'):
+                images = (card['card_faces'][0] or {}).get('image_uris', {})
+            mana_cost = card.get('mana_cost', '')
+            oracle_text = card.get('oracle_text', '')
+            if not mana_cost and card.get('card_faces'):
+                mana_cost = (card['card_faces'][0] or {}).get('mana_cost', '')
+            if not oracle_text and card.get('card_faces'):
+                oracle_text = (card['card_faces'][0] or {}).get('oracle_text', '')
+            printings.append({
+                'id': card.get('id', ''),
+                'oracle_id': card.get('oracle_id', ''),
+                'name': card.get('name', ''),
+                'set': card.get('set', '').upper(),
+                'set_name': card.get('set_name', ''),
+                'collector_number': card.get('collector_number', ''),
+                'released_at': card.get('released_at', ''),
+                'image_uri': images.get('normal') or images.get('large', ''),
+                'image_uri_small': images.get('small') or images.get('normal', ''),
+                'mana_cost': mana_cost,
+                'type_line': card.get('type_line', ''),
+                'oracle_text': oracle_text,
+                'power': card.get('power', ''),
+                'toughness': card.get('toughness', ''),
+                'colors': card.get('colors', []),
+                'color_identity': card.get('color_identity', []),
+                'rarity': card.get('rarity', 'common'),
+                'artist': card.get('artist', ''),
+                'layout': card.get('layout', ''),
+            })
+        return jsonify({'printings': printings})
+
+    except Exception as e:
+        return jsonify({'printings': [], 'error': str(e)})
+
+
+@app.route('/deck/<deck_name>/add-real-card', methods=['POST'])
+def add_real_card(deck_name):
+    """Add or update a real MTG card in the deck via the staging pipeline."""
+    deck_name = unquote(deck_name)
+    data = request.get_json() or {}
+
+    card_name   = data.get('name', '').strip()
+    image_uri   = data.get('image_uri', '').strip()
+    quantity    = max(1, int(data.get('quantity', 1) or 1))
+    scryfall_id = data.get('scryfall_id', '').strip()
+    oracle_id   = data.get('oracle_id', '').strip()
+    mana_cost   = data.get('mana_cost', '') or ''
+    type_line   = data.get('type_line', '') or ''
+    oracle_text = data.get('oracle_text', '') or ''
+    power       = data.get('power', '') or ''
+    toughness   = data.get('toughness', '') or ''
+    colors      = data.get('colors', [])
+    color_id    = data.get('color_identity', [])
+    rarity      = (data.get('rarity', 'common') or 'common').lower()
+    set_code    = data.get('set', '') or ''
+    set_name_v  = data.get('set_name', '') or ''
+    artist      = data.get('artist', '') or ''
+
+    if not card_name or not image_uri:
+        return jsonify({'error': 'card name and image_uri required'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    staging_dir = get_staging_path(folder_path)
+    os.makedirs(staging_dir, exist_ok=True)
+
+    # Parse type_line → cardtype + subtype + supertypes
+    cardtype = type_line
+    subtype  = ''
+    if '\u2014' in type_line:
+        parts    = type_line.split('\u2014', 1)
+        cardtype = parts[0].strip()
+        subtype  = parts[1].strip()
+
+    legendary = basic = snow = 0
+    ct_words = cardtype.split()
+    if 'Legendary' in ct_words: legendary = 1; ct_words.remove('Legendary')
+    if 'Basic'     in ct_words: basic     = 1; ct_words.remove('Basic')
+    if 'Snow'      in ct_words: snow      = 1; ct_words.remove('Snow')
+    cardtype_clean = ' '.join(ct_words)
+
+    # Sanitize card name for use as a filename (e.g. "Foo // Bar" → "Foo -- Bar")
+    safe_card_filename = card_name.replace(' // ', ' -- ').replace('/', '-')
+
+    # Download Scryfall image → Staging/<safe_name>.jpg
+    staged_img_path = os.path.join(staging_dir, f"{safe_card_filename}.jpg")
+    try:
+        req = _url_req.Request(image_uri, headers={'User-Agent': 'MagicManufactor/1.0', 'Accept': 'image/*,*/*'})
+        with _url_req.urlopen(req, timeout=20) as resp:
+            img_bytes = resp.read()
+        with open(staged_img_path, 'wb') as f:
+            f.write(img_bytes)
+    except Exception as e:
+        return jsonify({'error': f'Failed to download card image: {e}'}), 500
+
+    card_entry = {
+        'front': {
+            'name': card_name,
+            'mana': mana_cost,
+            'cardtype': cardtype_clean,
+            'subtype': subtype,
+            'rules': oracle_text,
+            'power': power,
+            'toughness': toughness,
+            'legendary': legendary,
+            'basic': basic,
+            'snow': snow,
+        },
+        'quantity': quantity,
+        'real': 1,
+        'complete': 0,
+        'rarity': rarity,
+        'colors': colors,
+        'color_identity': color_id,
+        'scryfall_id': scryfall_id,
+        'oracle_id': oracle_id,
+        'set': set_code,
+        'set_name': set_name_v,
+        'artist': artist,
+        'image_uri': image_uri,
+    }
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    is_new   = card_name not in raw_deck.get('cards', {})
+    original = raw_deck.get('cards', {}).get(card_name, {})
+
+    raw_deck.setdefault('cards', {})[card_name] = card_entry
+    _touch_last_modified(raw_deck)
+    with open(deck_data['json_path'], 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    staging = load_staging(folder_path)
+    staging[card_name] = {
+        'original': original,
+        'updated':  card_entry,
+        'staged_image_path': f"Staging/{safe_card_filename}.jpg",
+        'front_name': card_name,
+        'is_new':  is_new,
+        'is_real': True,
+    }
+    save_staging(folder_path, staging)
+
+    image_b64 = None
+    if os.path.isfile(staged_img_path):
+        with open(staged_img_path, 'rb') as f:
+            image_b64 = 'data:image/jpeg;base64,' + base64.b64encode(f.read()).decode()
+
+    return jsonify({
+        'success': True,
+        'is_new':  is_new,
+        'staged_count': len(staging),
+        'image_base64': image_b64,
+    })
 
 
 @app.route('/settings')
