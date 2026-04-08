@@ -1225,7 +1225,7 @@ function _doBasicAction(color, action, btn) {
         document.querySelectorAll('.deck-tab').forEach(function (btn) {
             btn.classList.toggle('deck-tab--active', btn.dataset.tab === tabName);
         });
-        ['cards', 'tokens', 'assembly', 'opening-hand'].forEach(function (key) {
+        ['cards', 'tokens', 'assembly', 'opening-hand', 'forge-all'].forEach(function (key) {
             var pane = $id('tab-' + key);
             if (!pane) return;
             var show = (key === tabName);
@@ -1242,6 +1242,7 @@ function _doBasicAction(color, action, btn) {
         if (hash === '#tokens')   { switchTab('tokens', false);   return; }
         if (hash === '#assembly') { switchTab('assembly', false); return; }
         if (hash === '#opening-hand') { switchTab('opening-hand', false); return; }
+        if (hash === '#forge-all')    { switchTab('forge-all', false);    return; }
         if (hash.startsWith('#edit/')) {
             var cardName = decodeURIComponent(hash.slice(6));
             switchTab('cards', false);
@@ -1392,6 +1393,8 @@ function _doBasicAction(color, action, btn) {
         if (dfcEl) dfcEl.value = data.double_faced_type || '';
         var artistEl = $id('ef-artist');
         if (artistEl) artistEl.value = data.artist || '';
+        var qtyEl = $id('ef-quantity');
+        if (qtyEl) qtyEl.value = parseInt(data.quantity, 10) || 1;
         populateFaceForm(frontFace);
         _populateSubspell(data.subspell || null);
         updateFaceTabs();
@@ -1402,10 +1405,11 @@ function _doBasicAction(color, action, btn) {
         _faceCache[_currentFace] = captureCurrentFace();
         var rarEl   = $id('ef-rarity');
         var dfcEl   = $id('ef-dfc-type');
+        var qtyEl   = $id('ef-quantity');
         var result = {
             front:    _faceCache.front,
             rarity:   rarEl ? rarEl.value : 'common',
-            quantity: 1
+            quantity: qtyEl ? (parseInt(qtyEl.value, 10) || 1) : 1
         };
         if (_faceCache.back && Object.keys(_faceCache.back).length > 0) {
             result.back = _faceCache.back;
@@ -1437,7 +1441,7 @@ function _doBasicAction(color, action, btn) {
                 frame: data.frame
             });
         }
-        var result = { front: frontFace, rarity: (data.rarity || 'common').toLowerCase(), quantity: 1 };
+        var result = { front: frontFace, rarity: (data.rarity || 'common').toLowerCase(), quantity: parseInt(data.quantity, 10) || 1 };
         if (data.back) {
             var backFace = buildFaceDict(data.back);
             if (Object.keys(backFace).length > 0) result.back = backFace;
@@ -1472,11 +1476,8 @@ function _doBasicAction(color, action, btn) {
         var active = _editorIsDirty || _isNewCard;
         var forgeBtn = $id('forge-btn');
         if (forgeBtn) {
-            forgeBtn.disabled = !active;
             forgeBtn.classList.toggle('btn-forge--active', active);
         }
-        var closeForgeBtnEl = $id('close-forge-btn');
-        if (closeForgeBtnEl) closeForgeBtnEl.disabled = !active;
     }
 
     // ── Editor Mode Toggle ────────────────────────────────────────────────────
@@ -1694,18 +1695,16 @@ function _doBasicAction(color, action, btn) {
         return serializeForm();
     }
 
-    function onForgeClick(closeAfter) {
+    function onForgeClick() {
         var cardData = getEditorJson();
         if (!cardData) return;
 
         var url = '/deck/' + encodeURIComponent(_deckName) + '/forge-card?name='
             + encodeURIComponent(_currentCardName || '_new');
 
-        // Disable forge buttons while request is in flight
-        var forgeBtn        = $id('forge-btn');
-        var closeForgeBtnEl = $id('close-forge-btn');
-        if (forgeBtn)        forgeBtn.disabled        = true;
-        if (closeForgeBtnEl) closeForgeBtnEl.disabled = true;
+        // Disable forge button while request is in flight
+        var forgeBtn = $id('forge-btn');
+        if (forgeBtn) forgeBtn.disabled = true;
         setArtworkStatus('found', 'Forging\u2026');
 
         fetch(url, {
@@ -1717,6 +1716,46 @@ function _doBasicAction(color, action, btn) {
         .then(function (data) {
             if (data.error) {
                 setArtworkStatus('missing', 'Forge failed: ' + data.error);
+                if (forgeBtn) forgeBtn.disabled = false;
+                updateButtonStates();
+                return;
+            }
+
+            // Update assembly badge + publish bar count/button
+            _updatePublishBar(data.staged_count || 0);
+
+            // Helper: update the gallery quantity badge for the current card
+            function _updateGalleryQtyBadge(cardName, qty) {
+                if (!cardName) return;
+                var galItem = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
+                if (!galItem) return;
+                galItem.dataset.quantity = qty;
+                var container = galItem.querySelector('.card-image-container') ||
+                                galItem.querySelector('.card-image-placeholder');
+                if (container) {
+                    var badge = container.querySelector('.quantity-badge');
+                    if (qty > 1) {
+                        if (badge) { badge.textContent = 'x' + qty; }
+                        else {
+                            var nb = document.createElement('div');
+                            nb.className = 'quantity-badge';
+                            nb.textContent = 'x' + qty;
+                            container.appendChild(nb);
+                        }
+                    } else {
+                        if (badge) badge.remove();
+                    }
+                }
+                applyCardControls();
+            }
+
+            // Quantity-only change: quantity saved directly to deck JSON, no staging needed
+            if (data.quantity_only_change) {
+                _updateGalleryQtyBadge(_currentCardName, data.quantity || 1);
+                _editorIsDirty = false;
+                _originalJson  = JSON.stringify(serializeForm());
+                setArtworkStatus('found', 'Quantity saved \u2713');
+                if (forgeBtn) forgeBtn.disabled = false;
                 updateButtonStates();
                 return;
             }
@@ -1733,9 +1772,6 @@ function _doBasicAction(color, action, btn) {
                 if (data.back_image_base64) _serverData.back_image_base64 = data.back_image_base64;
             }
 
-            // Update assembly badge + publish bar count/button
-            _updatePublishBar(data.staged_count || 0);
-
             // New card now exists in the deck — track its name
             if (_isNewCard && cardData.front && cardData.front.name) {
                 _currentCardName = cardData.front.name;
@@ -1743,14 +1779,31 @@ function _doBasicAction(color, action, btn) {
             }
             // Card may have been renamed (e.g. subspell added/changed)
             if (data.new_card_name) {
+                var prevCardName = _currentCardName;
                 _currentCardName = data.new_card_name;
                 $id('editor-card-title').textContent = data.new_card_name;
                 history.replaceState(null, '', '#edit/' + encodeURIComponent(data.new_card_name));
+                // Update the gallery item so it can be re-opened correctly after rename
+                if (prevCardName) {
+                    var renamedGalItem = document.querySelector('.card-gallery-item[data-card-name="' + prevCardName.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]');
+                    if (renamedGalItem) {
+                        renamedGalItem.dataset.cardName = data.new_card_name;
+                        renamedGalItem.dataset.name     = data.new_card_name;
+                        renamedGalItem.setAttribute('href', '#edit/' + encodeURIComponent(data.new_card_name));
+                        var phEl = renamedGalItem.querySelector('.placeholder-text');
+                        if (phEl) phEl.textContent = data.new_card_name;
+                    }
+                }
             }
 
             _editorIsDirty = false;
+            _originalJson  = JSON.stringify(serializeForm());
             setArtworkStatus('found', 'Forged \u2713');
+            if (forgeBtn) forgeBtn.disabled = false;
             updateButtonStates();
+
+            // Update gallery quantity badge
+            _updateGalleryQtyBadge(_currentCardName, cardData.quantity || 1);
 
             // Mark the gallery item as staged
             if (_currentCardName) {
@@ -1767,11 +1820,11 @@ function _doBasicAction(color, action, btn) {
                 }
             }
 
-            if (closeAfter) closeCardEditor(true);
         })
         .catch(function (err) {
             console.error('Forge error:', err);
             setArtworkStatus('missing', 'Forge error \u2014 check server log');
+            if (forgeBtn) forgeBtn.disabled = false;
             updateButtonStates();
         });
     }
@@ -2020,6 +2073,17 @@ function _doBasicAction(color, action, btn) {
 
         row.appendChild(header);
         row.appendChild(images);
+
+        // Change summary message
+        if (!item.is_new && !item.pending_delete) {
+            var changeMsg = document.createElement('div');
+            changeMsg.className = 'assembly-change-message';
+            changeMsg.textContent = item.change_type === 'text_changed'
+                ? 'Card text changed'
+                : 'Possible artwork change';
+            row.appendChild(changeMsg);
+        }
+
         return row;
     }
 
@@ -2032,12 +2096,16 @@ function _doBasicAction(color, action, btn) {
             if (data.error) return;
             if (rowEl) rowEl.remove();
             _updatePublishBar(data.staged_count || 0);
-            // Update gallery item staged state
+            // Update gallery item staged state (remove entirely for new cards since they no longer exist)
             var galItem = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
             if (galItem) {
-                galItem.dataset.staged = 'false';
-                var ov = galItem.querySelector('.staged-overlay');
-                if (ov) ov.remove();
+                if (data.is_new) {
+                    galItem.remove();
+                } else {
+                    galItem.dataset.staged = 'false';
+                    var ov = galItem.querySelector('.staged-overlay');
+                    if (ov) ov.remove();
+                }
             }
             // If list is now empty, show empty state
             var list = $id('assembly-line-list');
@@ -2051,27 +2119,95 @@ function _doBasicAction(color, action, btn) {
         .catch(function () {});
     }
 
-    function onForgeAllClick() {
-        var btn    = $id('forge-all-btn');
-        var status = $id('forge-all-status');
-        if (btn) btn.disabled = true;
-        if (status) status.textContent = 'Forging\u2026';
+    function _appendForgeLog(logEl, cardName, type, message) {
+        if (!logEl) return;
+        var entry = document.createElement('div');
+        entry.className = 'forge-deck-log-entry forge-deck-log-entry--' + type;
+        var icon = type === 'error' ? '\u2717' : '\u26a0';
+        entry.textContent = icon + ' ' + cardName + ': ' + message;
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
+    }
 
-        fetch('/deck/' + encodeURIComponent(_deckName) + '/forge-all', { method: 'POST' })
+    function onForgeDeckClick() {
+        var btn             = $id('forge-deck-btn');
+        var progressSection = $id('forge-deck-progress-section');
+        var progressBar     = $id('forge-deck-progress-bar');
+        var progressLabel   = $id('forge-deck-progress-label');
+        var logEl           = $id('forge-deck-log');
+
+        if (btn) btn.disabled = true;
+        if (progressSection) progressSection.style.display = '';
+        if (progressBar) progressBar.style.width = '0%';
+        if (logEl) logEl.innerHTML = '';
+        if (progressLabel) progressLabel.textContent = 'Fetching card list\u2026';
+
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/forge-all-list')
             .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (btn) btn.disabled = false;
-                if (data.error) {
-                    if (status) status.textContent = 'Error: ' + data.error;
+            .then(function (listData) {
+                if (listData.error) {
+                    if (progressLabel) progressLabel.textContent = 'Error: ' + listData.error;
+                    if (btn) btn.disabled = false;
                     return;
                 }
-                if (status) status.textContent = 'Forged ' + data.forged + ' card(s) \u2713';
-                _updatePublishBar(data.staged_count || 0);
-                loadAssemblyLineData();
+
+                var cards = listData.cards || [];
+                var total = cards.length;
+
+                if (total === 0) {
+                    if (progressLabel) progressLabel.textContent = 'No custom cards to forge.';
+                    if (btn) btn.disabled = false;
+                    return;
+                }
+
+                if (progressLabel) progressLabel.textContent = '0 / ' + total;
+
+                var idx = 0;
+
+                function forgeNext() {
+                    if (idx >= total) {
+                        if (progressBar) progressBar.style.width = '100%';
+                        if (progressLabel) progressLabel.textContent = total + ' / ' + total + ' \u2014 Done';
+                        if (btn) btn.disabled = false;
+                        return;
+                    }
+
+                    var cardName = cards[idx];
+                    idx++;
+
+                    fetch(
+                        '/deck/' + encodeURIComponent(_deckName) + '/forge-one?card=' + encodeURIComponent(cardName),
+                        { method: 'POST' }
+                    )
+                        .then(function (r) { return r.json(); })
+                        .then(function (result) {
+                            var pct = Math.round(idx / total * 100);
+                            if (progressBar) progressBar.style.width = pct + '%';
+                            if (progressLabel) progressLabel.textContent = idx + ' / ' + total;
+
+                            if (result.error) {
+                                _appendForgeLog(logEl, cardName, 'error', result.error);
+                            } else if (result.missing_artwork) {
+                                _appendForgeLog(logEl, cardName, 'warning', 'No artwork image found');
+                            }
+
+                            if (result.staged_count !== undefined) {
+                                _updatePublishBar(result.staged_count);
+                            }
+
+                            forgeNext();
+                        })
+                        .catch(function () {
+                            _appendForgeLog(logEl, cardName, 'error', 'Network error');
+                            forgeNext();
+                        });
+                }
+
+                forgeNext();
             })
             .catch(function () {
+                if (progressLabel) progressLabel.textContent = 'Failed to fetch card list \u2014 check server log';
                 if (btn) btn.disabled = false;
-                if (status) status.textContent = 'Forge error \u2014 check server log';
             });
     }
 
@@ -2280,7 +2416,7 @@ function _doBasicAction(color, action, btn) {
         ['ef-name', 'ef-mana', 'ef-cardtype', 'ef-subtype', 'ef-rules',
          'ef-power', 'ef-toughness', 'ef-rarity', 'ef-flavor',
          'ef-legendary', 'ef-basic', 'ef-snow',
-         'ef-artist', 'ef-frame', 'ef-dfc-type',
+         'ef-artist', 'ef-frame', 'ef-dfc-type', 'ef-quantity',
          'ef-ss-name', 'ef-ss-mana', 'ef-ss-cardtype', 'ef-ss-subtype', 'ef-ss-rules'].forEach(function (id) {
             var el = $id(id);
             if (!el) return;
@@ -2414,11 +2550,9 @@ function _doBasicAction(color, action, btn) {
             .catch(function (err) { alert('Failed to stage deletion: ' + err); });
         });
 
-        // Forge buttons
+        // Forge button
         var forgeBtn = $id('forge-btn');
-        if (forgeBtn) forgeBtn.addEventListener('click', function () { onForgeClick(false); });
-        var closeForgeBtnEl = $id('close-forge-btn');
-        if (closeForgeBtnEl) closeForgeBtnEl.addEventListener('click', function () { onForgeClick(true); });
+        if (forgeBtn) forgeBtn.addEventListener('click', onForgeClick);
 
         // Create Card button
         var createCardBtn = $id('create-card-btn');
@@ -2430,10 +2564,11 @@ function _doBasicAction(color, action, btn) {
         var ohDrawBtn = $id('oh-draw-btn');
         if (ohDrawBtn) ohDrawBtn.addEventListener('click', _ohDraw);
 
-        // Assembly Line buttons
-        var forgeAllBtn = $id('forge-all-btn');
-        if (forgeAllBtn) forgeAllBtn.addEventListener('click', onForgeAllClick);
+        // Forge Entire Deck tab button
+        var forgeDeckBtn = $id('forge-deck-btn');
+        if (forgeDeckBtn) forgeDeckBtn.addEventListener('click', onForgeDeckClick);
 
+        // Assembly Line buttons
         var publishAssemblyBtn = $id('publish-assembly-btn');
         if (publishAssemblyBtn) publishAssemblyBtn.addEventListener('click', onPublishAssemblyClick);
 

@@ -644,6 +644,35 @@ def _do_forge(deck_data, card_name, is_new, data):
     full_deck_key = (f"{front_name} / {front_card.subspell.name}"
                      if front_card.is_subspell() else front_name)
 
+    # Extract the quantity from the editor data (always saved immediately to deck JSON).
+    new_quantity = max(1, int(data.get('quantity') or 1))
+
+    # Load deck JSON now (needed for quantity-only check and later for staging sidecar).
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    original = raw_deck.get('cards', {}).get(card_name if not is_new else full_deck_key)
+
+    # For existing, non-renamed cards: check whether only the quantity changed.
+    # If so, save quantity directly to deck JSON and skip image generation + staging.
+    _META_KEYS = frozenset({'quantity', 'complete', 'real', 'tags', 'colors'})
+
+    def _strip_meta(d):
+        return {k: v for k, v in d.items() if k not in _META_KEYS} if isinstance(d, dict) else d
+
+    if not is_new and original is not None and full_deck_key == card_name:
+        if _strip_meta(data) == _strip_meta(original):
+            raw_deck['cards'][card_name]['quantity'] = new_quantity
+            _touch_last_modified(raw_deck)
+            with open(deck_data['json_path'], 'w') as f:
+                json.dump(raw_deck, f, indent=2)
+            staging = load_staging(folder_path)
+            return jsonify({
+                'quantity_only_change': True,
+                'quantity': new_quantity,
+                'staged_count': len(staging),
+            })
+
     # Generate images into Staging/
     gen = ImageGenerator()
     images = {}  # card_name -> base64 string
@@ -673,16 +702,11 @@ def _do_forge(deck_data, card_name, is_new, data):
                 b64 = base64.b64encode(f.read()).decode('utf-8')
                 images[card.name] = f"data:image/jpeg;base64,{b64}"
 
-    # Load original card data from deck JSON (for the staging sidecar)
-    with open(deck_data['json_path'], 'r') as f:
-        raw_deck = json.load(f)
-
-    original = raw_deck.get('cards', {}).get(card_name if not is_new else full_deck_key)
-
     # For brand-new cards: add a placeholder entry to the deck JSON
     if is_new or original is None:
         placeholder = dict(data)
         placeholder['complete'] = 0
+        placeholder['quantity'] = new_quantity
         raw_deck.setdefault('cards', {})[full_deck_key] = placeholder
         _touch_last_modified(raw_deck)
         with open(deck_data['json_path'], 'w') as f:
@@ -694,7 +718,14 @@ def _do_forge(deck_data, card_name, is_new, data):
         existing = raw_deck.get('cards', {}).pop(card_name, {})
         existing.update(data)
         existing['complete'] = 0
+        existing['quantity'] = new_quantity
         raw_deck.setdefault('cards', {})[full_deck_key] = existing
+        _touch_last_modified(raw_deck)
+        with open(deck_data['json_path'], 'w') as f:
+            json.dump(raw_deck, f, indent=2)
+    else:
+        # Existing card being re-forged — save quantity directly to deck JSON now.
+        raw_deck['cards'][card_name]['quantity'] = new_quantity
         _touch_last_modified(raw_deck)
         with open(deck_data['json_path'], 'w') as f:
             json.dump(raw_deck, f, indent=2)
@@ -750,6 +781,13 @@ def assembly_line_data(deck_name):
                 return 'data:image/jpeg;base64,' + base64.b64encode(f.read()).decode()
         return None
 
+    _NON_TEXT_KEYS = {'complete', 'quantity', 'real', 'tags', 'token'}
+
+    def _strip_meta(d):
+        if not isinstance(d, dict):
+            return d
+        return {k: _strip_meta(v) for k, v in d.items() if k not in _NON_TEXT_KEYS}
+
     items = []
     for card_name, entry in staging.items():
         front_name = entry.get('front_name') or card_name
@@ -771,14 +809,25 @@ def assembly_line_data(deck_name):
             staged_back_path = os.path.join(staging_dir, f"{staged_back_name}.jpg")
             staged_back_b64 = _b64(staged_back_path) or get_card_image_base64(folder_path, staged_back_name)
 
+        # Determine what changed
+        is_new = entry.get('is_new', False)
+        pending_delete = entry.get('pending_delete', False)
+        if is_new or pending_delete:
+            change_type = None
+        elif _strip_meta(orig_card) != _strip_meta(updated_card):
+            change_type = 'text_changed'
+        else:
+            change_type = 'artwork_only'
+
         items.append({
             'card_name': card_name,
-            'is_new': entry.get('is_new', False),
-            'pending_delete': entry.get('pending_delete', False),
+            'is_new': is_new,
+            'pending_delete': pending_delete,
             'original_image_base64': original_b64,
             'staged_image_base64': staged_b64,
             'original_back_image_base64': orig_back_b64,
             'staged_back_image_base64': staged_back_b64,
+            'change_type': change_type,
         })
 
     return jsonify(items)
@@ -797,6 +846,7 @@ def discard_card(deck_name):
     folder_path = deck_data['folder_path']
     staging = load_staging(folder_path)
     entry = staging.pop(card_name, None)
+    is_new_card = entry.get('is_new', False) if entry else False
 
     # If card was brand-new (placeholder only), remove it from the deck JSON too.
     # If card was renamed (subspell added/changed), revert the rename.
@@ -824,14 +874,14 @@ def discard_card(deck_name):
     if os.path.isfile(staged_img):
         os.remove(staged_img)
     if entry:
-        back_face_name = (entry.get('updated', {}).get('back') or {}).get('name')
+        back_face_name = ((entry.get('updated') or {}).get('back') or {}).get('name')
         if back_face_name:
             staged_back = os.path.join(staging_dir, f"{back_face_name}.jpg")
             if os.path.isfile(staged_back):
                 os.remove(staged_back)
 
     save_staging(folder_path, staging)
-    return jsonify({'staged_count': len(staging)})
+    return jsonify({'staged_count': len(staging), 'is_new': is_new_card})
 
 
 @app.route('/deck/<deck_name>/stage-delete', methods=['POST'])
@@ -885,6 +935,106 @@ def stage_delete(deck_name):
         return jsonify({'error': f'Failed to stage deletion: {e}'}), 500
 
 
+@app.route('/deck/<deck_name>/forge-all-list')
+def forge_all_list(deck_name):
+    """Return the list of non-real card names to forge and the total deck card count."""
+    deck_name = unquote(deck_name)
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    cards_to_forge = [
+        card_name
+        for card_name, card_dict in raw_deck.get('cards', {}).items()
+        if isinstance(card_dict, dict) and not card_dict.get('real')
+    ]
+
+    return jsonify({
+        'cards': cards_to_forge,
+        'total_deck_cards': deck_data['total_cards'],
+    })
+
+
+@app.route('/deck/<deck_name>/forge-one', methods=['POST'])
+def forge_one(deck_name):
+    """Forge a single named card from the deck JSON into the staging area."""
+    deck_name = unquote(deck_name)
+    card_name = request.args.get('card', '').strip()
+    if not card_name:
+        return jsonify({'error': 'card name required'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    setname = deck_data['metadata'].get('setname', 'UNK')
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    card_dict = raw_deck.get('cards', {}).get(card_name)
+    if card_dict is None:
+        return jsonify({'error': 'Card not found'}), 404
+    if not isinstance(card_dict, dict):
+        return jsonify({'error': 'Invalid card data'}), 400
+    if card_dict.get('real'):
+        staging = load_staging(folder_path)
+        return jsonify({'skipped': True, 'missing_artwork': False, 'staged_count': len(staging)})
+
+    # Check if artwork exists for this card
+    artwork_path = get_card_artwork_path(folder_path, card_name)
+    missing_artwork = artwork_path is None
+
+    staging_dir = get_staging_path(folder_path)
+    os.makedirs(staging_dir, exist_ok=True)
+
+    def _anorm(s):
+        return s.replace('\u2019', "'").replace('\u2018', "'").replace('\u02bc', "'").lower()
+
+    gen = ImageGenerator()
+    try:
+        cards = card_from_editor_dict(card_dict, setname=setname)
+    except Exception as e:
+        return jsonify({'error': str(e), 'missing_artwork': missing_artwork}), 400
+
+    for card in cards:
+        if not gen.generate_single_card_image(card, save_path=staging_dir, include_printing=False):
+            return jsonify({'error': 'Image generation failed', 'missing_artwork': missing_artwork}), 500
+        # Normalize apostrophe variants in the filename so downstream lookups
+        # (assembly-line-data, publish) can find the staged image reliably.
+        img_path = os.path.join(staging_dir, f"{card.name}.jpg")
+        if not os.path.isfile(img_path):
+            canon = _anorm(card.name)
+            for fname in sorted(os.listdir(staging_dir)):
+                if not fname.endswith('.jpg'):
+                    continue
+                if _anorm(fname[:-4]) == canon:
+                    os.rename(os.path.join(staging_dir, fname), img_path)
+                    break
+
+    front_name = cards[0].name
+    staging = load_staging(folder_path)
+    staging[card_name] = {
+        'original': card_dict,
+        'updated': card_dict,
+        'staged_image_path': f"Staging/{front_name}.jpg",
+        'front_name': front_name,
+        'disable_auto_tokens': card_dict.get('disable_auto_tokens', False),
+        'is_new': False,
+    }
+    save_staging(folder_path, staging)
+
+    return jsonify({
+        'success': True,
+        'missing_artwork': missing_artwork,
+        'staged_count': len(staging),
+    })
+
+
 @app.route('/deck/<deck_name>/forge-all', methods=['POST'])
 def forge_all(deck_name):
     """Forge every non-real card in the deck into the staging area."""
@@ -900,6 +1050,9 @@ def forge_all(deck_name):
 
     with open(deck_data['json_path'], 'r') as f:
         raw_deck = json.load(f)
+
+    def _anorm_fa(s):
+        return s.replace('\u2019', "'").replace('\u2018', "'").replace('\u02bc', "'").lower()
 
     staging = load_staging(folder_path)
     gen = ImageGenerator()
@@ -924,6 +1077,16 @@ def forge_all(deck_name):
                 errors.append(f"{card_name}: image generation failed")
                 success = False
                 break
+            # Normalize apostrophe variants so staging lookups find the file.
+            img_path = os.path.join(staging_dir, f"{card.name}.jpg")
+            if not os.path.isfile(img_path):
+                canon = _anorm_fa(card.name)
+                for fname in sorted(os.listdir(staging_dir)):
+                    if not fname.endswith('.jpg'):
+                        continue
+                    if _anorm_fa(fname[:-4]) == canon:
+                        os.rename(os.path.join(staging_dir, fname), img_path)
+                        break
 
         if success:
             front_name = cards[0].name

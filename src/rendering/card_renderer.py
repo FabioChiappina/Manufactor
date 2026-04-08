@@ -1291,6 +1291,10 @@ class CardDraw:
         max_height = MAX_HEIGHT_ADVENTURE_NAME if is_adventure else MAX_HEIGHT_SUBSPELL_NAME
         symbol_size = ADVENTURE_MANA_SYMBOL_SIZE if is_adventure else SUBSPELL_MANA_SYMBOL_SIZE
 
+        # Long names render at a smaller font size and sit visually high; nudge them down
+        if len(text) >= 12:
+            y += 4
+
         # Adjust max width based on number of mana symbols (similar to main card name)
         max_width = MAX_WIDTH_SUBSPELL_NAME
         if self.card.subspell.mana is not None:
