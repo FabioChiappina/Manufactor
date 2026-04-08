@@ -395,6 +395,7 @@ class Card:
         if colors is not None and type(colors)!=list:
             raise TypeError("colors input must be of type list.")
         elif type(colors)==list:
+            colors = [c.lower() for c in colors]
             if not all([c in ['w','u','b','r','g'] for c in colors]):
                 raise ValueError("Each element of colors must be in 'wubrg'.")
         if tags is not None and type(tags)!=str and type(tags)!=list:

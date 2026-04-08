@@ -78,7 +78,7 @@ class CockatriceExporter:
             return True
         except Exception as e:
             print(f"Error exporting to Cockatrice: {e}")
-            return False
+            raise RuntimeError(f"Cockatrice export failed: {e}") from e
 
     def validate_export_paths(self) -> List[str]:
         """

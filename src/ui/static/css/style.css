@@ -1490,6 +1490,18 @@ footer p {
 .publish-log-err  { color: #dc2626; }
 .publish-log-skip { color: #888; }
 
+.publish-log-reload-btn {
+    margin-top: 10px;
+    padding: 6px 16px;
+    background: #3a8a5e;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.publish-log-reload-btn:hover { background: #2e7a50; }
+
 /* Empty state spans all grid columns */
 .assembly-line-list > .tab-empty-state {
     grid-column: 1 / -1;

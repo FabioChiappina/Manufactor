@@ -1135,6 +1135,7 @@ def publish_assembly_line(deck_name):
     gen = ImageGenerator()
     cards_updated = 0
     printing_ok = True
+    printing_errors = []
 
     for card_name, entry in staging.items():
         # Pending-delete: remove from deck JSON and Cards/ image
@@ -1190,6 +1191,7 @@ def publish_assembly_line(deck_name):
             except Exception as e:
                 print(f"Printing regen failed for {card_name}: {e}")
                 printing_ok = False
+                printing_errors.append(f"{card_name}: {str(e)[:120]}")
 
         cards_updated += 1
 
@@ -1215,16 +1217,19 @@ def publish_assembly_line(deck_name):
 
     # Cockatrice export
     cockatrice_ok = None  # None = not configured
+    cockatrice_error = None
     try:
         from src.services.cockatrice_exporter import CockatriceExporter
         from src.core.deck import Deck
         exporter = CockatriceExporter()
         if exporter.is_cockatrice_available():
             deck_obj = Deck.from_json(deck_data['json_path'], setname, deck_data['folder_name'])
-            cockatrice_ok = exporter.export_deck(deck_obj)
+            exporter.export_deck(deck_obj)
+            cockatrice_ok = True
     except Exception as e:
         print(f"Cockatrice export failed: {e}")
         cockatrice_ok = False
+        cockatrice_error = str(e)
 
     total_cards = sum(
         c.get('quantity', 1) if isinstance(c, dict) else 1
@@ -1235,7 +1240,9 @@ def publish_assembly_line(deck_name):
         'cards_updated': cards_updated,
         'total_cards': total_cards,
         'printing_ok': printing_ok,
+        'printing_errors': printing_errors,
         'cockatrice_ok': cockatrice_ok,
+        'cockatrice_error': cockatrice_error,
         'staged_count': 0,
         'published_cards': list(staging.keys()),
     })

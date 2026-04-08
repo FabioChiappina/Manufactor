@@ -2589,26 +2589,51 @@ function _doBasicAction(color, action, btn) {
 
                 _updatePublishBar(0);
 
+                var hasErrors = (data.printing_ok === false) || (data.cockatrice_ok === false);
+
                 // Show publish log
                 if (logEl) {
                     var entries = [];
                     entries.push({ ok: true,  text: data.cards_updated + ' card image' + (data.cards_updated !== 1 ? 's' : '') + ' updated in Cards/' });
-                    entries.push({ ok: data.printing_ok, text: data.printing_ok ? 'Printing images regenerated' : 'Some printing images failed — check server log' });
+                    if (data.printing_ok) {
+                        entries.push({ ok: true, text: 'Printing images regenerated' });
+                    } else {
+                        entries.push({ ok: false, text: 'Some printing images failed' });
+                        if (data.printing_errors && data.printing_errors.length) {
+                            data.printing_errors.forEach(function(msg) {
+                                entries.push({ ok: false, text: '\u00a0\u00a0' + msg, small: true });
+                            });
+                        }
+                    }
                     if (data.cockatrice_ok === true)  entries.push({ ok: true,  text: 'Cockatrice export complete' });
-                    if (data.cockatrice_ok === false) entries.push({ ok: false, text: 'Cockatrice export failed — check server log' });
-                    if (data.cockatrice_ok === null)  entries.push({ ok: null,  text: 'Cockatrice not configured — skipped' });
-                    entries.push({ ok: null, text: 'Refreshing\u2026' });
+                    if (data.cockatrice_ok === false) {
+                        entries.push({ ok: false, text: 'Cockatrice export failed' });
+                        if (data.cockatrice_error) entries.push({ ok: false, text: '\u00a0\u00a0' + data.cockatrice_error, small: true });
+                    }
+                    if (data.cockatrice_ok === null)  entries.push({ ok: null,  text: 'Cockatrice not configured \u2014 skipped' });
+                    if (hasErrors) {
+                        entries.push({ ok: null, text: 'Card images were saved. Reload when ready.' });
+                    } else {
+                        entries.push({ ok: null, text: 'Refreshing\u2026' });
+                    }
                     logEl.innerHTML = entries.map(function(e) {
                         var cls = e.ok === true ? 'publish-log-ok' : e.ok === false ? 'publish-log-err' : 'publish-log-skip';
                         var icon = e.ok === true ? '\u2713' : e.ok === false ? '\u2717' : '\u2014';
-                        return '<div class="publish-log-entry ' + cls + '">' + icon + ' ' + e.text + '</div>';
+                        var style = e.small ? ' style="font-size:0.85em;word-break:break-all;"' : '';
+                        return '<div class="publish-log-entry ' + cls + '"' + style + '>' + icon + ' ' + e.text + '</div>';
                     }).join('');
+                    if (hasErrors) {
+                        logEl.innerHTML += '<button class="publish-log-reload-btn" onclick="window.location.reload()">Reload page</button>';
+                    }
                     logEl.style.display = '';
                 }
 
-                // Reload so Cards/Tokens galleries reflect all published changes
-                // (handles new cards, token images, complete-status updates, etc.)
-                setTimeout(function () { window.location.reload(); }, 1200);
+                if (!hasErrors) {
+                    // Reload so Cards/Tokens galleries reflect all published changes
+                    setTimeout(function () { window.location.reload(); }, 1200);
+                } else if (publishBtn) {
+                    publishBtn.disabled = false;
+                }
             })
             .catch(function () {
                 if (confirmBtn) confirmBtn.disabled = false;
