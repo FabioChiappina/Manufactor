@@ -2560,34 +2560,225 @@ function _doBasicAction(color, action, btn) {
             });
     }
 
-    function _runDummyAction(btnId, progressId, progressBarId, progressLabelId, logId) {
-        var btn             = $id(btnId);
-        var progressSection = $id(progressId);
-        var progressBar     = $id(progressBarId);
-        var progressLabel   = $id(progressLabelId);
-        var logEl           = $id(logId);
+    // ── Cockatrice Cleanup Dialog ─────────────────────────────────────────────
 
-        if (btn) btn.disabled = true;
-        if (progressSection) progressSection.style.display = '';
-        if (progressBar) progressBar.style.width = '0%';
-        if (logEl) logEl.innerHTML = '';
-        if (progressLabel) progressLabel.textContent = 'Working\u2026';
+    var _ccScope    = 'all';   // 'all' or current deck folder name
+    var _ccItems    = [];      // [{id, type, xml_name?, set_code?, category?, filename?}]
+    var _ccSelected = new Set();
 
-        setTimeout(function () {
-            if (progressBar) progressBar.style.width = '100%';
-            if (progressLabel) progressLabel.textContent = 'Complete';
-            if (btn) btn.disabled = false;
-        }, 800);
+    function _ccEsc(str) {
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
     function onCockatriceCleanupClick() {
-        _runDummyAction(
-            'cockatrice-cleanup-btn',
-            'cockatrice-cleanup-progress',
-            'cockatrice-cleanup-progress-bar',
-            'cockatrice-cleanup-progress-label',
-            'cockatrice-cleanup-log'
-        );
+        var dialog = $id('cc-dialog');
+        if (!dialog) return;
+
+        _ccScope = 'all';
+        _ccItems = [];
+        _ccSelected.clear();
+
+        var scopeAllBtn  = $id('cc-scope-all-btn');
+        var scopeThisBtn = $id('cc-scope-this-btn');
+        if (scopeAllBtn)  scopeAllBtn.classList.add('active');
+        if (scopeThisBtn) scopeThisBtn.classList.remove('active');
+
+        var resultsSection = $id('cc-results-section');
+        if (resultsSection) resultsSection.style.display = 'none';
+
+        var resultMsg = $id('cc-result-msg');
+        if (resultMsg) { resultMsg.style.display = 'none'; resultMsg.innerHTML = ''; }
+
+        var purgeBtn = $id('cc-purge-btn');
+        if (purgeBtn) purgeBtn.disabled = true;
+
+        var searchBtn = $id('cc-search-btn');
+        if (searchBtn) searchBtn.disabled = false;
+
+        dialog.showModal();
+    }
+
+    function _ccSearch() {
+        var searchBtn      = $id('cc-search-btn');
+        var resultsList    = $id('cc-results-list');
+        var resultsSection = $id('cc-results-section');
+        var resultMsg      = $id('cc-result-msg');
+
+        if (searchBtn) searchBtn.disabled = true;
+        if (resultMsg) { resultMsg.style.display = 'none'; resultMsg.innerHTML = ''; }
+        if (resultsSection) resultsSection.style.display = '';
+        if (resultsList) resultsList.innerHTML = '<div class="print-run-loading">Searching\u2026</div>';
+
+        var scopeParam = (_ccScope === 'all') ? 'all' : encodeURIComponent(_deckName);
+        fetch('/api/cockatrice-cleanup/scan?scope=' + scopeParam)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (searchBtn) searchBtn.disabled = false;
+                if (data.error) {
+                    if (resultsList) resultsList.innerHTML = '<div class="print-run-empty">Error: ' + _ccEsc(data.error) + '</div>';
+                    return;
+                }
+                _ccItems = [];
+                _ccSelected.clear();
+
+                var xmlCards = data.junk_xml_cards || [];
+                var images   = data.junk_images    || [];
+
+                for (var i = 0; i < xmlCards.length; i++) {
+                    var xc = xmlCards[i];
+                    var xid = 'xml:' + xc.xml_name + '\x1f' + xc.set_code;
+                    _ccItems.push({ id: xid, type: 'xml_card', xml_name: xc.xml_name, set_code: xc.set_code, category: xc.category });
+                    _ccSelected.add(xid);
+                }
+                for (var j = 0; j < images.length; j++) {
+                    var img = images[j];
+                    var iid = 'img:' + img.filename;
+                    _ccItems.push({ id: iid, type: 'image', filename: img.filename });
+                    _ccSelected.add(iid);
+                }
+
+                _ccRenderList();
+                _ccUpdateSelectedCount();
+            })
+            .catch(function () {
+                if (searchBtn) searchBtn.disabled = false;
+                if (resultsList) resultsList.innerHTML = '<div class="print-run-empty">Network error \u2014 check server.</div>';
+            });
+    }
+
+    function _ccRenderList() {
+        var listEl = $id('cc-results-list');
+        if (!listEl) return;
+
+        if (_ccItems.length === 0) {
+            listEl.innerHTML = '<div class="print-run-empty">\u2705 No junk found \u2014 everything looks clean!</div>';
+            var purgeBtn = $id('cc-purge-btn');
+            if (purgeBtn) purgeBtn.disabled = true;
+            return;
+        }
+
+        var xmlCards = _ccItems.filter(function (it) { return it.type === 'xml_card'; });
+        var images   = _ccItems.filter(function (it) { return it.type === 'image'; });
+
+        var html = '';
+
+        if (xmlCards.length > 0) {
+            html += '<div class="cc-group-header">XML Card Entries (' + xmlCards.length + ')</div>';
+            for (var i = 0; i < xmlCards.length; i++) {
+                var it = xmlCards[i];
+                var sel = _ccSelected.has(it.id);
+                var catLabel = it.category === 'orphan'
+                    ? 'Orphaned from ' + _ccEsc(it.set_code) + ' (not in deck JSON)'
+                    : 'Straggler \u2014 set ' + _ccEsc(it.set_code) + ' not in any deck';
+                html += '<div class="cc-item-row' + (sel ? ' cc-item-selected' : '') + '">';
+                html += '<button class="cc-check-btn pr-btn pr-btn-check' + (sel ? ' pr-btn-active' : '') + '" data-id="' + _ccEsc(it.id) + '">\u2713</button>';
+                html += '<div class="cc-item-info">';
+                html += '<span class="cc-item-name">' + _ccEsc(it.xml_name) + '</span>';
+                html += '<span class="cc-item-meta">' + catLabel + '</span>';
+                html += '</div>';
+                html += '</div>';
+            }
+        }
+
+        if (images.length > 0) {
+            html += '<div class="cc-group-header">Orphaned Image Files (' + images.length + ')</div>';
+            for (var k = 0; k < images.length; k++) {
+                var img = images[k];
+                var imgSel = _ccSelected.has(img.id);
+                html += '<div class="cc-item-row' + (imgSel ? ' cc-item-selected' : '') + '">';
+                html += '<button class="cc-check-btn pr-btn pr-btn-check' + (imgSel ? ' pr-btn-active' : '') + '" data-id="' + _ccEsc(img.id) + '">\u2713</button>';
+                html += '<div class="cc-item-info">';
+                html += '<span class="cc-item-name">' + _ccEsc(img.filename) + '</span>';
+                html += '<span class="cc-item-meta">No matching card in any deck</span>';
+                html += '</div>';
+                html += '</div>';
+            }
+        }
+
+        listEl.innerHTML = html;
+
+        listEl.querySelectorAll('.cc-check-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var id = this.dataset.id;
+                if (_ccSelected.has(id)) _ccSelected.delete(id);
+                else _ccSelected.add(id);
+                _ccRenderList();
+                _ccUpdateSelectedCount();
+            });
+        });
+    }
+
+    function _ccUpdateSelectedCount() {
+        var el = $id('cc-selected-count');
+        if (el) el.textContent = _ccSelected.size + ' selected';
+        var purgeBtn = $id('cc-purge-btn');
+        if (purgeBtn) purgeBtn.disabled = (_ccSelected.size === 0);
+    }
+
+    function _ccPurge() {
+        var purgeBtn  = $id('cc-purge-btn');
+        var cancelBtn = $id('cc-cancel-btn');
+        var resultMsg = $id('cc-result-msg');
+
+        if (purgeBtn)  purgeBtn.disabled  = true;
+        if (cancelBtn) cancelBtn.disabled = true;
+
+        var xmlCards = [];
+        var images   = [];
+        _ccSelected.forEach(function (id) {
+            if (id.indexOf('xml:') === 0) {
+                var rest = id.slice(4);
+                var sep  = rest.indexOf('\x1f');
+                if (sep >= 0) {
+                    xmlCards.push({ xml_name: rest.slice(0, sep), set_code: rest.slice(sep + 1) });
+                }
+            } else if (id.indexOf('img:') === 0) {
+                images.push(id.slice(4));
+            }
+        });
+
+        fetch('/api/cockatrice-cleanup/purge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ xml_cards: xmlCards, images: images }),
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (cancelBtn) cancelBtn.disabled = false;
+                if (!resultMsg) return;
+                resultMsg.style.display = '';
+                if (data.error) {
+                    resultMsg.className = 'print-run-result print-run-result-err';
+                    resultMsg.textContent = 'Error: ' + data.error;
+                    if (purgeBtn) purgeBtn.disabled = (_ccSelected.size === 0);
+                    return;
+                }
+                var xmlN  = data.xml_cards_removed || 0;
+                var imgN  = data.images_deleted    || 0;
+                var errs  = data.errors || [];
+                resultMsg.className = 'print-run-result ' + (errs.length ? 'print-run-result-err' : 'print-run-result-ok');
+                resultMsg.innerHTML =
+                    (errs.length ? '\u26a0\ufe0f' : '\u2705') +
+                    ' Removed ' + xmlN + ' XML entr' + (xmlN === 1 ? 'y' : 'ies') +
+                    ' and deleted ' + imgN + ' image' + (imgN === 1 ? '' : 's') + '.' +
+                    (errs.length ? '<pre class="pr-errors">' + _ccEsc(errs.join('\n')) + '</pre>' : '');
+                _ccSelected.clear();
+                _ccItems = [];
+                var resultsSection = $id('cc-results-section');
+                if (resultsSection) resultsSection.style.display = 'none';
+            })
+            .catch(function () {
+                if (cancelBtn) cancelBtn.disabled = false;
+                if (purgeBtn)  purgeBtn.disabled  = (_ccSelected.size === 0);
+                if (resultMsg) {
+                    resultMsg.style.display = '';
+                    resultMsg.className = 'print-run-result print-run-result-err';
+                    resultMsg.textContent = 'Network error \u2014 check the server.';
+                }
+            });
     }
 
     // ── Print Run Dialog ──────────────────────────────────────────────────────
@@ -3236,6 +3427,30 @@ function _doBasicAction(color, action, btn) {
         if (prConfirmBtn) prConfirmBtn.addEventListener('click', onPreparePrintRunConfirm);
         if (prCancelBtn)  prCancelBtn.addEventListener('click', function () {
             var dialog = $id('print-run-dialog');
+            if (dialog) dialog.close();
+        });
+
+        // Cockatrice Cleanup dialog wiring
+        var ccScopeAllBtn  = $id('cc-scope-all-btn');
+        var ccScopeThisBtn = $id('cc-scope-this-btn');
+        var ccSearchBtn    = $id('cc-search-btn');
+        var ccPurgeBtn     = $id('cc-purge-btn');
+        var ccCancelBtn    = $id('cc-cancel-btn');
+
+        if (ccScopeAllBtn) ccScopeAllBtn.addEventListener('click', function () {
+            _ccScope = 'all';
+            ccScopeAllBtn.classList.add('active');
+            if (ccScopeThisBtn) ccScopeThisBtn.classList.remove('active');
+        });
+        if (ccScopeThisBtn) ccScopeThisBtn.addEventListener('click', function () {
+            _ccScope = _deckName;
+            ccScopeThisBtn.classList.add('active');
+            if (ccScopeAllBtn) ccScopeAllBtn.classList.remove('active');
+        });
+        if (ccSearchBtn) ccSearchBtn.addEventListener('click', _ccSearch);
+        if (ccPurgeBtn)  ccPurgeBtn.addEventListener('click', _ccPurge);
+        if (ccCancelBtn) ccCancelBtn.addEventListener('click', function () {
+            var dialog = $id('cc-dialog');
             if (dialog) dialog.close();
         });
 

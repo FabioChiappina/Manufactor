@@ -3433,3 +3433,89 @@ footer p {
     gap: 10px;
     justify-content: flex-end;
 }
+
+/* ── Cockatrice Cleanup Dialog ─────────────────────────────────────────────── */
+.cc-dialog {
+    border: none;
+    border-radius: 12px;
+    padding: 0;
+    width: 680px;
+    max-width: 96vw;
+    max-height: 90vh;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.35);
+    background: #1a1a2e;
+    color: #e0e0e0;
+    overflow: hidden;
+}
+.cc-dialog::backdrop { background: rgba(0,0,0,0.6); }
+.cc-dialog-inner {
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    padding: 24px 24px 18px;
+    gap: 14px;
+    box-sizing: border-box;
+}
+.cc-dialog-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+}
+.cc-search-row {
+    display: flex;
+    align-items: center;
+}
+.cc-results-list {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #333;
+    border-radius: 8px;
+    background: #111122;
+    min-height: 80px;
+    max-height: 380px;
+}
+.cc-group-header {
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: #161628;
+    border-bottom: 1px solid #222;
+    position: sticky;
+    top: 0;
+}
+.cc-item-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 12px;
+    border-bottom: 1px solid #1c1c30;
+    transition: background 0.1s;
+}
+.cc-item-row:last-child { border-bottom: none; }
+.cc-item-row:hover { background: #1e1e38; }
+.cc-item-row.cc-item-selected { background: #1a2a4a; }
+.cc-item-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.cc-item-name {
+    font-size: 13px;
+    color: #ddd;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cc-item-meta {
+    font-size: 11px;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

@@ -551,18 +551,11 @@
                 <div class="action-block-header">
                     <div class="action-block-meta">
                         <span class="action-block-title">Cockatrice Cleanup</span>
-                        <span class="action-block-desc">Clean up and reorganize Cockatrice card data and exports for this deck.</span>
+                        <span class="action-block-desc">Find and remove orphaned or straggler card entries from Cockatrice's custom XML files and image folder.</span>
                     </div>
                     <button id="cockatrice-cleanup-btn" class="btn btn-action">
                         Cockatrice Cleanup
                     </button>
-                </div>
-                <div id="cockatrice-cleanup-progress" style="display:none;">
-                    <div class="forge-deck-progress-bar-wrap">
-                        <div id="cockatrice-cleanup-progress-bar" class="forge-deck-progress-bar" style="width:0%"></div>
-                    </div>
-                    <div id="cockatrice-cleanup-progress-label" class="forge-deck-progress-label"></div>
-                    <div id="cockatrice-cleanup-log" class="forge-deck-log"></div>
                 </div>
             </div>
 
@@ -710,6 +703,40 @@
             <div class="print-run-dialog-footer">
                 <button id="pr-confirm-btn" class="btn btn-primary" disabled>Prepare Print Run</button>
                 <button id="pr-cancel-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- ── Cockatrice Cleanup Dialog ────────────────────────────────────────── -->
+    <dialog id="cc-dialog" class="cc-dialog">
+        <div class="cc-dialog-inner">
+            <h2 class="cc-dialog-title">Cockatrice Cleanup</h2>
+
+            <div class="print-run-scope-row">
+                <span class="print-run-scope-label">Scope:</span>
+                <div class="print-run-scope-btns">
+                    <button id="cc-scope-all-btn" class="btn btn-sm print-run-scope-btn active">All Decks</button>
+                    <button id="cc-scope-this-btn" class="btn btn-sm print-run-scope-btn">Only This Deck</button>
+                </div>
+            </div>
+
+            <div class="cc-search-row">
+                <button id="cc-search-btn" class="btn btn-primary btn-sm">Search For Junk</button>
+            </div>
+
+            <div id="cc-results-section" style="display:none;">
+                <div class="print-run-list-header">
+                    <span class="print-run-list-title">Found Items</span>
+                    <span id="cc-selected-count" class="print-run-selected-count">0 selected</span>
+                </div>
+                <div id="cc-results-list" class="cc-results-list"></div>
+            </div>
+
+            <div id="cc-result-msg" class="print-run-result" style="display:none;"></div>
+
+            <div class="print-run-dialog-footer">
+                <button id="cc-purge-btn" class="btn btn-delete-card" disabled>Purge Selected</button>
+                <button id="cc-cancel-btn" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     </dialog>

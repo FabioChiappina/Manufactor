@@ -68,6 +68,8 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
     tdict = {} # Tokens
     all_token_names_this_deck = []
     for ci, card in enumerate(deck.cards + tokens_cards):
+        if getattr(card, 'real', 0):
+            continue  # Real MTG cards are in Cockatrice's built-in database; skip custom export
         duplicate_token_names = []
         if card.is_token():
             found_this_token = False

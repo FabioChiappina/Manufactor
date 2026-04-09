@@ -1667,6 +1667,359 @@ def print_run_prepare():
     })
 
 
+# ── Cockatrice Cleanup helpers ────────────────────────────────────────────────
+
+def _normalize_name_for_match(name):
+    """Normalize a raw card name to match against decoded XML <name> element text."""
+    return (name
+            .replace('\u2019', "'").replace('\u2018', "'")
+            .replace('.', ' ')
+            .replace("'", '')
+            .replace(' // ', ' -- '))
+
+
+def _normalize_name_for_image(name):
+    """Normalize a raw card name to get the Cockatrice CUSTOM/ image filename base (no .full.jpeg)."""
+    return (name
+            .replace('\u2019', "'").replace('\u2018', "'")
+            .replace('"', '')
+            .replace('.', ' ')
+            .replace("'", '')
+            .replace(' // ', ' -- ')
+            .replace('/', ''))
+
+
+def _get_all_deck_card_info(deck_path):
+    """
+    Scan all decks and return name sets for Cockatrice cleanup matching.
+
+    Returns:
+        dict of {deck_folder: {
+            'setname': str,
+            'xml_names': set of normalized names that should appear in <name> tags,
+            'image_names': set of normalized image base names (no .full.jpeg),
+            'token_image_prefixes': set of "SETNAME_tokenname" prefixes
+        }}
+    """
+    result = {}
+    try:
+        folders = [
+            d for d in os.listdir(deck_path)
+            if os.path.isdir(os.path.join(deck_path, d))
+            and os.path.isfile(os.path.join(deck_path, d, f'{d}.json'))
+        ]
+    except OSError:
+        return result
+
+    for folder in folders:
+        json_path = os.path.join(deck_path, folder, f'{folder}.json')
+        try:
+            with open(json_path) as f:
+                raw = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+
+        setname = (raw.get('metadata') or {}).get('setname', '')
+        if not setname:
+            continue
+
+        xml_names = set()
+        image_names = set()
+        token_image_prefixes = set()
+
+        for card_data in (raw.get('cards') or {}).values():
+            if card_data.get('real'):
+                continue  # Scryfall real cards never appear in custom XML
+
+            front = card_data.get('front') or {}
+            back = card_data.get('back') or {}
+
+            if front.get('token'):
+                # Token image: SETNAME_cardname (with basic normalization, no apostrophes/dots)
+                front_name = front.get('name', '')
+                if front_name:
+                    prefix = (setname + '_' + front_name).replace('"', '').replace('.', ' ')
+                    token_image_prefixes.add(prefix)
+                continue  # Tokens go in tokens.xml, not customsets XML
+
+            front_name = front.get('name', '')
+            if front_name:
+                xml_names.add(_normalize_name_for_match(front_name))
+                image_names.add(_normalize_name_for_image(front_name))
+
+            back_name = back.get('name', '')
+            if back_name:
+                xml_names.add(_normalize_name_for_match(back_name))
+                image_names.add(_normalize_name_for_image(back_name))
+
+        result[folder] = {
+            'setname': setname,
+            'xml_names': xml_names,
+            'image_names': image_names,
+            'token_image_prefixes': token_image_prefixes,
+        }
+
+    return result
+
+
+@app.route('/api/cockatrice-cleanup/scan')
+def cockatrice_cleanup_scan():
+    """Scan Cockatrice customsets XML files and CUSTOM image folder for orphaned/straggler entries."""
+    import xml.etree.ElementTree as ET
+    import re
+
+    scope = request.args.get('scope', 'all').strip()
+
+    settings_mgr = SettingsManager()
+    deck_path = settings_mgr.get_deck_path()
+    cockatrice_path = settings_mgr.get_cockatrice_path()
+
+    if not deck_path or not os.path.isdir(deck_path):
+        return jsonify({'error': 'Deck path not configured'}), 400
+    if not cockatrice_path or not os.path.isdir(cockatrice_path):
+        return jsonify({'error': 'Cockatrice path not configured'}), 400
+
+    all_decks = _get_all_deck_card_info(deck_path)
+
+    # Build reverse map: setname → merged deck info (xml_names / image_names)
+    setname_to_info = {}
+    for folder, info in all_decks.items():
+        sn = info['setname']
+        if sn not in setname_to_info:
+            setname_to_info[sn] = {
+                'xml_names': set(info['xml_names']),
+                'image_names': set(info['image_names']),
+            }
+        else:
+            setname_to_info[sn]['xml_names'] |= info['xml_names']
+            setname_to_info[sn]['image_names'] |= info['image_names']
+
+    all_setnames = set(setname_to_info.keys())
+
+    # Determine which setnames are "in scope" for orphan checking
+    if scope == 'all':
+        scoped_setnames = all_setnames
+    else:
+        scoped_setnames = {
+            info['setname']
+            for folder, info in all_decks.items()
+            if folder == scope
+        }
+
+    # ── Scan customsets/XX.custom.xml files ──────────────────────────────────
+    customsets_path = os.path.join(cockatrice_path, 'customsets')
+    if not os.path.isdir(customsets_path):
+        return jsonify({'error': f'Cockatrice customsets folder not found: {customsets_path}'}), 400
+
+    junk_xml_cards = []
+    seen = set()  # (xml_name, set_code) already reported
+
+    for filename in sorted(os.listdir(customsets_path)):
+        if not re.match(r'^\d{2}\.custom\.xml$', filename):
+            continue
+        xml_path = os.path.join(customsets_path, filename)
+        try:
+            tree = ET.parse(xml_path)
+        except ET.ParseError:
+            continue
+
+        root = tree.getroot()
+        # Find cards under the <cards> element to avoid matching <set> entries
+        cards_elem = root.find('cards')
+        if cards_elem is None:
+            continue
+
+        for card_elem in cards_elem.findall('card'):
+            name_elem = card_elem.find('name')
+            set_elem = card_elem.find('set')
+            if name_elem is None or set_elem is None:
+                continue
+            xml_name = (name_elem.text or '').strip()
+            set_code = (set_elem.text or '').strip()
+
+            key = (xml_name, set_code)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            # Normalize the XML name for deck-membership matching (old XML entries may
+            # still contain apostrophes or other characters that cockatrice.py strips).
+            xml_name_norm = _normalize_name_for_match(xml_name)
+
+            if set_code in scoped_setnames:
+                # Belongs to a scoped deck's set — check if the card is actually in that deck
+                deck_info = setname_to_info.get(set_code)
+                if deck_info and xml_name_norm not in deck_info['xml_names']:
+                    junk_xml_cards.append({
+                        'xml_name': xml_name,
+                        'set_code': set_code,
+                        'category': 'orphan',
+                        'reason': f'Set {set_code} is a known deck but card not found in deck JSON',
+                    })
+            elif set_code not in all_setnames:
+                # Straggler: always shown regardless of scope
+                junk_xml_cards.append({
+                    'xml_name': xml_name,
+                    'set_code': set_code,
+                    'category': 'straggler',
+                    'reason': f'Set code {set_code} does not belong to any known deck',
+                })
+
+    # ── Scan CUSTOM image folder ──────────────────────────────────────────────
+    custom_image_path = os.path.join(cockatrice_path, 'pics', 'CUSTOM')
+    junk_images = []
+
+    if os.path.isdir(custom_image_path):
+        all_valid_image_names = set()
+        all_token_prefixes = set()
+        for info in all_decks.values():
+            all_valid_image_names |= info['image_names']
+            all_token_prefixes |= info.get('token_image_prefixes', set())
+
+        for fname in sorted(os.listdir(custom_image_path)):
+            if not fname.endswith('.full.jpeg'):
+                continue
+            base = fname[:-len('.full.jpeg')]
+            if base in all_valid_image_names:
+                continue
+            # Check token image prefixes (SETNAME_tokenname with optional _N suffix)
+            is_token = any(
+                base == prefix or re.match(r'^' + re.escape(prefix) + r'_\d+$', base)
+                for prefix in all_token_prefixes
+            )
+            if is_token:
+                continue
+            junk_images.append({
+                'filename': fname,
+                'reason': 'No matching card found in any deck',
+            })
+
+    return jsonify({
+        'junk_xml_cards': junk_xml_cards,
+        'junk_images': junk_images,
+    })
+
+
+@app.route('/api/cockatrice-cleanup/purge', methods=['POST'])
+def cockatrice_cleanup_purge():
+    """Remove selected junk XML card entries and image files from Cockatrice folders."""
+    import xml.etree.ElementTree as ET
+    import re
+
+    data = request.get_json() or {}
+    xml_cards_to_purge = data.get('xml_cards', [])  # [{xml_name, set_code}]
+    images_to_delete = data.get('images', [])        # [filename]
+
+    if not xml_cards_to_purge and not images_to_delete:
+        return jsonify({'error': 'Nothing selected to purge'}), 400
+
+    settings_mgr = SettingsManager()
+    cockatrice_path = settings_mgr.get_cockatrice_path()
+    if not cockatrice_path or not os.path.isdir(cockatrice_path):
+        return jsonify({'error': 'Cockatrice path not configured'}), 400
+
+    purge_set = {
+        (c['xml_name'], c['set_code'])
+        for c in xml_cards_to_purge
+        if 'xml_name' in c and 'set_code' in c
+    }
+
+    errors = []
+    removed_names = set()
+
+    # ── Update all customsets/XX.custom.xml and manufactor/custom.xml ────────
+    if purge_set:
+        xml_files = []
+        customsets_path = os.path.join(cockatrice_path, 'customsets')
+        if os.path.isdir(customsets_path):
+            for fn in sorted(os.listdir(customsets_path)):
+                if re.match(r'^\d{2}\.custom\.xml$', fn):
+                    xml_files.append(os.path.join(customsets_path, fn))
+
+        manufactor_xml = os.path.join(cockatrice_path, 'manufactor', 'custom.xml')
+        if os.path.isfile(manufactor_xml):
+            xml_files.append(manufactor_xml)
+
+        for xml_path in xml_files:
+            try:
+                tree = ET.parse(xml_path)
+            except ET.ParseError as e:
+                errors.append(f'Parse error in {os.path.basename(xml_path)}: {e}')
+                continue
+
+            root = tree.getroot()
+            cards_elem = root.find('cards')
+            if cards_elem is None:
+                continue
+
+            to_remove = []
+            for card_elem in cards_elem.findall('card'):
+                name_elem = card_elem.find('name')
+                set_elem = card_elem.find('set')
+                if name_elem is None or set_elem is None:
+                    continue
+                xml_name = (name_elem.text or '').strip()
+                set_code = (set_elem.text or '').strip()
+                if (xml_name, set_code) in purge_set:
+                    to_remove.append(card_elem)
+                    removed_names.add((xml_name, set_code))
+
+            for card_elem in to_remove:
+                cards_elem.remove(card_elem)
+
+            if to_remove:
+                try:
+                    tree.write(xml_path, encoding='unicode')
+                except Exception as e:
+                    errors.append(f'Write error for {os.path.basename(xml_path)}: {e}')
+
+        # Also clean up manufactor/custom.json
+        custom_json_path = os.path.join(cockatrice_path, 'manufactor', 'custom.json')
+        if os.path.isfile(custom_json_path):
+            try:
+                with open(custom_json_path) as f:
+                    custom_json = json.load(f)
+                purge_xml_names = {xml_name for (xml_name, _) in purge_set}
+                keys_to_remove = [
+                    k for k in custom_json
+                    if _normalize_name_for_match(k) in purge_xml_names
+                ]
+                for k in keys_to_remove:
+                    del custom_json[k]
+                with open(custom_json_path, 'w') as f:
+                    json.dump(custom_json, f)
+            except Exception as e:
+                errors.append(f'Failed to update custom.json: {e}')
+
+    # ── Delete image files ────────────────────────────────────────────────────
+    images_deleted = 0
+    custom_image_path = os.path.join(cockatrice_path, 'pics', 'CUSTOM')
+    if os.path.isdir(custom_image_path):
+        for fname in images_to_delete:
+            if not fname.endswith('.full.jpeg'):
+                errors.append(f'Skipped (not .full.jpeg): {fname}')
+                continue
+            if os.sep in fname or '/' in fname or '..' in fname:
+                errors.append(f'Skipped (unsafe filename): {fname}')
+                continue
+            fpath = os.path.join(custom_image_path, fname)
+            if os.path.isfile(fpath):
+                try:
+                    os.remove(fpath)
+                    images_deleted += 1
+                except Exception as e:
+                    errors.append(f'Failed to delete {fname}: {e}')
+            else:
+                errors.append(f'Already gone: {fname}')
+
+    return jsonify({
+        'success': True,
+        'xml_cards_removed': len(removed_names),
+        'images_deleted': images_deleted,
+        'errors': errors,
+    })
+
+
 @app.route('/settings')
 def settings():
     """Settings page."""
