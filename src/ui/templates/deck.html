@@ -126,7 +126,7 @@
             Assembly Line&nbsp;<span class="assembly-badge{% if staged_count > 0 %} assembly-badge--active{% endif %}" id="assembly-badge">{{ staged_count }}</span>
         </button>
         <button class="deck-tab" data-tab="opening-hand">Opening Hand</button>
-        <button class="deck-tab" data-tab="forge-all">Forge Entire Deck</button>
+        <button class="deck-tab" data-tab="forge-all">Actions</button>
     </div>
 
     <!-- ── Cards Tab ─────────────────────────────────────────────────── -->
@@ -522,19 +522,63 @@
         <div id="oh-drawn-row" class="oh-drawn-row" style="display:none;"></div>
     </div>
 
-    <!-- ── Forge Entire Deck Tab ────────────────────────────────────────── -->
+    <!-- ── Actions Tab ───────────────────────────────────────────────────── -->
     <div id="tab-forge-all" class="tab-pane" style="display:none;">
-        <div class="forge-deck-tab-content">
-            <button id="forge-deck-btn" class="btn btn-forge-deck">
-                Forge all {{ deck.total_cards }} cards
-            </button>
-            <div id="forge-deck-progress-section" style="display:none;">
-                <div class="forge-deck-progress-bar-wrap">
-                    <div id="forge-deck-progress-bar" class="forge-deck-progress-bar" style="width:0%"></div>
+        <div class="actions-tab-content">
+
+            <!-- Forge Entire Deck -->
+            <div class="action-block">
+                <div class="action-block-header">
+                    <div class="action-block-meta">
+                        <span class="action-block-title">Forge Entire Deck</span>
+                        <span class="action-block-desc">Generate card images for all custom cards and stage them for publishing.</span>
+                    </div>
+                    <button id="forge-deck-btn" class="btn btn-forge-deck">
+                        Forge all {{ deck.total_cards }} cards
+                    </button>
                 </div>
-                <div id="forge-deck-progress-label" class="forge-deck-progress-label">0 / 0</div>
-                <div id="forge-deck-log" class="forge-deck-log"></div>
+                <div id="forge-deck-progress-section" style="display:none;">
+                    <div class="forge-deck-progress-bar-wrap">
+                        <div id="forge-deck-progress-bar" class="forge-deck-progress-bar" style="width:0%"></div>
+                    </div>
+                    <div id="forge-deck-progress-label" class="forge-deck-progress-label">0 / 0</div>
+                    <div id="forge-deck-log" class="forge-deck-log"></div>
+                </div>
             </div>
+
+            <!-- Cockatrice Cleanup -->
+            <div class="action-block">
+                <div class="action-block-header">
+                    <div class="action-block-meta">
+                        <span class="action-block-title">Cockatrice Cleanup</span>
+                        <span class="action-block-desc">Clean up and reorganize Cockatrice card data and exports for this deck.</span>
+                    </div>
+                    <button id="cockatrice-cleanup-btn" class="btn btn-action">
+                        Cockatrice Cleanup
+                    </button>
+                </div>
+                <div id="cockatrice-cleanup-progress" style="display:none;">
+                    <div class="forge-deck-progress-bar-wrap">
+                        <div id="cockatrice-cleanup-progress-bar" class="forge-deck-progress-bar" style="width:0%"></div>
+                    </div>
+                    <div id="cockatrice-cleanup-progress-label" class="forge-deck-progress-label"></div>
+                    <div id="cockatrice-cleanup-log" class="forge-deck-log"></div>
+                </div>
+            </div>
+
+            <!-- Prepare Print Run -->
+            <div class="action-block">
+                <div class="action-block-header">
+                    <div class="action-block-meta">
+                        <span class="action-block-title">Prepare Print Run</span>
+                        <span class="action-block-desc">Select recently published cards and export them into a dated print run folder.</span>
+                    </div>
+                    <button id="prepare-print-run-btn" class="btn btn-action">
+                        Prepare Print Run
+                    </button>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -636,6 +680,37 @@
                 <button id="meta-edit-cancel-btn" class="btn btn-secondary">Cancel</button>
             </div>
             <p id="meta-edit-error" class="meta-edit-error" style="display:none"></p>
+        </div>
+    </dialog>
+
+    <!-- ── Print Run Dialog ──────────────────────────────────────────────── -->
+    <dialog id="print-run-dialog" class="print-run-dialog">
+        <div class="print-run-dialog-inner">
+            <h2 class="print-run-dialog-title">Prepare Print Run</h2>
+
+            <div class="print-run-scope-row">
+                <span class="print-run-scope-label">Scope:</span>
+                <div class="print-run-scope-btns">
+                    <button id="pr-scope-all-btn" class="btn btn-sm print-run-scope-btn active">All Decks</button>
+                    <button id="pr-scope-this-btn" class="btn btn-sm print-run-scope-btn">Only This Deck</button>
+                </div>
+            </div>
+
+            <div class="print-run-list-header">
+                <span class="print-run-list-title">Recently Published Cards</span>
+                <span id="pr-selected-count" class="print-run-selected-count">0 selected</span>
+            </div>
+
+            <div id="print-run-card-list" class="print-run-card-list">
+                <div class="print-run-loading">Loading…</div>
+            </div>
+
+            <div id="pr-result" class="print-run-result" style="display:none;"></div>
+
+            <div class="print-run-dialog-footer">
+                <button id="pr-confirm-btn" class="btn btn-primary" disabled>Prepare Print Run</button>
+                <button id="pr-cancel-btn" class="btn btn-secondary">Cancel</button>
+            </div>
         </div>
     </dialog>
 

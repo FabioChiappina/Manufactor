@@ -1516,6 +1516,157 @@ def add_real_card(deck_name):
     })
 
 
+@app.route('/api/print-run/cards')
+def print_run_cards():
+    """Return cards from Printing/ folders sorted by most recently modified, up to 6 months back."""
+    from datetime import datetime
+    scope = request.args.get('scope', 'all').strip()
+
+    settings_mgr = SettingsManager()
+    deck_path = settings_mgr.get_deck_path()
+    if not deck_path or not os.path.isdir(deck_path):
+        return jsonify({'error': 'Deck path not configured'}), 400
+
+    cutoff = datetime.now().timestamp() - (180 * 24 * 3600)  # 6 months ago
+
+    # Identify deck folders (must have a matching <FolderName>.json)
+    if scope == 'all':
+        try:
+            deck_names = [
+                d for d in os.listdir(deck_path)
+                if os.path.isdir(os.path.join(deck_path, d))
+                and os.path.isfile(os.path.join(deck_path, d, f"{d}.json"))
+            ]
+        except OSError:
+            deck_names = []
+    else:
+        deck_names = [scope] if (
+            os.path.isdir(os.path.join(deck_path, scope))
+            and os.path.isfile(os.path.join(deck_path, scope, f"{scope}.json"))
+        ) else []
+
+    cards = []
+    for deck_name in deck_names:
+        printing_dir = os.path.join(deck_path, deck_name, 'Printing')
+        if not os.path.isdir(printing_dir):
+            continue
+        json_path = os.path.join(deck_path, deck_name, f"{deck_name}.json")
+        try:
+            with open(json_path, 'r') as f:
+                raw_deck = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        for card_key in raw_deck.get('cards', {}):
+            # For DFC/subspell cards the key is "FrontName / BackName"; use the
+            # front name to find the Printing/ image and get its mtime.
+            front_name = card_key.partition(' / ')[0].strip() if ' / ' in card_key else card_key
+            fpath = os.path.join(printing_dir, f"{front_name}.jpg")
+            try:
+                mtime = os.path.getmtime(fpath)
+            except OSError:
+                continue
+            if mtime < cutoff:
+                continue
+            cards.append({
+                'deck_name': deck_name,
+                'card_name': card_key,
+                'modified_timestamp': mtime,
+            })
+
+    cards.sort(key=lambda x: x['modified_timestamp'], reverse=True)
+
+    now = datetime.now().timestamp()
+    for card in cards:
+        age = now - card['modified_timestamp']
+        if age < 3600:
+            rel = f"{int(age / 60)}m ago"
+        elif age < 86400:
+            rel = f"{int(age / 3600)}h ago"
+        elif age < 7 * 86400:
+            rel = f"{int(age / 86400)}d ago"
+        elif age < 30 * 86400:
+            rel = f"{int(age / 86400 / 7)}w ago"
+        else:
+            rel = f"{int(age / 86400 / 30)}mo ago"
+        card['modified_relative'] = rel
+
+    return jsonify({'cards': cards})
+
+
+@app.route('/api/print-run/prepare', methods=['POST'])
+def print_run_prepare():
+    """Create a PrintRun-<date> folder, save print_run.json, and copy Printing/ images into it."""
+    from datetime import date as _date
+
+    data = request.get_json() or {}
+    cards_by_deck = data.get('cards', {})  # {deck_name: [card_name, ...]}
+
+    if not cards_by_deck or not any(cards_by_deck.values()):
+        return jsonify({'error': 'No cards selected'}), 400
+
+    settings_mgr = SettingsManager()
+    deck_path = settings_mgr.get_deck_path()
+    if not deck_path or not os.path.isdir(deck_path):
+        return jsonify({'error': 'Deck path not configured'}), 400
+
+    today = _date.today().isoformat()
+    base_dir_name = f"PrintRun-{today}"
+    output_dir_name = base_dir_name
+    output_dir = os.path.join(deck_path, output_dir_name)
+    counter = 2
+    while os.path.exists(output_dir):
+        output_dir_name = f"{base_dir_name}-{counter}"
+        output_dir = os.path.join(deck_path, output_dir_name)
+        counter += 1
+
+    os.makedirs(output_dir)
+
+    with open(os.path.join(output_dir, 'print_run.json'), 'w') as f:
+        json.dump(cards_by_deck, f, indent=2)
+
+    total_cards = sum(len(v) for v in cards_by_deck.values())
+    pad = len(str(total_cards))
+    card_counter = 0
+    copied = 0
+    errors = []
+
+    for deck_name, card_names in cards_by_deck.items():
+        printing_path = os.path.join(deck_path, deck_name, 'Printing')
+        for card_name in card_names:
+            card_counter += 1
+            front, _, back = card_name.partition(' / ')
+            if back:
+                for prefix, name in [('Front', front), ('Back', back)]:
+                    src = os.path.join(printing_path, f'{name}.jpg')
+                    if not os.path.isfile(src):
+                        # Subspell back faces share the front image — skip silently
+                        continue
+                    dst_name = f"{prefix}_{card_counter:0{pad}}_{name}.jpg"
+                    dst = os.path.join(output_dir, dst_name)
+                    try:
+                        shutil.copyfile(src, dst)
+                        copied += 1
+                    except Exception as e:
+                        errors.append(f"{deck_name}/{name}: {e}")
+            else:
+                src = os.path.join(printing_path, f'{card_name}.jpg')
+                dst_name = f"Front_{card_counter:0{pad}}_{card_name}.jpg"
+                dst = os.path.join(output_dir, dst_name)
+                try:
+                    shutil.copyfile(src, dst)
+                    copied += 1
+                except Exception as e:
+                    errors.append(f"{deck_name}/{card_name}: {e}")
+
+    return jsonify({
+        'success': True,
+        'output_dir': output_dir_name,
+        'copied': copied,
+        'total_selected': total_cards,
+        'errors': errors,
+    })
+
+
 @app.route('/settings')
 def settings():
     """Settings page."""

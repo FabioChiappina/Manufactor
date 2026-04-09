@@ -104,13 +104,16 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
         else:
             this_card_name = card.name
             # Use folder_name for filesystem paths
-            current_image_path = os.path.join(DECK_PATH, deck.folder_name, "Cards", card.name+".jpg")
-            modified_this_card_name = this_card_name.replace('"', '').replace("."," ")
+            # Match app.py's safe_card_filename: replace ' // ' with ' -- ' and '/' with '-'
+            safe_cards_filename = card.name.replace(' // ', ' -- ').replace('/', '-')
+            current_image_path = os.path.join(DECK_PATH, deck.folder_name, "Cards", safe_cards_filename+".jpg")
+            # Cockatrice image filename: normalize Unicode apostrophes → straight, then strip all apostrophes
+            modified_this_card_name = this_card_name.replace('\u2019',"'").replace('\u2018',"'").replace('"', '').replace("."," ").replace("'","").replace(" // ", " -- ").replace("/","")
             try:
                 shutil.copy(current_image_path, os.path.join(COCKATRICE_IMAGE_PATH, modified_this_card_name+".full.jpeg"))
             except:
                 print("\nWARNING: Could not copy the image from the path " + current_image_path + " to the Cockatrice path. This card's artwork was not added to Cockatrice. Check to make sure the image exists.")
-        name = (this_card_name).replace('"','&quot;').replace("."," ")
+        name = (this_card_name).replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
         if card.rules is None:
             text = ""
         else:
@@ -277,8 +280,10 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             cdeck.write('    <deckname></deckname>\n')
             cdeck.write('    <comments></comments>\n')
             cdeck.write('    <zone name="main">\n')
-            for cdeck_cardname in sorted([c.name.replace('"','&quot;').replace("."," ") for c in deck.cards if not ((c.special is not None) and ("back" in c.special.lower()))]):
-                cdeck.write('        <card number="1" name="'+cdeck_cardname+'"/>\n')
+            for card in sorted([c for c in deck.cards if not ((c.special is not None) and ("back" in c.special.lower()))], key=lambda c: c.name):
+                cdeck_cardname = card.name.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
+                qty = int(card.quantity) if (card.quantity and int(card.quantity) > 0) else 1
+                cdeck.write('        <card number="'+str(qty)+'" name="'+cdeck_cardname+'"/>\n')
             for basic_name, basic_count in deck.basics_dict.items():
                 if basic_name.lower() not in Card.basic_lands:
                     continue

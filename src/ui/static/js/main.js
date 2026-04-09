@@ -2560,6 +2560,203 @@ function _doBasicAction(color, action, btn) {
             });
     }
 
+    function _runDummyAction(btnId, progressId, progressBarId, progressLabelId, logId) {
+        var btn             = $id(btnId);
+        var progressSection = $id(progressId);
+        var progressBar     = $id(progressBarId);
+        var progressLabel   = $id(progressLabelId);
+        var logEl           = $id(logId);
+
+        if (btn) btn.disabled = true;
+        if (progressSection) progressSection.style.display = '';
+        if (progressBar) progressBar.style.width = '0%';
+        if (logEl) logEl.innerHTML = '';
+        if (progressLabel) progressLabel.textContent = 'Working\u2026';
+
+        setTimeout(function () {
+            if (progressBar) progressBar.style.width = '100%';
+            if (progressLabel) progressLabel.textContent = 'Complete';
+            if (btn) btn.disabled = false;
+        }, 800);
+    }
+
+    function onCockatriceCleanupClick() {
+        _runDummyAction(
+            'cockatrice-cleanup-btn',
+            'cockatrice-cleanup-progress',
+            'cockatrice-cleanup-progress-bar',
+            'cockatrice-cleanup-progress-label',
+            'cockatrice-cleanup-log'
+        );
+    }
+
+    // ── Print Run Dialog ──────────────────────────────────────────────────────
+
+    var _prScope    = 'all';   // 'all' or deck folder name
+    var _prCards    = [];      // [{deck_name, card_name, modified_timestamp, modified_relative}]
+    var _prSelected = new Set(); // keys of form "deck_name\x1fcard_name"
+
+    function _prKey(card) { return card.deck_name + '\x1f' + card.card_name; }
+
+    function _prEsc(str) {
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function onPreparePrintRunClick() {
+        var dialog = $id('print-run-dialog');
+        if (!dialog) return;
+
+        _prSelected.clear();
+        _prScope = 'all';
+
+        var scopeAllBtn  = $id('pr-scope-all-btn');
+        var scopeThisBtn = $id('pr-scope-this-btn');
+        if (scopeAllBtn)  scopeAllBtn.classList.add('active');
+        if (scopeThisBtn) scopeThisBtn.classList.remove('active');
+
+        var resultEl = $id('pr-result');
+        if (resultEl) { resultEl.style.display = 'none'; resultEl.innerHTML = ''; }
+
+        _prUpdateSelectedCount();
+        dialog.showModal();
+        _prLoadCards();
+    }
+
+    function _prLoadCards() {
+        var listEl = $id('print-run-card-list');
+        if (listEl) listEl.innerHTML = '<div class="print-run-loading">Loading\u2026</div>';
+
+        var scopeParam = (_prScope === 'all') ? 'all' : encodeURIComponent(_deckName);
+        fetch('/api/print-run/cards?scope=' + scopeParam)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                _prCards = data.cards || [];
+                _prRenderCardList();
+            })
+            .catch(function () {
+                if (listEl) listEl.innerHTML = '<div class="print-run-loading">Error loading cards.</div>';
+            });
+    }
+
+    function _prRenderCardList() {
+        var listEl = $id('print-run-card-list');
+        if (!listEl) return;
+
+        if (_prCards.length === 0) {
+            listEl.innerHTML = '<div class="print-run-empty">No cards published in the last 6 months.</div>';
+            return;
+        }
+
+        var html = '';
+        for (var i = 0; i < _prCards.length; i++) {
+            var card = _prCards[i];
+            var key  = _prKey(card);
+            var sel  = _prSelected.has(key);
+            html += '<div class="pr-card-row' + (sel ? ' pr-card-selected' : '') + '" data-idx="' + i + '">';
+            html += '<div class="pr-card-info">';
+            html += '<span class="pr-card-deck">' + _prEsc(card.deck_name) + '</span>';
+            html += '<span class="pr-card-name">' + _prEsc(card.card_name) + '</span>';
+            html += '</div>';
+            html += '<span class="pr-card-time">' + _prEsc(card.modified_relative) + '</span>';
+            html += '<div class="pr-card-btns">';
+            html += '<button class="pr-btn pr-btn-check' + (sel ? ' pr-btn-active' : '') + '" data-idx="' + i + '" title="Select this card">\u2713</button>';
+            html += '<button class="pr-btn pr-btn-upto" data-idx="' + i + '" title="Select this card and all more recent">\u2191</button>';
+            html += '</div>';
+            html += '</div>';
+        }
+        listEl.innerHTML = html;
+
+        listEl.querySelectorAll('.pr-btn-check').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var idx = parseInt(this.dataset.idx, 10);
+                var key = _prKey(_prCards[idx]);
+                if (_prSelected.has(key)) _prSelected.delete(key);
+                else _prSelected.add(key);
+                _prRenderCardList();
+                _prUpdateSelectedCount();
+            });
+        });
+
+        listEl.querySelectorAll('.pr-btn-upto').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var idx = parseInt(this.dataset.idx, 10);
+                // Select this card plus everything above it (more recent)
+                for (var j = 0; j <= idx; j++) {
+                    _prSelected.add(_prKey(_prCards[j]));
+                }
+                _prRenderCardList();
+                _prUpdateSelectedCount();
+            });
+        });
+    }
+
+    function _prUpdateSelectedCount() {
+        var el = $id('pr-selected-count');
+        if (el) el.textContent = _prSelected.size + ' selected';
+        var confirmBtn = $id('pr-confirm-btn');
+        if (confirmBtn) confirmBtn.disabled = (_prSelected.size === 0);
+    }
+
+    function _prBuildPayload() {
+        var byDeck = {};
+        _prSelected.forEach(function (key) {
+            var parts    = key.split('\x1f');
+            var deckName = parts[0];
+            var cardName = parts[1];
+            if (!byDeck[deckName]) byDeck[deckName] = [];
+            byDeck[deckName].push(cardName);
+        });
+        return byDeck;
+    }
+
+    function onPreparePrintRunConfirm() {
+        var confirmBtn = $id('pr-confirm-btn');
+        var cancelBtn  = $id('pr-cancel-btn');
+        var resultEl   = $id('pr-result');
+        if (confirmBtn) confirmBtn.disabled = true;
+        if (cancelBtn)  cancelBtn.disabled  = true;
+
+        fetch('/api/print-run/prepare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cards: _prBuildPayload() }),
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (cancelBtn) cancelBtn.disabled = false;
+                if (!resultEl) return;
+                resultEl.style.display = '';
+                if (data.error) {
+                    resultEl.className = 'print-run-result print-run-result-err';
+                    resultEl.textContent = 'Error: ' + data.error;
+                    if (confirmBtn) confirmBtn.disabled = false;
+                    return;
+                }
+                var errLines = (data.errors || []).map(function (e) { return '\u2022 ' + e; }).join('\n');
+                resultEl.className = 'print-run-result print-run-result-ok';
+                resultEl.innerHTML =
+                    '\u2705 Created <strong>' + _prEsc(data.output_dir) + '</strong> &mdash; ' +
+                    data.copied + ' of ' + data.total_selected + ' image(s) copied.' +
+                    (errLines ? '<pre class="pr-errors">' + _prEsc(errLines) + '</pre>' : '');
+                if (confirmBtn) { confirmBtn.disabled = true; }
+                _prSelected.clear();
+                _prUpdateSelectedCount();
+            })
+            .catch(function () {
+                if (cancelBtn) cancelBtn.disabled = false;
+                if (confirmBtn) confirmBtn.disabled = false;
+                if (resultEl) {
+                    resultEl.style.display = '';
+                    resultEl.className = 'print-run-result print-run-result-err';
+                    resultEl.textContent = 'Network error \u2014 check the server.';
+                }
+            });
+    }
+
     function onPublishAssemblyClick() {
         var dialog = $id('publish-confirm-dialog');
         var countEl = $id('confirm-staged-count');
@@ -3004,9 +3201,43 @@ function _doBasicAction(color, action, btn) {
         var ohDrawBtn = $id('oh-draw-btn');
         if (ohDrawBtn) ohDrawBtn.addEventListener('click', _ohDraw);
 
-        // Forge Entire Deck tab button
+        // Actions tab buttons
         var forgeDeckBtn = $id('forge-deck-btn');
         if (forgeDeckBtn) forgeDeckBtn.addEventListener('click', onForgeDeckClick);
+
+        var cockatriceCleanupBtn = $id('cockatrice-cleanup-btn');
+        if (cockatriceCleanupBtn) cockatriceCleanupBtn.addEventListener('click', onCockatriceCleanupClick);
+
+        var preparePrintRunBtn = $id('prepare-print-run-btn');
+        if (preparePrintRunBtn) preparePrintRunBtn.addEventListener('click', onPreparePrintRunClick);
+
+        // Print Run dialog wiring
+        var prScopeAllBtn  = $id('pr-scope-all-btn');
+        var prScopeThisBtn = $id('pr-scope-this-btn');
+        var prConfirmBtn   = $id('pr-confirm-btn');
+        var prCancelBtn    = $id('pr-cancel-btn');
+
+        if (prScopeAllBtn) prScopeAllBtn.addEventListener('click', function () {
+            _prScope = 'all';
+            prScopeAllBtn.classList.add('active');
+            if (prScopeThisBtn) prScopeThisBtn.classList.remove('active');
+            _prSelected.clear();
+            _prUpdateSelectedCount();
+            _prLoadCards();
+        });
+        if (prScopeThisBtn) prScopeThisBtn.addEventListener('click', function () {
+            _prScope = 'this';
+            prScopeThisBtn.classList.add('active');
+            if (prScopeAllBtn) prScopeAllBtn.classList.remove('active');
+            _prSelected.clear();
+            _prUpdateSelectedCount();
+            _prLoadCards();
+        });
+        if (prConfirmBtn) prConfirmBtn.addEventListener('click', onPreparePrintRunConfirm);
+        if (prCancelBtn)  prCancelBtn.addEventListener('click', function () {
+            var dialog = $id('print-run-dialog');
+            if (dialog) dialog.close();
+        });
 
         // Assembly Line buttons
         var publishAssemblyBtn = $id('publish-assembly-btn');
