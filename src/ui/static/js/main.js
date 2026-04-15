@@ -34,6 +34,20 @@ document.addEventListener('DOMContentLoaded', function() {
         applyCardControls();
     }
 
+    var resetControlsBtn = document.getElementById('reset-controls-btn');
+    if (resetControlsBtn) {
+        resetControlsBtn.addEventListener('click', function () {
+            if (sortSelect)             sortSelect.value             = 'mana';
+            if (groupSelect)            groupSelect.value            = 'type';
+            if (mvOpSelect)             mvOpSelect.value             = 'any';
+            if (mvValueInput)           mvValueInput.value           = '';
+            if (typeFilterSelect)       typeFilterSelect.value       = 'any';
+            if (legitimacyFilterSelect) legitimacyFilterSelect.value = 'any';
+            if (changedFilterSelect)    changedFilterSelect.value    = 'any';
+            applyCardControls();
+        });
+    }
+
     // Render deck charts if present (deferred so layout is settled)
     if (document.getElementById('manaCurveChart') || document.getElementById('typeBreakdownChart')) {
         requestAnimationFrame(function() { renderDeckCharts(); });
@@ -920,6 +934,7 @@ function _doBasicAction(color, action, btn) {
     var _currentCardName = null;
     var _isNewCard       = false;
     var _editorOpenedAt  = 0;
+    var _savedScrollY    = 0;
     var _originalJson    = '';
     var _editorIsDirty   = false;
     var _editorMode      = 'form';
@@ -1287,6 +1302,7 @@ function _doBasicAction(color, action, btn) {
             return;
         }
 
+        _savedScrollY    = window.scrollY;
         _currentCardName = cardName;
         _isNewCard       = false;
         _editorIsDirty   = false;
@@ -1331,6 +1347,7 @@ function _doBasicAction(color, action, btn) {
     }
 
     function openNewCardEditor() {
+        _savedScrollY    = window.scrollY;
         _currentCardName = null;
         _isNewCard       = true;
         _editorIsDirty   = true;
@@ -1384,6 +1401,9 @@ function _doBasicAction(color, action, btn) {
         $id('cards-tab-main').style.display    = '';
 
         if (updateHash !== false) history.replaceState(null, '', '#cards');
+
+        // Restore scroll position from before the editor was opened
+        window.scrollTo({ top: _savedScrollY, behavior: 'instant' });
     }
 
     // ── Real Card Dialog ──────────────────────────────────────────────────────
