@@ -1910,7 +1910,14 @@ function _doBasicAction(color, action, btn) {
         var img = $id('editor-card-preview');
         var ph  = $id('editor-card-placeholder');
         if (base64) {
-            if (img) { img.src = base64; img.style.display = ''; }
+            if (img) {
+                // Clear src first so the browser always treats the new data as a
+                // fresh load, even if the base64 content happens to be identical
+                // to the previously displayed image (e.g. consecutive forges).
+                img.src = '';
+                img.src = base64;
+                img.style.display = '';
+            }
             if (ph)  ph.style.display = 'none';
         } else {
             if (img) img.style.display = 'none';

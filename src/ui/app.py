@@ -654,33 +654,10 @@ def _do_forge(deck_data, card_name, is_new, data):
 
     original = raw_deck.get('cards', {}).get(card_name if not is_new else full_deck_key)
 
-    # For existing, non-renamed cards: check whether only the quantity changed.
-    # If so, save quantity directly to deck JSON and skip image generation + staging.
-    _META_KEYS = frozenset({'quantity', 'complete', 'real', 'tags', 'colors'})
-
-    def _strip_meta(d):
-        return {k: v for k, v in d.items() if k not in _META_KEYS} if isinstance(d, dict) else d
-
-    if not is_new and original is not None and full_deck_key == card_name:
-        if _strip_meta(data) == _strip_meta(original):
-            raw_deck['cards'][card_name]['quantity'] = new_quantity
-            _touch_last_modified(raw_deck)
-            with open(deck_data['json_path'], 'w') as f:
-                json.dump(raw_deck, f, indent=2)
-            staging = load_staging(folder_path)
-            return jsonify({
-                'quantity_only_change': True,
-                'quantity': new_quantity,
-                'staged_count': len(staging),
-            })
-
     # Generate images into Staging/
     gen = ImageGenerator()
     images = {}  # card_name -> base64 string
     for card in cards:
-        success = gen.generate_single_card_image(card, save_path=staging_dir, include_printing=False)
-        if not success:
-            return jsonify({'error': f'Image generation failed for "{card.name}"'}), 500
         # Read the generated image back as base64.
         # The renderer names the output after the artwork file, which may differ
         # in apostrophe variant (e.g. U+2019 vs U+0027).  Normalize both sides,
@@ -689,6 +666,16 @@ def _do_forge(deck_data, card_name, is_new, data):
         def _anorm(s):
             return s.replace('\u2019', "'").replace('\u2018', "'").replace('\u02bc', "'").lower()
         img_path = os.path.join(staging_dir, f"{card.name}.jpg")
+        # Remove any stale canonical image before re-generating.  Without this,
+        # a second forge on a card whose artwork filename uses a different apostrophe
+        # variant than card.name would leave the old img_path in place and the
+        # rename-normalisation block below would be skipped, returning the stale
+        # forge-1 image instead of the freshly rendered forge-2 image.
+        if os.path.isfile(img_path):
+            os.remove(img_path)
+        success = gen.generate_single_card_image(card, save_path=staging_dir, include_printing=False)
+        if not success:
+            return jsonify({'error': f'Image generation failed for "{card.name}"'}), 500
         if not os.path.isfile(img_path):
             canon = _anorm(card.name)
             for fname in sorted(os.listdir(staging_dir)):
@@ -1728,29 +1715,38 @@ def _get_all_deck_card_info(deck_path):
         token_image_prefixes = set()
 
         for card_data in (raw.get('cards') or {}).values():
-            if card_data.get('real'):
-                continue  # Scryfall real cards never appear in custom XML
-
             front = card_data.get('front') or {}
             back = card_data.get('back') or {}
+            front_name = front.get('name', '')
+            back_name = back.get('name', '')
+
+            if card_data.get('real'):
+                # Real cards are not in the custom XML, but their images may exist in
+                # CUSTOM/ from previous exports — track them so they aren't flagged.
+                if front_name:
+                    image_names.add(_normalize_name_for_image(front_name))
+                if back_name:
+                    image_names.add(_normalize_name_for_image(back_name))
+                continue
 
             if front.get('token'):
-                # Token image: SETNAME_cardname (with basic normalization, no apostrophes/dots)
-                front_name = front.get('name', '')
+                # Token in cards section — use consistent normalization for prefix
                 if front_name:
-                    prefix = (setname + '_' + front_name).replace('"', '').replace('.', ' ')
-                    token_image_prefixes.add(prefix)
+                    token_image_prefixes.add(_normalize_name_for_image(setname + '_' + front_name))
                 continue  # Tokens go in tokens.xml, not customsets XML
 
-            front_name = front.get('name', '')
             if front_name:
                 xml_names.add(_normalize_name_for_match(front_name))
                 image_names.add(_normalize_name_for_image(front_name))
-
-            back_name = back.get('name', '')
             if back_name:
                 xml_names.add(_normalize_name_for_match(back_name))
                 image_names.add(_normalize_name_for_image(back_name))
+
+        # Process the dedicated "tokens" section (e.g. "_TOKEN_Foo" entries)
+        for token_data in (raw.get('tokens') or {}).values():
+            token_name = token_data.get('name', '')
+            if token_name:
+                token_image_prefixes.add(_normalize_name_for_image(setname + '_' + token_name))
 
         result[folder] = {
             'setname': setname,
@@ -1880,11 +1876,14 @@ def cockatrice_cleanup_scan():
             if not fname.endswith('.full.jpeg'):
                 continue
             base = fname[:-len('.full.jpeg')]
-            if base in all_valid_image_names:
+            # Normalize for matching — old files may have apostrophes or other
+            # characters that cockatrice.py now strips from filenames.
+            base_norm = _normalize_name_for_image(base)
+            if base_norm in all_valid_image_names:
                 continue
-            # Check token image prefixes (SETNAME_tokenname with optional _N suffix)
+            # Check token image prefixes (normalized, with optional _N suffix)
             is_token = any(
-                base == prefix or re.match(r'^' + re.escape(prefix) + r'_\d+$', base)
+                base_norm == prefix or re.match(r'^' + re.escape(prefix) + r'_\d+$', base_norm)
                 for prefix in all_token_prefixes
             )
             if is_token:
