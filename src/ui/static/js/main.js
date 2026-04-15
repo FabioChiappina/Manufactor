@@ -1402,6 +1402,9 @@ function _doBasicAction(color, action, btn) {
 
         if (updateHash !== false) history.replaceState(null, '', '#cards');
 
+        // Re-apply grouping/filtering so tag changes made in the editor take effect
+        applyCardControls();
+
         // Restore scroll position from before the editor was opened
         window.scrollTo({ top: _savedScrollY, behavior: 'instant' });
     }
@@ -1717,14 +1720,10 @@ function _doBasicAction(color, action, btn) {
     function _rcdUpdateGalleryItem(cardName, qty, data) {
         var galItem = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
         if (!galItem) return;
-        galItem.dataset.staged = 'true'; galItem.dataset.quantity = String(qty);
+        galItem.dataset.quantity = String(qty);
+        _markCanonicalItemStaged(cardName);
         var container = galItem.querySelector('.card-image-container') || galItem.querySelector('.card-image-placeholder');
         if (container) {
-            if (!container.querySelector('.staged-overlay')) {
-                var overlay = document.createElement('div');
-                overlay.className = 'staged-overlay'; overlay.innerHTML = 'AWAITING<br>ASSEMBLY LINE';
-                container.appendChild(overlay);
-            }
             var qtyBadge = container.querySelector('.quantity-badge');
             if (qty > 1) {
                 if (!qtyBadge) { qtyBadge = document.createElement('div'); qtyBadge.className = 'quantity-badge'; container.appendChild(qtyBadge); }
@@ -2014,6 +2013,25 @@ function _doBasicAction(color, action, btn) {
         }
     }
 
+    // Always marks the CANONICAL gallery item as staged (not a clone).
+    // querySelector may find a clone first (e.g. "Artifact Creature" appears in
+    // both Creature and Artifact groups). applyCardControls rebuilds from canonical
+    // items, so the canonical item must carry the staged state.
+    function _markCanonicalItemStaged(cardName) {
+        var canonical = getCanonicalItems().find(function (ci) {
+            return ci.dataset.cardName === cardName;
+        });
+        if (!canonical) return;
+        canonical.dataset.staged = 'true';
+        var con = canonical.querySelector('.card-image-container, .card-image-placeholder');
+        if (con && !con.querySelector('.staged-overlay')) {
+            var ov = document.createElement('div');
+            ov.className = 'staged-overlay';
+            ov.innerHTML = 'AWAITING<br>ASSEMBLY LINE';
+            con.appendChild(ov);
+        }
+    }
+
     function _updateGalleryItemTags(cardName, tags) {
         var item = document.querySelector('.card-gallery-item[data-card-name="' + CSS.escape(cardName) + '"]');
         if (item) item.dataset.tags = tags.join(',');
@@ -2181,19 +2199,9 @@ function _doBasicAction(color, action, btn) {
             // Update gallery quantity badge
             _updateGalleryQtyBadge(_currentCardName, cardData.quantity || 1);
 
-            // Mark the gallery item as staged
+            // Mark the canonical gallery item as staged
             if (_currentCardName) {
-                var galItem = document.querySelector('.card-gallery-item[data-card-name="' + _currentCardName.replace(/"/g, '\\"') + '"]');
-                if (galItem) {
-                    galItem.dataset.staged = 'true';
-                    var imgCon = galItem.querySelector('.card-image-container, .card-image-placeholder');
-                    if (imgCon && !imgCon.querySelector('.staged-overlay')) {
-                        var ov = document.createElement('div');
-                        ov.className = 'staged-overlay';
-                        ov.innerHTML = 'AWAITING<br>ASSEMBLY LINE';
-                        imgCon.appendChild(ov);
-                    }
-                }
+                _markCanonicalItemStaged(_currentCardName);
             }
 
         })
@@ -3405,9 +3413,7 @@ function _doBasicAction(color, action, btn) {
                         if (data.error) { _rcdShowStatus('error', 'Error: ' + data.error); return; }
                         _updatePublishBar(data.staged_count);
                         rcdDialog.close();
-                        // Mark gallery item as staged
-                        var galItem = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
-                        if (galItem) galItem.dataset.staged = 'true';
+                        _markCanonicalItemStaged(cardName);
                     })
                     .catch(function () { _rcdShowStatus('error', 'Delete failed.'); });
             });

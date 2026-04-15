@@ -515,6 +515,8 @@ def add_card_tag(deck_name):
     if not deck_data:
         return jsonify({'error': 'Deck not found'}), 404
 
+    folder_path = deck_data['folder_path']
+
     with open(deck_data['json_path'], 'r') as f:
         raw_deck = json.load(f)
 
@@ -537,6 +539,12 @@ def add_card_tag(deck_name):
     with open(deck_data['json_path'], 'w') as f:
         json.dump(raw_deck, f, indent=2)
 
+    # Keep staging entry in sync so staged cards also see the updated tags
+    staging = load_staging(folder_path)
+    if card_name in staging and isinstance(staging[card_name].get('updated'), dict):
+        staging[card_name]['updated']['tags'] = card_tags
+        save_staging(folder_path, staging)
+
     return jsonify({'card_tags': card_tags, 'deck_tags': meta_tags})
 
 
@@ -553,6 +561,8 @@ def remove_card_tag(deck_name):
     deck_data = load_deck_by_name(deck_name)
     if not deck_data:
         return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
 
     with open(deck_data['json_path'], 'r') as f:
         raw_deck = json.load(f)
@@ -578,6 +588,12 @@ def remove_card_tag(deck_name):
 
     with open(deck_data['json_path'], 'w') as f:
         json.dump(raw_deck, f, indent=2)
+
+    # Keep staging entry in sync so staged cards also see the updated tags
+    staging = load_staging(folder_path)
+    if card_name in staging and isinstance(staging[card_name].get('updated'), dict):
+        staging[card_name]['updated']['tags'] = card_tags
+        save_staging(folder_path, staging)
 
     return jsonify({'card_tags': card_tags, 'deck_tags': meta_tags})
 
@@ -724,6 +740,13 @@ def _do_forge(deck_data, card_name, is_new, data):
     # Remove any old staging entry under the previous name to avoid duplicates
     if card_name != full_deck_key and card_name in staging:
         del staging[card_name]
+
+    # serializeForm() on the client never includes 'tags' (managed out-of-band).
+    # Preserve them from the deck JSON so the staged version doesn't lose them.
+    existing_tags = raw_deck.get('cards', {}).get(full_deck_key, {}).get('tags')
+    if existing_tags and not data.get('tags'):
+        data['tags'] = existing_tags
+
     staging_entry = {
         'original': original,
         'updated': data,
