@@ -693,6 +693,37 @@ main {
     display: block;
 }
 
+#chart-hover-tooltip {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    background: rgba(24, 24, 28, 0.96);
+    color: #e8e8e8;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 7px;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.6;
+    max-width: 240px;
+    pointer-events: none;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+}
+
+.chart-tip-label {
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #aaa;
+    margin-bottom: 4px;
+}
+
+.chart-tip-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* Card List */
 .card-list {
     margin-top: 40px;
@@ -3538,4 +3569,161 @@ footer p {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* ── Edit Tags Dialog ────────────────────────────────────────────────────── */
+
+.edit-tags-dialog {
+    border: none;
+    border-radius: 10px;
+    padding: 0;
+    background: #fff;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.30);
+    width: min(560px, 95vw);
+    max-height: 80vh;
+    overflow: hidden;
+    position: fixed;
+    inset: 0;
+    margin: auto;
+}
+.edit-tags-dialog[open] {
+    display: flex;
+    flex-direction: column;
+}
+.edit-tags-dialog::backdrop {
+    background: rgba(0,0,0,0.45);
+}
+.edit-tags-dialog-body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: 80vh;
+    overflow: hidden;
+}
+.edit-tags-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
+}
+.edit-tags-dialog-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+.edit-tags-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 10px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.edit-tags-empty {
+    color: #888;
+    font-size: 14px;
+    padding: 12px 0;
+    text-align: center;
+}
+.edit-tag-row {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 10px 12px 8px;
+    background: #fafafa;
+}
+.edit-tag-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.edit-tag-input {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 13px;
+    font-family: inherit;
+    min-width: 0;
+}
+.edit-tag-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+}
+.edit-tag-count {
+    font-size: 12px;
+    color: #888;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.btn-tag-rename {
+    padding: 5px 10px;
+    font-size: 12px;
+    border: 1px solid #667eea;
+    border-radius: 5px;
+    background: #fff;
+    color: #667eea;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.btn-tag-rename:hover:not(:disabled) { background: #667eea; color: #fff; }
+.btn-tag-rename:disabled { opacity: 0.4; cursor: default; }
+.btn-tag-delete {
+    padding: 5px 8px;
+    font-size: 12px;
+    border: 1px solid #e53935;
+    border-radius: 5px;
+    background: #fff;
+    color: #e53935;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.btn-tag-delete:hover { background: #e53935; color: #fff; }
+.edit-tag-by-text {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+}
+.edit-tag-by-text-label {
+    font-size: 11px;
+    color: #888;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.edit-tag-text-input {
+    flex: 1;
+    padding: 5px 7px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 12px;
+    font-family: inherit;
+    min-width: 0;
+}
+.edit-tag-text-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+}
+.btn-tag-add-by-text {
+    padding: 5px 10px;
+    font-size: 12px;
+    border: 1px solid #43a047;
+    border-radius: 5px;
+    background: #fff;
+    color: #43a047;
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.btn-tag-add-by-text:hover:not(:disabled) { background: #43a047; color: #fff; }
+.btn-tag-add-by-text:disabled { opacity: 0.4; cursor: default; }
+.edit-tag-feedback {
+    font-size: 11px;
+    color: #43a047;
+    margin-top: 4px;
+    min-height: 16px;
 }

@@ -415,6 +415,11 @@ window.addEventListener('resize', function() {
     _chartResizeTimer = setTimeout(renderDeckCharts, 150);
 });
 
+// Hit regions for chart hover tooltips (updated on each render)
+var _manaCurveHitRegions = [];
+var _typeBreakdownHitRegions = [];
+var _chartHoverSetup = false;
+
 function renderDeckCharts() {
     var manaCurveCanvas = document.getElementById('manaCurveChart');
     var typeCanvas = document.getElementById('typeBreakdownChart');
@@ -424,10 +429,16 @@ function renderDeckCharts() {
     var items = getCanonicalItems();
 
     var manaCurve = {}; // { mv: { permanents: N, spells: N } }
+    var manaCurveNames = {}; // { mv: { permanents: [], spells: [] } }
     var typeCounts = {
         'Creature': 0, 'Artifact': 0, 'Enchantment': 0,
         'Instant': 0, 'Sorcery': 0, 'Planeswalker': 0,
         'Land': 0, 'Other': 0
+    };
+    var typeNames = {
+        'Creature': [], 'Artifact': [], 'Enchantment': [],
+        'Instant': [], 'Sorcery': [], 'Planeswalker': [],
+        'Land': [], 'Other': []
     };
 
     var totalCardCount = 0;
@@ -439,6 +450,7 @@ function renderDeckCharts() {
         var cardtype = item.dataset.cardtype || '';
         var qty     = parseInt(item.dataset.quantity, 10) || 1;
         var ct      = cardtype.toLowerCase();
+        var cardName = item.dataset.name || '';
 
         var isCreature     = ct.includes('creature');
         var isArtifact     = ct.includes('artifact');
@@ -452,16 +464,17 @@ function renderDeckCharts() {
         totalCardCount += qty;
 
         // Type counts — a card can appear in multiple bars
-        if (isCreature)     typeCounts['Creature']     += qty;
-        if (isArtifact)     typeCounts['Artifact']     += qty;
-        if (isEnchantment)  typeCounts['Enchantment']  += qty;
-        if (isInstant)      typeCounts['Instant']      += qty;
-        if (isSorcery)      typeCounts['Sorcery']      += qty;
-        if (isPlaneswalker) typeCounts['Planeswalker'] += qty;
-        if (isLand)         typeCounts['Land']         += qty;
+        if (isCreature)     { typeCounts['Creature']     += qty; if (cardName) typeNames['Creature'].push(cardName); }
+        if (isArtifact)     { typeCounts['Artifact']     += qty; if (cardName) typeNames['Artifact'].push(cardName); }
+        if (isEnchantment)  { typeCounts['Enchantment']  += qty; if (cardName) typeNames['Enchantment'].push(cardName); }
+        if (isInstant)      { typeCounts['Instant']      += qty; if (cardName) typeNames['Instant'].push(cardName); }
+        if (isSorcery)      { typeCounts['Sorcery']      += qty; if (cardName) typeNames['Sorcery'].push(cardName); }
+        if (isPlaneswalker) { typeCounts['Planeswalker'] += qty; if (cardName) typeNames['Planeswalker'].push(cardName); }
+        if (isLand)         { typeCounts['Land']         += qty; if (cardName) typeNames['Land'].push(cardName); }
         if (!isCreature && !isArtifact && !isEnchantment && !isInstant &&
             !isSorcery && !isPlaneswalker && !isLand) {
             typeCounts['Other'] += qty;
+            if (cardName) typeNames['Other'].push(cardName);
         }
 
         // Mana curve: lands excluded
@@ -472,13 +485,16 @@ function renderDeckCharts() {
         totalMV      += mv * qty;
 
         if (!manaCurve[mv]) manaCurve[mv] = { permanents: 0, spells: 0 };
+        if (!manaCurveNames[mv]) manaCurveNames[mv] = { permanents: [], spells: [] };
 
         // Classify as permanent if any permanent supertype present
         var isPermanent = isCreature || isArtifact || isEnchantment || isPlaneswalker || isBattle;
         if (isPermanent) {
             manaCurve[mv].permanents += qty;
+            if (cardName) manaCurveNames[mv].permanents.push(cardName);
         } else {
             manaCurve[mv].spells += qty;
+            if (cardName) manaCurveNames[mv].spells.push(cardName);
         }
     });
 
@@ -488,8 +504,10 @@ function renderDeckCharts() {
         avgNonLand: nonLandCount   > 0 ? totalMV / nonLandCount   : 0
     };
 
-    if (manaCurveCanvas) _renderManaCurveChart(manaCurveCanvas, manaCurve, mvStats);
-    if (typeCanvas)      _renderTypeBreakdownChart(typeCanvas, typeCounts);
+    if (manaCurveCanvas) _renderManaCurveChart(manaCurveCanvas, manaCurve, mvStats, manaCurveNames);
+    if (typeCanvas)      _renderTypeBreakdownChart(typeCanvas, typeCounts, typeNames);
+
+    _ensureChartHoverSetup(manaCurveCanvas, typeCanvas);
 }
 
 function _setupCanvas(canvas) {
@@ -522,7 +540,7 @@ function _barLabel(ctx, count, cx, segTop, segH) {
     }
 }
 
-function _renderManaCurveChart(canvas, manaCurve, mvStats) {
+function _renderManaCurveChart(canvas, manaCurve, mvStats, manaCurveNames) {
     var setup = _setupCanvas(canvas);
     if (!setup) return;
     var ctx = setup.ctx, w = setup.w, h = setup.h;
@@ -583,8 +601,10 @@ function _renderManaCurveChart(canvas, manaCurve, mvStats) {
     ctx.stroke();
 
     // Bars
+    _manaCurveHitRegions = [];
     allMVs.forEach(function(mv, idx) {
         var d      = manaCurve[mv] || { permanents: 0, spells: 0 };
+        var names  = manaCurveNames ? (manaCurveNames[mv] || { permanents: [], spells: [] }) : { permanents: [], spells: [] };
         var bx     = ML + idx * barW + pad;
         var bw     = barW - 2 * pad;
         var permH  = (d.permanents / yMax) * cH;
@@ -594,11 +614,15 @@ function _renderManaCurveChart(canvas, manaCurve, mvStats) {
         if (permH > 0) {
             ctx.fillStyle = PERM_COLOR;
             ctx.fillRect(bx, bot - permH, bw, permH);
+            _manaCurveHitRegions.push({ x: bx, y: bot - permH, w: bw, h: permH,
+                label: 'MV ' + mv + ' \u2014 Permanents', names: names.permanents.slice().sort() });
         }
         // Spells: top segment (stacked above permanents)
         if (spellH > 0) {
             ctx.fillStyle = SPELL_COLOR;
             ctx.fillRect(bx, bot - permH - spellH, bw, spellH);
+            _manaCurveHitRegions.push({ x: bx, y: bot - permH - spellH, w: bw, h: spellH,
+                label: 'MV ' + mv + ' \u2014 Spells', names: names.spells.slice().sort() });
         }
 
         var cx = bx + bw / 2;
@@ -642,7 +666,7 @@ function _renderManaCurveChart(canvas, manaCurve, mvStats) {
     }
 }
 
-function _renderTypeBreakdownChart(canvas, typeCounts) {
+function _renderTypeBreakdownChart(canvas, typeCounts, typeNames) {
     var setup = _setupCanvas(canvas);
     if (!setup) return;
     var ctx = setup.ctx, w = setup.w, h = setup.h;
@@ -704,6 +728,7 @@ function _renderTypeBreakdownChart(canvas, typeCounts) {
     ctx.stroke();
 
     // Bars + labels
+    _typeBreakdownHitRegions = [];
     bars.forEach(function(bar, idx) {
         var bx   = ML + idx * barW + pad;
         var bw   = barW - 2 * pad;
@@ -712,6 +737,10 @@ function _renderTypeBreakdownChart(canvas, typeCounts) {
         ctx.fillStyle = bar.color;
         ctx.fillRect(bx, bot - barH, bw, barH);
         _barLabel(ctx, bar.count, bx + bw / 2, bot - barH, barH);
+
+        var names = typeNames ? (typeNames[bar.type] || []) : [];
+        _typeBreakdownHitRegions.push({ x: bx, y: bot - barH, w: bw, h: barH,
+            label: bar.type, names: names.slice().sort() });
 
         var label = useAbbrev ? (ABBREV[bar.type] || bar.type) : bar.type;
         ctx.fillStyle = '#555';
@@ -725,6 +754,74 @@ function _renderTypeBreakdownChart(canvas, typeCounts) {
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('Cards may count in multiple bars', w / 2, h - 4);
+}
+
+// ─── Chart Hover Tooltips ─────────────────────────────────────────────────────
+
+function _ensureChartHoverSetup(manaCurveCanvas, typeCanvas) {
+    if (_chartHoverSetup) return;
+    _chartHoverSetup = true;
+
+    function onMove(hitRegionsRef) {
+        return function(e) {
+            var rect = e.currentTarget.getBoundingClientRect();
+            var mx = e.clientX - rect.left;
+            var my = e.clientY - rect.top;
+            var hit = null;
+            for (var i = 0; i < hitRegionsRef().length; i++) {
+                var r = hitRegionsRef()[i];
+                if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                    hit = r;
+                    break;
+                }
+            }
+            if (hit && hit.names.length > 0) {
+                _showChartTooltip(e.clientX, e.clientY, hit.label, hit.names);
+            } else {
+                _hideChartTooltip();
+            }
+        };
+    }
+
+    if (manaCurveCanvas) {
+        manaCurveCanvas.addEventListener('mousemove', onMove(function() { return _manaCurveHitRegions; }));
+        manaCurveCanvas.addEventListener('mouseleave', _hideChartTooltip);
+    }
+    if (typeCanvas) {
+        typeCanvas.addEventListener('mousemove', onMove(function() { return _typeBreakdownHitRegions; }));
+        typeCanvas.addEventListener('mouseleave', _hideChartTooltip);
+    }
+}
+
+function _showChartTooltip(clientX, clientY, label, names) {
+    var tip = document.getElementById('chart-hover-tooltip');
+    if (!tip) {
+        tip = document.createElement('div');
+        tip.id = 'chart-hover-tooltip';
+        document.body.appendChild(tip);
+    }
+    var html = '<div class="chart-tip-label">' + label + '</div>';
+    for (var i = 0; i < names.length; i++) {
+        html += '<div class="chart-tip-name">' + names[i] + '</div>';
+    }
+    tip.innerHTML = html;
+    tip.style.display = 'block';
+    var x = clientX + 14;
+    var y = clientY + 14;
+    // Keep within viewport
+    tip.style.left = '-9999px';  // measure off-screen first
+    tip.style.top  = '-9999px';
+    var tipW = tip.offsetWidth  || 200;
+    var tipH = tip.offsetHeight || 100;
+    if (x + tipW > window.innerWidth)  x = clientX - tipW - 8;
+    if (y + tipH > window.innerHeight) y = clientY - tipH - 8;
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+}
+
+function _hideChartTooltip() {
+    var tip = document.getElementById('chart-hover-tooltip');
+    if (tip) tip.style.display = 'none';
 }
 
 // ─── Mana Production Breakdown ───────────────────────────────────────────────
@@ -2072,6 +2169,259 @@ function _doBasicAction(color, action, btn) {
             _updateGalleryItemTags(_currentCardName, _currentTags);
         })
         .catch(function () {});
+    }
+
+    // ── Edit Tags Dialog ──────────────────────────────────────────────────────
+
+    function openEditTagsDialog() {
+        var dialog = $id('edit-tags-dialog');
+        if (!dialog) return;
+        var list = $id('edit-tags-list');
+        if (list) list.innerHTML = '<p class="edit-tags-empty">Loading\u2026</p>';
+        dialog.showModal();
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/tags-data')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) {
+                    if (list) list.innerHTML = '<p class="edit-tags-empty">' + data.error + '</p>';
+                    return;
+                }
+                _renderEditTagsList(data.tags);
+            })
+            .catch(function () {
+                if (list) list.innerHTML = '<p class="edit-tags-empty">Failed to load tags.</p>';
+            });
+    }
+
+    function _renderEditTagsList(tags) {
+        var list = $id('edit-tags-list');
+        if (!list) return;
+        if (!tags || tags.length === 0) {
+            list.innerHTML = '<p class="edit-tags-empty">No tags in this deck yet.</p>';
+            return;
+        }
+        list.innerHTML = '';
+        tags.forEach(function (tagObj) {
+            list.appendChild(_buildEditTagRow(tagObj));
+        });
+    }
+
+    function _buildEditTagRow(tagObj) {
+        var originalName = tagObj.name;
+        var cardCount    = tagObj.card_count || 0;
+
+        var row = document.createElement('div');
+        row.className = 'edit-tag-row';
+
+        // ── Main row: input + count + Rename + Remove ──
+        var mainRow = document.createElement('div');
+        mainRow.className = 'edit-tag-main';
+
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'edit-tag-input';
+        input.value = originalName;
+
+        var countEl = document.createElement('span');
+        countEl.className = 'edit-tag-count';
+        countEl.textContent = cardCount + (cardCount === 1 ? ' card' : ' cards');
+
+        var renameBtn = document.createElement('button');
+        renameBtn.className = 'btn-tag-rename';
+        renameBtn.textContent = 'Rename';
+        renameBtn.disabled = true;
+
+        var deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn-tag-delete';
+        deleteBtn.textContent = 'Remove';
+
+        mainRow.appendChild(input);
+        mainRow.appendChild(countEl);
+        mainRow.appendChild(renameBtn);
+        mainRow.appendChild(deleteBtn);
+
+        // ── Add by card text row ──
+        var byTextRow = document.createElement('div');
+        byTextRow.className = 'edit-tag-by-text';
+
+        var label = document.createElement('span');
+        label.className = 'edit-tag-by-text-label';
+        label.textContent = 'Add cards containing:';
+
+        var textInput = document.createElement('input');
+        textInput.type = 'text';
+        textInput.className = 'edit-tag-text-input';
+        textInput.placeholder = 'e.g. replicate';
+
+        var addBtn = document.createElement('button');
+        addBtn.className = 'btn-tag-add-by-text';
+        addBtn.textContent = 'Find & Add';
+        addBtn.disabled = true;
+
+        byTextRow.appendChild(label);
+        byTextRow.appendChild(textInput);
+        byTextRow.appendChild(addBtn);
+
+        // ── Feedback line ──
+        var feedback = document.createElement('div');
+        feedback.className = 'edit-tag-feedback';
+
+        row.appendChild(mainRow);
+        row.appendChild(byTextRow);
+        row.appendChild(feedback);
+
+        // ── Behaviour: rename button enables when input changes ──
+        input.addEventListener('input', function () {
+            renameBtn.disabled = (input.value.trim() === originalName || input.value.trim() === '');
+        });
+
+        renameBtn.addEventListener('click', function () {
+            var newName = input.value.trim();
+            if (!newName || newName === originalName) return;
+            renameBtn.disabled = true;
+            renameBtn.textContent = '\u2026';
+            fetch('/deck/' + encodeURIComponent(_deckName) + '/rename-tag', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ old_tag: originalName, new_tag: newName })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                renameBtn.textContent = 'Rename';
+                if (data.error) {
+                    feedback.textContent = 'Error: ' + data.error;
+                    feedback.style.color = '#e53935';
+                    renameBtn.disabled = false;
+                    return;
+                }
+                feedback.textContent = 'Renamed \u2014 ' + data.affected_cards + ' card' + (data.affected_cards !== 1 ? 's' : '') + ' updated.';
+                feedback.style.color = '#43a047';
+                // Patch data-tags on every gallery item that carried the old tag
+                var oldName = originalName;
+                document.querySelectorAll('.card-item[data-tags]').forEach(function (item) {
+                    var tags = (item.dataset.tags || '').split(',').filter(Boolean);
+                    var idx = tags.indexOf(oldName);
+                    if (idx !== -1) { tags[idx] = newName; item.dataset.tags = tags.join(','); }
+                });
+                _deckTags = data.deck_tags;
+                originalName = newName;
+                renameBtn.disabled = true;
+                countEl.textContent = data.affected_cards + (data.affected_cards === 1 ? ' card' : ' cards');
+                applyCardControls();
+            })
+            .catch(function () {
+                renameBtn.textContent = 'Rename';
+                renameBtn.disabled = false;
+                feedback.textContent = 'Request failed.';
+                feedback.style.color = '#e53935';
+            });
+        });
+
+        deleteBtn.addEventListener('click', function () {
+            if (!confirm('Remove tag \u201c' + originalName + '\u201d from all ' + cardCount + ' card(s)?')) return;
+            deleteBtn.disabled = true;
+            fetch('/deck/' + encodeURIComponent(_deckName) + '/delete-tag', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tag: originalName })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) {
+                    deleteBtn.disabled = false;
+                    feedback.textContent = 'Error: ' + data.error;
+                    feedback.style.color = '#e53935';
+                    return;
+                }
+                // Strip deleted tag from every gallery item
+                var removedTag = originalName;
+                document.querySelectorAll('.card-item[data-tags]').forEach(function (item) {
+                    var tags = (item.dataset.tags || '').split(',').filter(function (t) { return t !== removedTag; });
+                    item.dataset.tags = tags.join(',');
+                });
+                _deckTags = data.deck_tags;
+                applyCardControls();
+                // Animate row out
+                row.style.transition = 'opacity 0.2s';
+                row.style.opacity = '0';
+                setTimeout(function () {
+                    if (row.parentNode) row.parentNode.removeChild(row);
+                    var list = $id('edit-tags-list');
+                    if (list && list.children.length === 0) {
+                        list.innerHTML = '<p class="edit-tags-empty">No tags in this deck yet.</p>';
+                    }
+                }, 220);
+            })
+            .catch(function () {
+                deleteBtn.disabled = false;
+                feedback.textContent = 'Request failed.';
+                feedback.style.color = '#e53935';
+            });
+        });
+
+        // ── Behaviour: Find & Add button enables when text input has content ──
+        textInput.addEventListener('input', function () {
+            addBtn.disabled = (textInput.value.trim() === '');
+        });
+
+        addBtn.addEventListener('click', function () {
+            var text = textInput.value.trim();
+            if (!text) return;
+            addBtn.disabled = true;
+            addBtn.textContent = '\u2026';
+            fetch('/deck/' + encodeURIComponent(_deckName) + '/add-cards-by-text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tag: originalName, text: text })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                addBtn.textContent = 'Find & Add';
+                addBtn.disabled = (textInput.value.trim() === '');
+                if (data.error) {
+                    feedback.textContent = 'Error: ' + data.error;
+                    feedback.style.color = '#e53935';
+                    return;
+                }
+                var added = data.added_cards.length;
+                var skipped = data.already_had_tag.length;
+                if (added === 0 && skipped === 0) {
+                    feedback.textContent = 'No cards matched \u201c' + text + '\u201d.';
+                    feedback.style.color = '#888';
+                } else if (added === 0) {
+                    feedback.textContent = 'All matching cards already have this tag.';
+                    feedback.style.color = '#888';
+                } else {
+                    feedback.textContent = 'Added to ' + added + ' card' + (added !== 1 ? 's' : '') +
+                        (skipped ? ' (' + skipped + ' already tagged)' : '') + '.';
+                    feedback.style.color = '#43a047';
+                    // Update card count display
+                    cardCount += added;
+                    countEl.textContent = cardCount + (cardCount === 1 ? ' card' : ' cards');
+                    _deckTags = data.deck_tags;
+                    // Update gallery data-tags for affected cards
+                    data.added_cards.forEach(function (cardName) {
+                        var item = document.querySelector('.card-item[data-name="' + CSS.escape(cardName) + '"]');
+                        if (item) {
+                            var existing = (item.dataset.tags || '').split(',').filter(Boolean);
+                            if (!existing.includes(originalName)) {
+                                existing.push(originalName);
+                                item.dataset.tags = existing.join(',');
+                            }
+                        }
+                    });
+                    applyCardControls();
+                }
+            })
+            .catch(function () {
+                addBtn.textContent = 'Find & Add';
+                addBtn.disabled = (textInput.value.trim() === '');
+                feedback.textContent = 'Request failed.';
+                feedback.style.color = '#e53935';
+            });
+        });
+
+        return row;
     }
 
     // ── Forge ─────────────────────────────────────────────────────────────────
@@ -3434,6 +3784,15 @@ function _doBasicAction(color, action, btn) {
 
         var preparePrintRunBtn = $id('prepare-print-run-btn');
         if (preparePrintRunBtn) preparePrintRunBtn.addEventListener('click', onPreparePrintRunClick);
+
+        var editTagsBtn = $id('edit-tags-btn');
+        if (editTagsBtn) editTagsBtn.addEventListener('click', openEditTagsDialog);
+
+        var editTagsCloseBtn = $id('edit-tags-close-btn');
+        if (editTagsCloseBtn) editTagsCloseBtn.addEventListener('click', function () {
+            var dialog = $id('edit-tags-dialog');
+            if (dialog) dialog.close();
+        });
 
         // Print Run dialog wiring
         var prScopeAllBtn  = $id('pr-scope-all-btn');

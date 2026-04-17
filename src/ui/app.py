@@ -598,6 +598,227 @@ def remove_card_tag(deck_name):
     return jsonify({'card_tags': card_tags, 'deck_tags': meta_tags})
 
 
+@app.route('/deck/<deck_name>/tags-data', methods=['GET'])
+def get_tags_data(deck_name):
+    """Return all deck tags with per-tag card counts."""
+    deck_name = unquote(deck_name)
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    meta_tags = sorted(raw_deck.get('metadata', {}).get('tags') or [])
+    cards = raw_deck.get('cards', {})
+
+    tag_card_counts = {tag: 0 for tag in meta_tags}
+    for card in cards.values():
+        if not isinstance(card, dict):
+            continue
+        for tag in (card.get('tags') or []):
+            if tag in tag_card_counts:
+                tag_card_counts[tag] += 1
+
+    tags = [{'name': t, 'card_count': tag_card_counts[t]} for t in meta_tags]
+    return jsonify({'tags': tags})
+
+
+@app.route('/deck/<deck_name>/rename-tag', methods=['POST'])
+def rename_tag(deck_name):
+    """Rename a tag across all cards and deck metadata."""
+    deck_name = unquote(deck_name)
+    data = request.get_json() or {}
+    old_tag = (data.get('old_tag') or '').strip()
+    new_tag = (data.get('new_tag') or '').strip()
+
+    if not old_tag or not new_tag:
+        return jsonify({'error': 'old_tag and new_tag required'}), 400
+    if old_tag == new_tag:
+        return jsonify({'error': 'Tags are identical'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    affected = 0
+    for card_name, card in raw_deck.get('cards', {}).items():
+        if not isinstance(card, dict):
+            continue
+        card_tags = list(card.get('tags') or [])
+        if old_tag in card_tags:
+            idx = card_tags.index(old_tag)
+            card_tags[idx] = new_tag
+            raw_deck['cards'][card_name]['tags'] = card_tags
+            affected += 1
+
+    meta_tags = list(raw_deck.get('metadata', {}).get('tags') or [])
+    if old_tag in meta_tags:
+        meta_tags.remove(old_tag)
+    if new_tag not in meta_tags:
+        meta_tags.append(new_tag)
+    meta_tags.sort()
+    raw_deck.setdefault('metadata', {})['tags'] = meta_tags
+    _touch_last_modified(raw_deck)
+
+    with open(deck_data['json_path'], 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    staging = load_staging(folder_path)
+    changed_staging = False
+    for entry in staging.values():
+        if isinstance(entry.get('updated'), dict):
+            card_tags = list(entry['updated'].get('tags') or [])
+            if old_tag in card_tags:
+                idx = card_tags.index(old_tag)
+                card_tags[idx] = new_tag
+                entry['updated']['tags'] = card_tags
+                changed_staging = True
+    if changed_staging:
+        save_staging(folder_path, staging)
+
+    return jsonify({'deck_tags': meta_tags, 'affected_cards': affected})
+
+
+@app.route('/deck/<deck_name>/delete-tag', methods=['POST'])
+def delete_tag(deck_name):
+    """Remove a tag from all cards and deck metadata."""
+    deck_name = unquote(deck_name)
+    data = request.get_json() or {}
+    tag = (data.get('tag') or '').strip()
+
+    if not tag:
+        return jsonify({'error': 'tag required'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    affected = 0
+    for card_name, card in raw_deck.get('cards', {}).items():
+        if not isinstance(card, dict):
+            continue
+        card_tags = list(card.get('tags') or [])
+        if tag in card_tags:
+            raw_deck['cards'][card_name]['tags'] = [t for t in card_tags if t != tag]
+            affected += 1
+
+    meta_tags = list(raw_deck.get('metadata', {}).get('tags') or [])
+    if tag in meta_tags:
+        meta_tags.remove(tag)
+    raw_deck.setdefault('metadata', {})['tags'] = meta_tags
+    _touch_last_modified(raw_deck)
+
+    with open(deck_data['json_path'], 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    staging = load_staging(folder_path)
+    changed_staging = False
+    for entry in staging.values():
+        if isinstance(entry.get('updated'), dict):
+            card_tags = list(entry['updated'].get('tags') or [])
+            if tag in card_tags:
+                entry['updated']['tags'] = [t for t in card_tags if t != tag]
+                changed_staging = True
+    if changed_staging:
+        save_staging(folder_path, staging)
+
+    return jsonify({'deck_tags': meta_tags, 'affected_cards': affected})
+
+
+@app.route('/deck/<deck_name>/add-cards-by-text', methods=['POST'])
+def add_cards_by_text(deck_name):
+    """Add all cards whose rules/flavor text contains a keyword to a given tag."""
+    deck_name = unquote(deck_name)
+    data = request.get_json() or {}
+    tag = (data.get('tag') or '').strip()
+    text = (data.get('text') or '').strip()
+
+    if not tag or not text:
+        return jsonify({'error': 'tag and text required'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    text_lower = text.lower()
+
+    def _face_texts(face):
+        if not isinstance(face, dict):
+            return []
+        result = []
+        for key in ('rules', 'rules1', 'rules2', 'rules3', 'rules4', 'flavor'):
+            v = face.get(key)
+            if isinstance(v, str):
+                result.append(v)
+        return result
+
+    added_cards = []
+    already_had_tag = []
+
+    for card_name, card in raw_deck.get('cards', {}).items():
+        if not isinstance(card, dict):
+            continue
+        texts = _face_texts(card.get('front') or card)
+        texts += _face_texts(card.get('back'))
+        sub = card.get('subspell')
+        if isinstance(sub, dict):
+            texts += _face_texts(sub)
+        if text_lower not in ' '.join(texts).lower():
+            continue
+
+        card_tags = list(card.get('tags') or [])
+        if tag in card_tags:
+            already_had_tag.append(card_name)
+            continue
+
+        card_tags.append(tag)
+        raw_deck['cards'][card_name]['tags'] = card_tags
+        added_cards.append(card_name)
+
+    meta_tags = list(raw_deck.get('metadata', {}).get('tags') or [])
+    if added_cards and tag not in meta_tags:
+        meta_tags.append(tag)
+        meta_tags.sort()
+    raw_deck.setdefault('metadata', {})['tags'] = meta_tags
+
+    if added_cards:
+        _touch_last_modified(raw_deck)
+        with open(deck_data['json_path'], 'w') as f:
+            json.dump(raw_deck, f, indent=2)
+
+        staging = load_staging(folder_path)
+        changed_staging = False
+        for card_name in added_cards:
+            if card_name in staging and isinstance(staging[card_name].get('updated'), dict):
+                stag_tags = list(staging[card_name]['updated'].get('tags') or [])
+                if tag not in stag_tags:
+                    stag_tags.append(tag)
+                    staging[card_name]['updated']['tags'] = stag_tags
+                    changed_staging = True
+        if changed_staging:
+            save_staging(folder_path, staging)
+
+    return jsonify({
+        'deck_tags': meta_tags,
+        'tag': tag,
+        'added_cards': added_cards,
+        'already_had_tag': already_had_tag,
+    })
+
+
 @app.route('/card-frames')
 def card_frames():
     """Return sorted list of card frame filenames from Assets/CardFrames/."""

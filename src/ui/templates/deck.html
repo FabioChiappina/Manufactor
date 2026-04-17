@@ -573,8 +573,34 @@
                 </div>
             </div>
 
+            <!-- Edit Tags -->
+            <div class="action-block">
+                <div class="action-block-header">
+                    <div class="action-block-meta">
+                        <span class="action-block-title">Edit Tags</span>
+                        <span class="action-block-desc">Rename or remove deck tags, or bulk-assign a tag to cards containing specific text.</span>
+                    </div>
+                    <button id="edit-tags-btn" class="btn btn-action">
+                        Edit Tags
+                    </button>
+                </div>
+            </div>
+
         </div>
     </div>
+
+    <!-- ── Edit Tags Dialog ───────────────────────────────────────────────── -->
+    <dialog id="edit-tags-dialog" class="edit-tags-dialog">
+        <div class="edit-tags-dialog-body">
+            <div class="edit-tags-dialog-header">
+                <h3>Edit Tags</h3>
+                <button id="edit-tags-close-btn" class="btn-dialog-close" type="button" aria-label="Close">✕</button>
+            </div>
+            <div id="edit-tags-list" class="edit-tags-list">
+                <p class="edit-tags-empty">Loading…</p>
+            </div>
+        </div>
+    </dialog>
 
     <!-- ── Publish Confirm Dialog ─────────────────────────────────────── -->
     <dialog id="publish-confirm-dialog" class="confirm-dialog">
