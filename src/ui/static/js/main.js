@@ -22,6 +22,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const typeFilterSelect = document.getElementById('type-filter-select');
     const legitimacyFilterSelect = document.getElementById('legitimacy-filter-select');
     const changedFilterSelect = document.getElementById('changed-filter-select');
+    const subspellFilterSelect = document.getElementById('subspell-filter-select');
+    const dfcFilterSelect = document.getElementById('dfc-filter-select');
+    const powerOpSelect = document.getElementById('power-op-select');
+    const powerValueInput = document.getElementById('power-value-input');
+    const toughnessOpSelect = document.getElementById('toughness-op-select');
+    const toughnessValueInput = document.getElementById('toughness-value-input');
+    const subtypeFilterInput = document.getElementById('subtype-filter-input');
+    const tagFilterInput = document.getElementById('tag-filter-input');
     if (sortSelect && groupSelect) {
         sortSelect.addEventListener('change', applyCardControls);
         groupSelect.addEventListener('change', applyCardControls);
@@ -30,6 +38,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (typeFilterSelect) typeFilterSelect.addEventListener('change', applyCardControls);
         if (legitimacyFilterSelect) legitimacyFilterSelect.addEventListener('change', applyCardControls);
         if (changedFilterSelect) changedFilterSelect.addEventListener('change', applyCardControls);
+        if (subspellFilterSelect) subspellFilterSelect.addEventListener('change', applyCardControls);
+        if (dfcFilterSelect) dfcFilterSelect.addEventListener('change', applyCardControls);
+        if (powerOpSelect) powerOpSelect.addEventListener('change', applyCardControls);
+        if (powerValueInput) powerValueInput.addEventListener('input', applyCardControls);
+        if (toughnessOpSelect) toughnessOpSelect.addEventListener('change', applyCardControls);
+        if (toughnessValueInput) toughnessValueInput.addEventListener('input', applyCardControls);
+        if (subtypeFilterInput) subtypeFilterInput.addEventListener('input', applyCardControls);
+        if (tagFilterInput) tagFilterInput.addEventListener('input', applyCardControls);
         // Apply defaults immediately on page load
         applyCardControls();
     }
@@ -44,6 +60,14 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeFilterSelect)       typeFilterSelect.value       = 'any';
             if (legitimacyFilterSelect) legitimacyFilterSelect.value = 'any';
             if (changedFilterSelect)    changedFilterSelect.value    = 'any';
+            if (subspellFilterSelect)   subspellFilterSelect.value   = 'any';
+            if (dfcFilterSelect)        dfcFilterSelect.value        = 'any';
+            if (powerOpSelect)          powerOpSelect.value          = 'any';
+            if (powerValueInput)        powerValueInput.value        = '';
+            if (toughnessOpSelect)      toughnessOpSelect.value      = 'any';
+            if (toughnessValueInput)    toughnessValueInput.value    = '';
+            if (subtypeFilterInput)     subtypeFilterInput.value     = '';
+            if (tagFilterInput)         tagFilterInput.value         = '';
             applyCardControls();
         });
     }
@@ -226,10 +250,52 @@ function matchesManaFilter(item, op, value) {
     const mv = getManaValue(item.dataset.cost);
     const v = parseInt(value, 10);
     if (isNaN(v)) return true;
-    if (op === 'lt') return mv < v;
-    if (op === 'eq') return mv === v;
-    if (op === 'gt') return mv > v;
+    if (op === 'lt')  return mv < v;
+    if (op === 'lte') return mv <= v;
+    if (op === 'eq')  return mv === v;
+    if (op === 'gte') return mv >= v;
+    if (op === 'gt')  return mv > v;
     return true;
+}
+
+function matchesPowerToughnessFilter(item, attr, op, value) {
+    if (op === 'any') return true;
+    if (value === '' || value === null || value === undefined) return true;
+    const raw = (item.dataset[attr] || '').trim();
+    // Cards with no power/toughness (e.g. instants) — exclude from any active filter
+    if (raw === '') return false;
+    const numericRaw = parseFloat(raw);
+    const numericVal = parseFloat(value);
+    const rawIsNumeric = !isNaN(numericRaw);
+    const valIsNumeric = !isNaN(numericVal);
+    if (op === 'eq') {
+        // For = comparison, support both string equality (for *, X, etc.) and numeric
+        if (!valIsNumeric || !rawIsNumeric) {
+            return raw.toLowerCase() === value.trim().toLowerCase();
+        }
+        return numericRaw === numericVal;
+    }
+    // For numeric comparisons, if either side is non-numeric, show nothing
+    if (!rawIsNumeric || !valIsNumeric) return false;
+    if (op === 'lt')  return numericRaw < numericVal;
+    if (op === 'lte') return numericRaw <= numericVal;
+    if (op === 'gte') return numericRaw >= numericVal;
+    if (op === 'gt')  return numericRaw > numericVal;
+    return true;
+}
+
+function matchesSubtypeFilter(item, value) {
+    if (!value) return true;
+    const subtype = (item.dataset.subtype || '').toLowerCase();
+    return subtype.includes(value.toLowerCase());
+}
+
+function matchesTagFilter(item, value) {
+    if (!value) return true;
+    const tagsStr = (item.dataset.tags || '').toLowerCase();
+    if (!tagsStr) return false;
+    const needle = value.toLowerCase();
+    return tagsStr.split(',').some(function(tag) { return tag.trim().includes(needle); });
 }
 
 function matchesTypeFilter(item, typeFilter) {
@@ -270,11 +336,27 @@ function applyCardControls() {
     const typeFilterEl = document.getElementById('type-filter-select');
     const legitimacyEl = document.getElementById('legitimacy-filter-select');
     const changedEl = document.getElementById('changed-filter-select');
+    const subspellEl = document.getElementById('subspell-filter-select');
+    const dfcEl = document.getElementById('dfc-filter-select');
+    const powerOpEl = document.getElementById('power-op-select');
+    const powerValEl = document.getElementById('power-value-input');
+    const toughnessOpEl = document.getElementById('toughness-op-select');
+    const toughnessValEl = document.getElementById('toughness-value-input');
+    const subtypeEl = document.getElementById('subtype-filter-input');
+    const tagEl = document.getElementById('tag-filter-input');
     const mvOp = mvOpEl ? mvOpEl.value : 'any';
     const mvValue = mvValEl ? mvValEl.value : '';
     const typeFilter = typeFilterEl ? typeFilterEl.value : 'any';
     const legitimacyFilter = legitimacyEl ? legitimacyEl.value : 'any';
     const changedFilter = changedEl ? changedEl.value : 'any';
+    const subspellFilter = subspellEl ? subspellEl.value : 'any';
+    const dfcFilter = dfcEl ? dfcEl.value : 'any';
+    const powerOp = powerOpEl ? powerOpEl.value : 'any';
+    const powerValue = powerValEl ? powerValEl.value : '';
+    const toughnessOp = toughnessOpEl ? toughnessOpEl.value : 'any';
+    const toughnessValue = toughnessValEl ? toughnessValEl.value : '';
+    const subtypeFilter = subtypeEl ? subtypeEl.value.trim() : '';
+    const tagFilter = tagEl ? tagEl.value.trim() : '';
 
     // Always work from the canonical snapshot, not whatever is currently in the DOM
     // (tag grouping leaves clones in the DOM that would inflate counts otherwise)
@@ -290,6 +372,14 @@ function applyCardControls() {
         if (legitimacyFilter === 'custom' &&   parseInt(item.dataset.real, 10) === 1)  return false;
         if (changedFilter === 'yes' && item.dataset.staged !== 'true')  return false;
         if (changedFilter === 'no'  && item.dataset.staged === 'true')  return false;
+        if (subspellFilter === 'yes' && item.dataset.subspell !== '1') return false;
+        if (subspellFilter === 'no'  && item.dataset.subspell === '1') return false;
+        if (dfcFilter === 'yes' && item.dataset.dfc !== '1') return false;
+        if (dfcFilter === 'no'  && item.dataset.dfc === '1') return false;
+        if (!matchesPowerToughnessFilter(item, 'power', powerOp, powerValue)) return false;
+        if (!matchesPowerToughnessFilter(item, 'toughness', toughnessOp, toughnessValue)) return false;
+        if (!matchesSubtypeFilter(item, subtypeFilter)) return false;
+        if (!matchesTagFilter(item, tagFilter)) return false;
         return true;
     });
 

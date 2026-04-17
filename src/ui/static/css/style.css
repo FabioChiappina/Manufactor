@@ -810,6 +810,7 @@ main {
     width: 60px;
     transition: border-color 0.2s;
     -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 .control-group input[type="number"]::-webkit-outer-spin-button,
@@ -822,6 +823,29 @@ main {
     outline: none;
     border-color: #667eea;
     box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+.control-group input[type="text"] {
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+    transition: border-color 0.2s;
+}
+
+.control-group input[type="text"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+.filter-text-short {
+    width: 50px;
+}
+
+.filter-text-medium {
+    width: 110px;
 }
 
 /* Card Groups (used when grouping is active) */
@@ -1435,23 +1459,28 @@ footer p {
     min-height: 200px;
 }
 
-.tab-pane--active {
-    /* already shown by default */
-}
 
 /* ── Tab Toolbar (top bar inside each tab) ───────────────────────────────── */
 
 .tab-toolbar {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 12px;
     margin-bottom: 20px;
 }
 
-.tab-toolbar .card-controls {
+.tab-toolbar .card-controls-stack {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.card-controls--row2 {
+    gap: 20px;
+    padding-left: 42px; /* 22px (X button) + 20px (gap) — aligns with first row's first filter */
 }
 
 .tab-toolbar-actions {

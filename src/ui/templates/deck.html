@@ -135,67 +135,121 @@
         <!-- Normal gallery view -->
         <div id="cards-tab-main">
             <div class="tab-toolbar">
-                <div class="card-controls">
-                    <button id="reset-controls-btn" class="btn btn-reset-controls" title="Reset all filters and sort options">&#x2715;</button>
-                    <div class="control-group">
-                        <label for="sort-select">Sort By</label>
-                        <select id="sort-select">
-                            <option value="alpha">Alphabetical</option>
-                            <option value="mana" selected>Mana Value</option>
-                        </select>
+                <div class="card-controls-stack">
+                    <div class="card-controls">
+                        <button id="reset-controls-btn" class="btn btn-reset-controls" title="Reset all filters and sort options">&#x2715;</button>
+                        <div class="control-group">
+                            <label for="sort-select">Sort By</label>
+                            <select id="sort-select">
+                                <option value="alpha">Alphabetical</option>
+                                <option value="mana" selected>Mana Value</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="group-select">Group By</label>
+                            <select id="group-select">
+                                <option value="none">None</option>
+                                <option value="type" selected>Card Type</option>
+                                <option value="landnonland">Is Land</option>
+                                <option value="color">Color</option>
+                                <option value="tag">Tag</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="legitimacy-filter-select">Legitimacy</label>
+                            <select id="legitimacy-filter-select">
+                                <option value="any">Any</option>
+                                <option value="real">Real</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="changed-filter-select">Changed</label>
+                            <select id="changed-filter-select">
+                                <option value="any">Any</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="subspell-filter-select">Subspell</label>
+                            <select id="subspell-filter-select">
+                                <option value="any">Any</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="dfc-filter-select">Double-Faced</label>
+                            <select id="dfc-filter-select">
+                                <option value="any">Any</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="control-group">
-                        <label for="group-select">Group By</label>
-                        <select id="group-select">
-                            <option value="none">None</option>
-                            <option value="type" selected>Card Type</option>
-                            <option value="landnonland">Is Land</option>
-                            <option value="color">Color</option>
-                            <option value="tag">Tag</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label>Mana Value</label>
-                        <select id="mv-op-select">
-                            <option value="any">Any</option>
-                            <option value="lt">&lt;</option>
-                            <option value="eq">=</option>
-                            <option value="gt">&gt;</option>
-                        </select>
-                        <input type="number" id="mv-value-input" min="0" placeholder="#">
-                    </div>
-                    <div class="control-group">
-                        <label for="type-filter-select">Card Type</label>
-                        <select id="type-filter-select">
-                            <option value="any">Any</option>
-                            <option value="creature">Creature</option>
-                            <option value="artifact">Artifact</option>
-                            <option value="enchantment">Enchantment</option>
-                            <option value="land">Land</option>
-                            <option value="instant">Instant</option>
-                            <option value="sorcery">Sorcery</option>
-                            <option value="instant-sorcery">Instant/Sorcery</option>
-                            <option value="planeswalker">Planeswalker</option>
-                            <option value="nonland">Nonland</option>
-                            <option value="noncreature">Noncreature</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label for="legitimacy-filter-select">Legitimacy</label>
-                        <select id="legitimacy-filter-select">
-                            <option value="any">Any</option>
-                            <option value="real">Real</option>
-                            <option value="custom">Custom</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label for="changed-filter-select">Changed</label>
-                        <select id="changed-filter-select">
-                            <option value="any">Any</option>
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                        </select>
+                    <div class="card-controls card-controls--row2">
+                        <div class="control-group">
+                            <label for="type-filter-select">Card Type</label>
+                            <select id="type-filter-select">
+                                <option value="any">Any</option>
+                                <option value="creature">Creature</option>
+                                <option value="artifact">Artifact</option>
+                                <option value="enchantment">Enchantment</option>
+                                <option value="land">Land</option>
+                                <option value="instant">Instant</option>
+                                <option value="sorcery">Sorcery</option>
+                                <option value="instant-sorcery">Instant/Sorcery</option>
+                                <option value="planeswalker">Planeswalker</option>
+                                <option value="nonland">Nonland</option>
+                                <option value="noncreature">Noncreature</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label>Mana Value</label>
+                            <select id="mv-op-select">
+                                <option value="any">Any</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&lt;=</option>
+                                <option value="eq">=</option>
+                                <option value="gte">&gt;=</option>
+                                <option value="gt">&gt;</option>
+                            </select>
+                            <input type="number" id="mv-value-input" min="0" placeholder="#">
+                        </div>
+                        <div class="control-group">
+                            <label>Power</label>
+                            <select id="power-op-select">
+                                <option value="any">Any</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&lt;=</option>
+                                <option value="eq">=</option>
+                                <option value="gte">&gt;=</option>
+                                <option value="gt">&gt;</option>
+                            </select>
+                            <input type="text" id="power-value-input" placeholder="*" class="filter-text-short">
+                        </div>
+                        <div class="control-group">
+                            <label>Toughness</label>
+                            <select id="toughness-op-select">
+                                <option value="any">Any</option>
+                                <option value="lt">&lt;</option>
+                                <option value="lte">&lt;=</option>
+                                <option value="eq">=</option>
+                                <option value="gte">&gt;=</option>
+                                <option value="gt">&gt;</option>
+                            </select>
+                            <input type="text" id="toughness-value-input" placeholder="*" class="filter-text-short">
+                        </div>
+                        <div class="control-group">
+                            <label for="subtype-filter-input">Subtype</label>
+                            <input type="text" id="subtype-filter-input" placeholder="e.g. Elf" class="filter-text-medium">
+                        </div>
+                        <div class="control-group">
+                            <label for="tag-filter-input">Tag</label>
+                            <input type="text" id="tag-filter-input" placeholder="tag name" class="filter-text-medium">
+                        </div>
                     </div>
                 </div>
                 <div class="tab-toolbar-actions">
@@ -232,6 +286,10 @@
                        data-cost="{{ card_data.cost or card_data.front.mana or '' if card_data.front is defined else card_data.cost or '' }}"
                        data-cardtype="{{ card_data.cardtype or card_data.front.cardtype or '' if card_data.front is defined else card_data.cardtype or '' }}"
                        data-subtype="{{ card_data.subtype or card_data.front.subtype or '' if card_data.front is defined else card_data.subtype or '' }}"
+                       data-power="{{ card_data.power or card_data.front.power or '' if card_data.front is defined else card_data.power or '' }}"
+                       data-toughness="{{ card_data.toughness or card_data.front.toughness or '' if card_data.front is defined else card_data.toughness or '' }}"
+                       data-subspell="{{ '1' if card_data.subspell else '0' }}"
+                       data-dfc="{{ '1' if card_data.back else '0' }}"
                        data-basic="{{ card_data.basic or card_data.front.basic or '' if card_data.front is defined else card_data.basic or '' }}"
                        data-tags="{{ card_data.tags | join(',') if card_data.tags is not string and card_data.tags else (card_data.tags or '') }}"
                        data-quantity="{{ card_data.quantity or 1 }}"
