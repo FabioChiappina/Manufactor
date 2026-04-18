@@ -127,6 +127,7 @@
         </button>
         <button class="deck-tab" data-tab="opening-hand">Opening Hand</button>
         <button class="deck-tab" data-tab="forge-all">Actions</button>
+        <button class="deck-tab" data-tab="interactions">Interactions{% if deck.interactions %}<span class="tab-count">{{ deck.interactions | length }}</span>{% endif %}</button>
     </div>
 
     <!-- ── Cards Tab ─────────────────────────────────────────────────── -->
@@ -187,10 +188,8 @@
                                 <option value="no">No</option>
                             </select>
                         </div>
-                    </div>
-                    <div class="card-controls card-controls--row2">
                         <div class="control-group">
-                            <label for="type-filter-select">Card Type</label>
+                            <label for="type-filter-select">Type</label>
                             <select id="type-filter-select">
                                 <option value="any">Any</option>
                                 <option value="creature">Creature</option>
@@ -206,6 +205,8 @@
                                 <option value="other">Other</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="card-controls card-controls--row2">
                         <div class="control-group">
                             <label>Mana Value</label>
                             <select id="mv-op-select">
@@ -250,12 +251,29 @@
                             <label for="tag-filter-input">Tag</label>
                             <input type="text" id="tag-filter-input" placeholder="tag name" class="filter-text-medium">
                         </div>
+                        <div class="control-group">
+                            <label for="text-filter-input">Text</label>
+                            <input type="text" id="text-filter-input" placeholder="rules text…" class="filter-text-medium">
+                        </div>
                     </div>
                 </div>
                 <div class="tab-toolbar-actions">
-                    <h3 id="cards-count-header" class="tab-card-count">Cards ({{ deck.total_cards - deck.commander_count }})</h3>
-                    <button id="add-real-card-btn" class="btn btn-secondary btn-sm">+ Add Real</button>
-                    <button id="create-card-btn" class="btn btn-primary btn-sm">+ Create</button>
+                    <div class="tab-toolbar-actions-row">
+                        <h3 id="cards-count-header" class="tab-card-count">Cards ({{ deck.total_cards - deck.commander_count }})</h3>
+                        <button id="add-real-card-btn" class="btn btn-secondary btn-sm">+ Add Real</button>
+                        <button id="create-card-btn" class="btn btn-primary btn-sm">+ Create</button>
+                    </div>
+                    <div class="tag-all-wrapper">
+                        <button id="tag-all-btn" class="btn btn-secondary btn-sm">Tag All</button>
+                        <div id="tag-all-popup" class="tag-all-popup" style="display:none;">
+                            <input type="text" id="tag-all-input" class="tag-all-input" placeholder="Search or create tag…" autocomplete="off">
+                            <div id="tag-all-options" class="tag-all-options"></div>
+                            <div class="tag-all-footer">
+                                <button id="tag-all-cancel-btn" class="btn btn-secondary btn-sm">Cancel</button>
+                                <button id="tag-all-confirm-btn" class="btn btn-primary btn-sm" disabled>Tag 0 Cards</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -292,6 +310,7 @@
                        data-dfc="{{ '1' if card_data.back else '0' }}"
                        data-basic="{{ card_data.basic or card_data.front.basic or '' if card_data.front is defined else card_data.basic or '' }}"
                        data-tags="{{ card_data.tags | join(',') if card_data.tags is not string and card_data.tags else (card_data.tags or '') }}"
+                       data-rules="{{ card_data._rules_text or '' }}"
                        data-quantity="{{ card_data.quantity or 1 }}"
                        data-real="{{ card_data.real or 0 }}"
                        data-staged="{{ 'true' if card_name in staged_cards else 'false' }}">
@@ -647,6 +666,16 @@
         </div>
     </div>
 
+    <!-- ── Interactions Tab ──────────────────────────────────────────────── -->
+    <div id="tab-interactions" class="tab-pane" style="display:none;"
+         data-interactions="{{ (deck.interactions or []) | tojson | forceescape }}">
+        <div class="interactions-toolbar">
+            <h3 class="tab-card-count">Interactions (<span id="interactions-count">{{ (deck.interactions or []) | length }}</span>)</h3>
+            <button id="new-interaction-btn" class="btn btn-primary btn-sm">+ New</button>
+        </div>
+        <div id="interactions-list" class="interactions-list"></div>
+    </div>
+
     <!-- ── Edit Tags Dialog ───────────────────────────────────────────────── -->
     <dialog id="edit-tags-dialog" class="edit-tags-dialog">
         <div class="edit-tags-dialog-body">
@@ -822,6 +851,49 @@
             <div class="print-run-dialog-footer">
                 <button id="cc-purge-btn" class="btn btn-delete-card" disabled>Purge Selected</button>
                 <button id="cc-cancel-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- ── Interaction Create / Edit Dialog ──────────────────────────────── -->
+    <dialog id="interaction-dialog" class="interaction-dialog">
+        <div class="interaction-dialog-body">
+            <div class="interaction-dialog-header">
+                <h3 id="interaction-dialog-title">New Interaction</h3>
+                <button id="interaction-dialog-close-btn" class="btn-dialog-close" type="button" aria-label="Close">✕</button>
+            </div>
+            <div class="interaction-dialog-content">
+                <div class="idf-row">
+                    <label class="idf-label" for="idf-title">Title</label>
+                    <input type="text" id="idf-title" class="idf-input" placeholder="e.g. Infinite Mana Loop">
+                </div>
+                <div class="idf-groups-section">
+                    <div class="idf-groups-header">
+                        <label class="idf-label">Groups <span class="idf-groups-hint">(up to 5)</span></label>
+                        <button type="button" id="idf-add-group-btn" class="btn btn-sm btn-secondary">+ Add Group</button>
+                    </div>
+                    <div id="idf-groups-container" class="idf-groups-container"></div>
+                </div>
+                <div class="idf-row">
+                    <label class="idf-label" for="idf-description">Description</label>
+                    <textarea id="idf-description" class="idf-input idf-textarea" rows="4" placeholder="Explain the combo, rules interaction, or note…"></textarea>
+                </div>
+            </div>
+            <div class="interaction-dialog-footer">
+                <button id="interaction-dialog-save-btn" class="btn btn-primary">Save</button>
+                <button id="interaction-dialog-cancel-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- ── Interaction Delete Confirm Dialog ─────────────────────────────── -->
+    <dialog id="interaction-delete-dialog" class="confirm-dialog">
+        <div class="confirm-dialog-body">
+            <p class="confirm-dialog-message">Delete this interaction?</p>
+            <p class="confirm-dialog-sub">This cannot be undone.</p>
+            <div class="confirm-dialog-actions">
+                <button id="interaction-delete-confirm-btn" class="btn btn-delete-card" style="flex:1">Delete</button>
+                <button id="interaction-delete-cancel-btn" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     </dialog>

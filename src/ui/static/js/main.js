@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const toughnessValueInput = document.getElementById('toughness-value-input');
     const subtypeFilterInput = document.getElementById('subtype-filter-input');
     const tagFilterInput = document.getElementById('tag-filter-input');
+    const textFilterInput = document.getElementById('text-filter-input');
     if (sortSelect && groupSelect) {
         sortSelect.addEventListener('change', applyCardControls);
         groupSelect.addEventListener('change', applyCardControls);
@@ -46,6 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (toughnessValueInput) toughnessValueInput.addEventListener('input', applyCardControls);
         if (subtypeFilterInput) subtypeFilterInput.addEventListener('input', applyCardControls);
         if (tagFilterInput) tagFilterInput.addEventListener('input', applyCardControls);
+        if (textFilterInput) textFilterInput.addEventListener('input', applyCardControls);
         // Apply defaults immediately on page load
         applyCardControls();
     }
@@ -68,6 +70,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (toughnessValueInput)    toughnessValueInput.value    = '';
             if (subtypeFilterInput)     subtypeFilterInput.value     = '';
             if (tagFilterInput)         tagFilterInput.value         = '';
+            if (textFilterInput)        textFilterInput.value        = '';
             applyCardControls();
         });
     }
@@ -298,6 +301,36 @@ function matchesTagFilter(item, value) {
     return tagsStr.split(',').some(function(tag) { return tag.trim().includes(needle); });
 }
 
+function matchesTextFilter(item, value) {
+    if (!value) return true;
+    const rules = (item.dataset.rules || '').toLowerCase();
+    return rules.includes(value.toLowerCase());
+}
+
+function _getAllDeckTagsFromGallery() {
+    var tags = new Set();
+    getCanonicalItems().forEach(function(item) {
+        var tagStr = (item.dataset.tags || '').trim();
+        if (tagStr) {
+            tagStr.split(',').forEach(function(t) {
+                t = t.trim();
+                if (t) tags.add(t);
+            });
+        }
+    });
+    return Array.from(tags).sort();
+}
+
+function _updateTagAllConfirmBtn() {
+    var btn = document.getElementById('tag-all-confirm-btn');
+    var input = document.getElementById('tag-all-input');
+    if (!btn) return;
+    var tag = (input ? input.value.trim() : '');
+    var count = _currentFilteredCardNames.length;
+    btn.disabled = !tag || count === 0;
+    btn.textContent = 'Tag ' + count + ' Card' + (count === 1 ? '' : 's');
+}
+
 function matchesTypeFilter(item, typeFilter) {
     if (typeFilter === 'any') return true;
     const ct = (item.dataset.cardtype || '').toLowerCase();
@@ -344,6 +377,7 @@ function applyCardControls() {
     const toughnessValEl = document.getElementById('toughness-value-input');
     const subtypeEl = document.getElementById('subtype-filter-input');
     const tagEl = document.getElementById('tag-filter-input');
+    const textEl = document.getElementById('text-filter-input');
     const mvOp = mvOpEl ? mvOpEl.value : 'any';
     const mvValue = mvValEl ? mvValEl.value : '';
     const typeFilter = typeFilterEl ? typeFilterEl.value : 'any';
@@ -357,6 +391,7 @@ function applyCardControls() {
     const toughnessValue = toughnessValEl ? toughnessValEl.value : '';
     const subtypeFilter = subtypeEl ? subtypeEl.value.trim() : '';
     const tagFilter = tagEl ? tagEl.value.trim() : '';
+    const textFilter = textEl ? textEl.value.trim() : '';
 
     // Always work from the canonical snapshot, not whatever is currently in the DOM
     // (tag grouping leaves clones in the DOM that would inflate counts otherwise)
@@ -380,8 +415,13 @@ function applyCardControls() {
         if (!matchesPowerToughnessFilter(item, 'toughness', toughnessOp, toughnessValue)) return false;
         if (!matchesSubtypeFilter(item, subtypeFilter)) return false;
         if (!matchesTagFilter(item, tagFilter)) return false;
+        if (!matchesTextFilter(item, textFilter)) return false;
         return true;
     });
+
+    // Track filtered card names for Tag All
+    _currentFilteredCardNames = filteredItems.map(function(item) { return item.dataset.cardName; });
+    _updateTagAllConfirmBtn();
 
     // Update the "Cards (N)" header to reflect filtered count
     const cardsCountHeader = document.getElementById('cards-count-header');
@@ -498,6 +538,8 @@ function applyCardControls() {
 }
 
 // ─── Deck Charts ──────────────────────────────────────────────────────────────
+
+var _currentFilteredCardNames = [];
 
 var _chartResizeTimer = null;
 window.addEventListener('resize', function() {
@@ -1434,7 +1476,7 @@ function _doBasicAction(color, action, btn) {
         document.querySelectorAll('.deck-tab').forEach(function (btn) {
             btn.classList.toggle('deck-tab--active', btn.dataset.tab === tabName);
         });
-        ['cards', 'tokens', 'assembly', 'opening-hand', 'forge-all'].forEach(function (key) {
+        ['cards', 'tokens', 'assembly', 'opening-hand', 'forge-all', 'interactions'].forEach(function (key) {
             var pane = $id('tab-' + key);
             if (!pane) return;
             var show = (key === tabName);
@@ -1452,6 +1494,7 @@ function _doBasicAction(color, action, btn) {
         if (hash === '#assembly') { switchTab('assembly', false); return; }
         if (hash === '#opening-hand') { switchTab('opening-hand', false); return; }
         if (hash === '#forge-all')    { switchTab('forge-all', false);    return; }
+        if (hash === '#interactions') { switchTab('interactions', false); return; }
         if (hash.startsWith('#edit/')) {
             var cardName = decodeURIComponent(hash.slice(6));
             switchTab('cards', false);
@@ -3799,6 +3842,127 @@ function _doBasicAction(color, action, btn) {
         var addRealCardBtn = $id('add-real-card-btn');
         if (addRealCardBtn) addRealCardBtn.addEventListener('click', openRealCardDialogAdd);
 
+        // ── Tag All popup ─────────────────────────────────────────────────────
+        (function () {
+            var tagAllBtn     = $id('tag-all-btn');
+            var tagAllPopup   = $id('tag-all-popup');
+            var tagAllInput   = $id('tag-all-input');
+            var tagAllOptions = $id('tag-all-options');
+            var tagAllCancel  = $id('tag-all-cancel-btn');
+            var tagAllConfirm = $id('tag-all-confirm-btn');
+            if (!tagAllBtn || !tagAllPopup) return;
+
+            var _selectedTag = '';
+
+            function _openTagAllPopup() {
+                _selectedTag = '';
+                tagAllInput.value = '';
+                _updateTagAllConfirmBtn();
+                _renderTagAllOptions('');
+                tagAllPopup.style.display = '';
+                tagAllInput.focus();
+            }
+
+            function _closeTagAllPopup() {
+                tagAllPopup.style.display = 'none';
+                _selectedTag = '';
+            }
+
+            function _renderTagAllOptions(filter) {
+                tagAllOptions.innerHTML = '';
+                var q = filter.trim().toLowerCase();
+                var allTags = _getAllDeckTagsFromGallery();
+                var candidates = allTags.filter(function(t) {
+                    return !q || t.toLowerCase().includes(q);
+                });
+                candidates.forEach(function(tag) {
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'tag-picker-option';
+                    btn.textContent = tag;
+                    btn.addEventListener('mousedown', function(e) {
+                        e.preventDefault();
+                        _selectedTag = tag;
+                        tagAllInput.value = tag;
+                        _renderTagAllOptions(tag);
+                        _updateTagAllConfirmBtn();
+                    });
+                    tagAllOptions.appendChild(btn);
+                });
+                // "Create new" option when typed text doesn't exactly match an existing tag
+                var trimmed = filter.trim();
+                if (trimmed && !allTags.some(function(t) { return t.toLowerCase() === trimmed.toLowerCase(); })) {
+                    var newBtn = document.createElement('button');
+                    newBtn.type = 'button';
+                    newBtn.className = 'tag-picker-option tag-picker-option--new';
+                    newBtn.textContent = 'Create new tag: "' + trimmed + '"';
+                    newBtn.addEventListener('mousedown', function(e) {
+                        e.preventDefault();
+                        _selectedTag = trimmed;
+                        tagAllInput.value = trimmed;
+                        _renderTagAllOptions(trimmed);
+                        _updateTagAllConfirmBtn();
+                    });
+                    tagAllOptions.appendChild(newBtn);
+                }
+            }
+
+            tagAllBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (tagAllPopup.style.display === 'none') {
+                    _openTagAllPopup();
+                } else {
+                    _closeTagAllPopup();
+                }
+            });
+
+            tagAllInput.addEventListener('input', function() {
+                _selectedTag = tagAllInput.value.trim();
+                _renderTagAllOptions(tagAllInput.value);
+                _updateTagAllConfirmBtn();
+            });
+
+            tagAllCancel.addEventListener('click', _closeTagAllPopup);
+
+            tagAllConfirm.addEventListener('click', function() {
+                var tag = _selectedTag || tagAllInput.value.trim();
+                if (!tag || !_currentFilteredCardNames.length) return;
+                var breakdownEl = document.querySelector('.mana-breakdown');
+                var dName = breakdownEl ? breakdownEl.dataset.deckName : '';
+                if (!dName) return;
+                tagAllConfirm.disabled = true;
+                tagAllConfirm.textContent = 'Tagging…';
+                fetch('/deck/' + encodeURIComponent(dName) + '/bulk-add-tag', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tag: tag, card_names: _currentFilteredCardNames })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.error) { tagAllConfirm.textContent = 'Error'; return; }
+                    // Update gallery item data-tags
+                    Object.keys(data.updated_cards).forEach(function(cardName) {
+                        var el = document.querySelector('.card-gallery-item[data-card-name="' + cardName.replace(/"/g, '\\"') + '"]');
+                        if (el) el.dataset.tags = data.updated_cards[cardName].join(',');
+                    });
+                    applyCardControls();
+                    _closeTagAllPopup();
+                })
+                .catch(function() { tagAllConfirm.textContent = 'Error'; })
+                .finally(function() {
+                    _updateTagAllConfirmBtn();
+                });
+            });
+
+            // Close popup when clicking outside
+            document.addEventListener('click', function(e) {
+                if (tagAllPopup.style.display !== 'none' &&
+                    !tagAllPopup.contains(e.target) && e.target !== tagAllBtn) {
+                    _closeTagAllPopup();
+                }
+            });
+        }());
+
         // ── Real Card Dialog wiring ───────────────────────────────────────────
         (function () {
             var rcdDialog = $id('real-card-dialog');
@@ -4126,6 +4290,374 @@ function _doBasicAction(color, action, btn) {
             });
         }());
 
+        // Interactions tab
+        _ixInit();
+
     });
+
+    // ── Interactions Tab ──────────────────────────────────────────────────────
+
+    var _interactions = [];
+    var _interactionEditingId = null;
+    var _interactionDeleteTargetId = null;
+
+    function _ixEnsureCardDatalist() {
+        if ($id('ix-card-datalist')) return;
+        var dl = document.createElement('datalist');
+        dl.id = 'ix-card-datalist';
+        var names = [];
+        document.querySelectorAll('.card-gallery-item[data-card-name]').forEach(function(el) {
+            var n = el.dataset.cardName;
+            if (n && names.indexOf(n) === -1) names.push(n);
+        });
+        names.sort(function(a, b) { return a.localeCompare(b); }).forEach(function(name) {
+            var opt = document.createElement('option');
+            opt.value = name;
+            dl.appendChild(opt);
+        });
+        document.body.appendChild(dl);
+    }
+
+    function _ixGetCardImageSrc(cardName) {
+        var escaped = cardName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        var imgEl = document.querySelector(
+            '.card-gallery-item[data-card-name="' + escaped + '"] img.card-image,' +
+            '.token-gallery-item[data-token-key="' + escaped + '"] img.card-image,' +
+            '[data-commander-name="' + escaped + '"] img'
+        );
+        if (imgEl) return imgEl.dataset.frontSrc || imgEl.src || null;
+        return null;
+    }
+
+    function _ixUpdateTabBadge(count) {
+        var tabBtn = document.querySelector('.deck-tab[data-tab="interactions"]');
+        if (!tabBtn) return;
+        var badge = tabBtn.querySelector('.tab-count');
+        if (count > 0) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'tab-count';
+                tabBtn.appendChild(badge);
+            }
+            badge.textContent = count;
+        } else if (badge) {
+            badge.remove();
+        }
+        var countEl = $id('interactions-count');
+        if (countEl) countEl.textContent = count;
+    }
+
+    function _ixBuildGroupEl(group) {
+        var cards = (group.cards || []).filter(function(c) { return c.trim(); });
+        var currentIdx = 0;
+
+        var el = document.createElement('div');
+        el.className = 'interaction-group';
+
+        var labelEl = document.createElement('div');
+        labelEl.className = 'interaction-group-label';
+        labelEl.textContent = group.label || '';
+        el.appendChild(labelEl);
+
+        var imgContainer = document.createElement('div');
+        imgContainer.className = 'interaction-group-img-container';
+        var img = document.createElement('img');
+        img.className = 'interaction-group-img';
+        img.style.display = 'none';
+        var ph = document.createElement('div');
+        ph.className = 'ig-placeholder';
+        imgContainer.appendChild(img);
+        imgContainer.appendChild(ph);
+        el.appendChild(imgContainer);
+
+        var cardNameEl = document.createElement('div');
+        cardNameEl.className = 'interaction-group-card-name';
+        el.appendChild(cardNameEl);
+
+        function showCard(idx) {
+            var name = cards[idx] || '';
+            cardNameEl.textContent = name;
+            var src = name ? _ixGetCardImageSrc(name) : null;
+            if (src) {
+                img.src = src;
+                img.style.display = '';
+                ph.style.display = 'none';
+            } else {
+                img.style.display = 'none';
+                ph.textContent = name || '—';
+                ph.style.display = '';
+            }
+        }
+
+        if (cards.length > 1) {
+            var navEl = document.createElement('div');
+            navEl.className = 'interaction-group-nav';
+            var prevBtn = document.createElement('button');
+            prevBtn.className = 'ig-nav-btn';
+            prevBtn.type = 'button';
+            prevBtn.textContent = '←';
+            var nextBtn = document.createElement('button');
+            nextBtn.className = 'ig-nav-btn';
+            nextBtn.type = 'button';
+            nextBtn.textContent = '→';
+            prevBtn.addEventListener('click', function() {
+                currentIdx = (currentIdx - 1 + cards.length) % cards.length;
+                showCard(currentIdx);
+            });
+            nextBtn.addEventListener('click', function() {
+                currentIdx = (currentIdx + 1) % cards.length;
+                showCard(currentIdx);
+            });
+            navEl.appendChild(prevBtn);
+            navEl.appendChild(nextBtn);
+            el.appendChild(navEl);
+        }
+
+        showCard(0);
+        return el;
+    }
+
+    function _ixBuildItemEl(interaction) {
+        var el = document.createElement('div');
+        el.className = 'interaction-item';
+        el.dataset.interactionId = interaction.id;
+
+        // Title row
+        var titleRow = document.createElement('div');
+        titleRow.className = 'interaction-title-row';
+        var titleSpan = document.createElement('span');
+        titleSpan.className = 'interaction-title';
+        titleSpan.textContent = interaction.title || '(Untitled)';
+        var actionsSpan = document.createElement('span');
+        actionsSpan.className = 'interaction-item-actions';
+        var editBtn = document.createElement('button');
+        editBtn.className = 'btn btn-sm btn-secondary';
+        editBtn.type = 'button';
+        editBtn.textContent = 'Edit';
+        var deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-sm btn-delete-card';
+        deleteBtn.type = 'button';
+        deleteBtn.title = 'Delete interaction';
+        deleteBtn.textContent = '🗑';
+        actionsSpan.appendChild(editBtn);
+        actionsSpan.appendChild(deleteBtn);
+        titleRow.appendChild(titleSpan);
+        titleRow.appendChild(actionsSpan);
+        el.appendChild(titleRow);
+
+        // Content row: groups + description
+        var contentRow = document.createElement('div');
+        contentRow.className = 'interaction-content-row';
+
+        var groupsEl = document.createElement('div');
+        groupsEl.className = 'interaction-groups';
+        (interaction.groups || []).forEach(function(g) {
+            groupsEl.appendChild(_ixBuildGroupEl(g));
+        });
+        contentRow.appendChild(groupsEl);
+
+        var descEl = document.createElement('div');
+        descEl.className = 'interaction-description';
+        descEl.textContent = interaction.description || '';
+        contentRow.appendChild(descEl);
+
+        el.appendChild(contentRow);
+
+        editBtn.addEventListener('click', function() { _ixOpenEditDialog(interaction); });
+        deleteBtn.addEventListener('click', function() { _ixOpenDeleteConfirm(interaction.id); });
+
+        return el;
+    }
+
+    function _ixRender(interactions) {
+        _interactions = interactions;
+        _ixUpdateTabBadge(interactions.length);
+        var list = $id('interactions-list');
+        if (!list) return;
+        list.innerHTML = '';
+        if (interactions.length === 0) {
+            var empty = document.createElement('div');
+            empty.className = 'tab-empty-state';
+            empty.innerHTML = '<p>No interactions yet — click <strong>+ New</strong> to add one.</p>';
+            list.appendChild(empty);
+            return;
+        }
+        interactions.forEach(function(ix) {
+            list.appendChild(_ixBuildItemEl(ix));
+        });
+    }
+
+    // ── Dialog: Group Editor Helpers ──────────────────────────────────────────
+
+    function _ixAddCardInput(cardsContainer, cardName) {
+        var cardRow = document.createElement('div');
+        cardRow.className = 'idf-card-row';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'idf-card-input idf-input';
+        input.placeholder = 'Card name…';
+        input.value = cardName || '';
+        _ixEnsureCardDatalist();
+        input.setAttribute('list', 'ix-card-datalist');
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'idf-remove-card-btn';
+        removeBtn.title = 'Remove card';
+        removeBtn.textContent = '✕';
+        removeBtn.addEventListener('click', function() { cardRow.remove(); });
+        cardRow.appendChild(input);
+        cardRow.appendChild(removeBtn);
+        cardsContainer.appendChild(cardRow);
+    }
+
+    function _ixAddGroupRow(label, cards) {
+        var container = $id('idf-groups-container');
+        if (container.children.length >= 5) return;
+
+        var row = document.createElement('div');
+        row.className = 'idf-group-row';
+
+        var labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.className = 'idf-group-label-input idf-input';
+        labelInput.placeholder = 'Group label (e.g. "Enabler")…';
+        labelInput.value = label || '';
+        row.appendChild(labelInput);
+
+        var cardsContainer = document.createElement('div');
+        cardsContainer.className = 'idf-group-cards';
+        (cards && cards.length ? cards : ['']).forEach(function(c) {
+            _ixAddCardInput(cardsContainer, c);
+        });
+        row.appendChild(cardsContainer);
+
+        var addCardBtn = document.createElement('button');
+        addCardBtn.type = 'button';
+        addCardBtn.className = 'btn btn-sm btn-secondary idf-add-card-btn';
+        addCardBtn.textContent = '+ Add Card';
+        addCardBtn.addEventListener('click', function() { _ixAddCardInput(cardsContainer, ''); });
+        row.appendChild(addCardBtn);
+
+        var removeGroupBtn = document.createElement('button');
+        removeGroupBtn.type = 'button';
+        removeGroupBtn.className = 'btn btn-sm btn-delete-card idf-remove-group-btn';
+        removeGroupBtn.textContent = '✕ Remove Group';
+        removeGroupBtn.addEventListener('click', function() { row.remove(); });
+        row.appendChild(removeGroupBtn);
+
+        container.appendChild(row);
+    }
+
+    function _ixCollectDialogData() {
+        var groups = [];
+        $id('idf-groups-container').querySelectorAll('.idf-group-row').forEach(function(row) {
+            var label = (row.querySelector('.idf-group-label-input').value || '').trim();
+            var cards = [];
+            row.querySelectorAll('.idf-card-input').forEach(function(inp) {
+                var v = (inp.value || '').trim();
+                if (v) cards.push(v);
+            });
+            if (label || cards.length) groups.push({ label: label, cards: cards });
+        });
+        return {
+            title: ($id('idf-title').value || '').trim(),
+            description: ($id('idf-description').value || '').trim(),
+            groups: groups,
+        };
+    }
+
+    function _ixOpenCreateDialog() {
+        _interactionEditingId = null;
+        $id('interaction-dialog-title').textContent = 'New Interaction';
+        $id('idf-title').value = '';
+        $id('idf-description').value = '';
+        $id('idf-groups-container').innerHTML = '';
+        _ixAddGroupRow('', []);
+        _ixAddGroupRow('', []);
+        $id('interaction-dialog').showModal();
+    }
+
+    function _ixOpenEditDialog(interaction) {
+        _interactionEditingId = interaction.id;
+        $id('interaction-dialog-title').textContent = 'Edit Interaction';
+        $id('idf-title').value = interaction.title || '';
+        $id('idf-description').value = interaction.description || '';
+        $id('idf-groups-container').innerHTML = '';
+        var groups = interaction.groups || [];
+        if (groups.length === 0) { _ixAddGroupRow('', []); _ixAddGroupRow('', []); }
+        else groups.forEach(function(g) { _ixAddGroupRow(g.label, g.cards); });
+        $id('interaction-dialog').showModal();
+    }
+
+    function _ixSave() {
+        var data = _ixCollectDialogData();
+        var url = '/deck/' + encodeURIComponent(_deckName) + '/interactions/' +
+            (_interactionEditingId ? encodeURIComponent(_interactionEditingId) + '/update' : 'add');
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+            if (resp.success) {
+                _ixRender(resp.interactions);
+                $id('interaction-dialog').close();
+            }
+        })
+        .catch(function() {});
+    }
+
+    function _ixOpenDeleteConfirm(id) {
+        _interactionDeleteTargetId = id;
+        $id('interaction-delete-dialog').showModal();
+    }
+
+    function _ixDeleteConfirmed() {
+        if (!_interactionDeleteTargetId) return;
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/interactions/' +
+              encodeURIComponent(_interactionDeleteTargetId) + '/delete', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+            if (resp.success) {
+                _ixRender(resp.interactions);
+                $id('interaction-delete-dialog').close();
+                _interactionDeleteTargetId = null;
+            }
+        })
+        .catch(function() {});
+    }
+
+    function _ixInit() {
+        // Load initial data from server-rendered attribute
+        var tabEl = $id('tab-interactions');
+        if (!tabEl) return;
+        try { _interactions = JSON.parse(tabEl.dataset.interactions || '[]'); } catch(e) { _interactions = []; }
+        _ixRender(_interactions);
+
+        var newBtn = $id('new-interaction-btn');
+        if (newBtn) newBtn.addEventListener('click', _ixOpenCreateDialog);
+
+        var addGroupBtn = $id('idf-add-group-btn');
+        if (addGroupBtn) addGroupBtn.addEventListener('click', function() { _ixAddGroupRow('', []); });
+
+        var saveBtn = $id('interaction-dialog-save-btn');
+        if (saveBtn) saveBtn.addEventListener('click', _ixSave);
+
+        var cancelBtn = $id('interaction-dialog-cancel-btn');
+        if (cancelBtn) cancelBtn.addEventListener('click', function() { $id('interaction-dialog').close(); });
+
+        var closeBtn = $id('interaction-dialog-close-btn');
+        if (closeBtn) closeBtn.addEventListener('click', function() { $id('interaction-dialog').close(); });
+
+        var delConfirmBtn = $id('interaction-delete-confirm-btn');
+        if (delConfirmBtn) delConfirmBtn.addEventListener('click', _ixDeleteConfirmed);
+
+        var delCancelBtn = $id('interaction-delete-cancel-btn');
+        if (delCancelBtn) delCancelBtn.addEventListener('click', function() {
+            $id('interaction-delete-dialog').close();
+            _interactionDeleteTargetId = null;
+        });
+    }
 
 }());

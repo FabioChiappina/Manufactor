@@ -1485,9 +1485,62 @@ footer p {
 
 .tab-toolbar-actions {
     display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.tab-toolbar-actions-row {
+    display: flex;
     align-items: center;
     gap: 14px;
-    flex-shrink: 0;
+}
+
+.tag-all-wrapper {
+    position: relative;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.tag-all-popup {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 200;
+    width: 260px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    overflow: hidden;
+}
+
+.tag-all-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: none;
+    border-bottom: 1px solid #e8e8e8;
+    font-size: 13px;
+    outline: none;
+}
+
+.tag-all-options {
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.tag-all-footer {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    border-top: 1px solid #e8e8e8;
+    background: #fafafa;
+}
+
+.tag-all-footer .btn {
+    flex: 1;
 }
 
 .tab-card-count {
@@ -3755,4 +3808,333 @@ footer p {
     color: #43a047;
     margin-top: 4px;
     min-height: 16px;
+}
+
+/* ── Interactions Tab ────────────────────────────────────────────────────── */
+
+.interactions-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px 8px;
+}
+
+.interactions-list {
+    padding: 0 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.interaction-item {
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    background: #fff;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.interaction-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.interaction-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a2e;
+    flex: 1;
+    min-width: 0;
+}
+
+.interaction-item-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.interaction-content-row {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+}
+
+.interaction-groups {
+    display: flex;
+    gap: 12px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.interaction-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 220px;
+}
+
+.interaction-group-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #666;
+    text-align: center;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.interaction-group-img-container {
+    width: 100%;
+    aspect-ratio: 5 / 7;
+    overflow: hidden;
+    border-radius: 5px;
+    background: #e8e8e8;
+    position: relative;
+}
+
+.interaction-group-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.ig-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #888;
+    text-align: center;
+    padding: 6px;
+    box-sizing: border-box;
+    line-height: 1.3;
+}
+
+.interaction-group-card-name {
+    font-size: 11px;
+    color: #aaa;
+    text-align: center;
+    width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.interaction-group-nav {
+    display: flex;
+    gap: 4px;
+}
+
+.ig-nav-btn {
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    transition: background 0.15s;
+}
+
+.ig-nav-btn:hover {
+    background: #ddd;
+}
+
+.interaction-description {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #333;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 10px 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ── Interaction Dialog ──────────────────────────────────────────────────── */
+
+.interaction-dialog {
+    border: none;
+    border-radius: 12px;
+    padding: 0;
+    width: 580px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+}
+
+.interaction-dialog::backdrop {
+    background: rgba(0,0,0,0.5);
+}
+
+.interaction-dialog-body {
+    padding: 24px;
+}
+
+.interaction-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.interaction-dialog-header h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    color: #1a1a2e;
+}
+
+.interaction-dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.idf-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.idf-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.idf-groups-hint {
+    font-weight: 400;
+    text-transform: none;
+    font-size: 11px;
+    color: #aaa;
+    letter-spacing: 0;
+}
+
+.idf-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.idf-input:focus {
+    border-color: #667eea;
+}
+
+.idf-textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.idf-groups-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.idf-groups-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.idf-groups-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.idf-group-row {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.idf-group-label-input {
+    font-weight: 600;
+}
+
+.idf-group-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.idf-card-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.idf-card-input {
+    flex: 1;
+}
+
+.idf-remove-card-btn {
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #aaa;
+    padding: 4px 8px;
+    font-size: 12px;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+}
+
+.idf-remove-card-btn:hover {
+    background: #ffeaea;
+    border-color: #f99;
+    color: #c00;
+}
+
+.idf-add-card-btn {
+    align-self: flex-start;
+}
+
+.idf-remove-group-btn {
+    align-self: flex-end;
+}
+
+.interaction-dialog-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #e8e8e8;
 }

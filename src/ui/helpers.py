@@ -441,6 +441,35 @@ def get_card_image_base64(deck_folder_path, card_name):
         return None
 
 
+def _card_rules_text(card_data):
+    """Extract all rules text from a card dict for search indexing."""
+    parts = []
+
+    def _collect_face(face):
+        if not isinstance(face, dict):
+            return
+        if face.get('rules'):
+            parts.append(face['rules'])
+        for i in range(1, 7):
+            text = face.get(f'rules{i}')
+            if text:
+                parts.append(text)
+
+    if 'front' in card_data:
+        _collect_face(card_data['front'])
+    else:
+        _collect_face(card_data)
+
+    if isinstance(card_data.get('back'), dict):
+        _collect_face(card_data['back'])
+
+    subspell = card_data.get('subspell')
+    if isinstance(subspell, dict) and subspell.get('rules'):
+        parts.append(subspell['rules'])
+
+    return ' | '.join(parts)
+
+
 def load_deck_by_name(deck_name):
     """
     Load deck data by display name.
@@ -510,7 +539,8 @@ def load_deck_by_name(deck_name):
                     **(card_data if isinstance(card_data, dict) else {}),
                     'image_base64': card_image,
                     'back_image_base64': back_image,
-                    'quantity': quantity
+                    'quantity': quantity,
+                    '_rules_text': _card_rules_text(card_data if isinstance(card_data, dict) else {})
                 }
 
             # Calculate total card count including commanders and quantities
@@ -588,7 +618,8 @@ def load_deck_by_name(deck_name):
                 'total_cards': total_cards,
                 'unique_cards': unique_cards,
                 'custom_cards': custom_cards,
-                'commander_count': commander_count
+                'commander_count': commander_count,
+                'interactions': deck_data.get('interactions', []),
             }
 
     return None

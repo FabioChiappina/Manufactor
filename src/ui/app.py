@@ -598,6 +598,58 @@ def remove_card_tag(deck_name):
     return jsonify({'card_tags': card_tags, 'deck_tags': meta_tags})
 
 
+@app.route('/deck/<deck_name>/bulk-add-tag', methods=['POST'])
+def bulk_add_tag(deck_name):
+    """Add a tag to multiple cards at once."""
+    deck_name = unquote(deck_name)
+    data = request.get_json() or {}
+    tag = (data.get('tag') or '').strip()
+    card_names = data.get('card_names') or []
+    if not tag or not card_names:
+        return jsonify({'error': 'Tag and card names required'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    meta_tags = list(raw_deck.get('metadata', {}).get('tags') or [])
+    if tag not in meta_tags:
+        meta_tags.append(tag)
+        meta_tags.sort()
+    raw_deck.setdefault('metadata', {})['tags'] = meta_tags
+
+    updated_cards = {}
+    for card_name in card_names:
+        card = raw_deck.get('cards', {}).get(card_name)
+        if not isinstance(card, dict):
+            continue
+        card_tags = list(card.get('tags') or [])
+        if tag not in card_tags:
+            card_tags.append(tag)
+        raw_deck['cards'][card_name]['tags'] = card_tags
+        updated_cards[card_name] = card_tags
+
+    _touch_last_modified(raw_deck)
+    with open(deck_data['json_path'], 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    staging = load_staging(folder_path)
+    changed_staging = False
+    for card_name, card_tags in updated_cards.items():
+        if card_name in staging and isinstance(staging[card_name].get('updated'), dict):
+            staging[card_name]['updated']['tags'] = card_tags
+            changed_staging = True
+    if changed_staging:
+        save_staging(folder_path, staging)
+
+    return jsonify({'deck_tags': meta_tags, 'updated_cards': updated_cards})
+
+
 @app.route('/deck/<deck_name>/tags-data', methods=['GET'])
 def get_tags_data(deck_name):
     """Return all deck tags with per-tag card counts."""
@@ -2377,6 +2429,95 @@ def delete_token():
 def about():
     """About page."""
     return render_template('about.html')
+
+
+# ── Interactions ──────────────────────────────────────────────────────────────
+
+@app.route('/deck/<deck_name>/interactions/add', methods=['POST'])
+def add_interaction(deck_name):
+    """Add a new interaction to the deck."""
+    import uuid
+    deck_name = unquote(deck_name)
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    data = request.get_json() or {}
+    interaction = {
+        'id': str(uuid.uuid4()),
+        'title': data.get('title', '').strip(),
+        'description': data.get('description', '').strip(),
+        'groups': data.get('groups', []),
+    }
+
+    json_path = deck_data['json_path']
+    with open(json_path, 'r') as f:
+        raw_deck = json.load(f)
+
+    raw_deck.setdefault('interactions', []).append(interaction)
+    _touch_last_modified(raw_deck)
+
+    with open(json_path, 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    return jsonify({'success': True, 'interaction': interaction, 'interactions': raw_deck['interactions']})
+
+
+@app.route('/deck/<deck_name>/interactions/<interaction_id>/update', methods=['POST'])
+def update_interaction(deck_name, interaction_id):
+    """Update an existing interaction."""
+    deck_name = unquote(deck_name)
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    data = request.get_json() or {}
+    json_path = deck_data['json_path']
+    with open(json_path, 'r') as f:
+        raw_deck = json.load(f)
+
+    interactions = raw_deck.get('interactions', [])
+    for i, item in enumerate(interactions):
+        if item.get('id') == interaction_id:
+            interactions[i] = {
+                'id': interaction_id,
+                'title': data.get('title', '').strip(),
+                'description': data.get('description', '').strip(),
+                'groups': data.get('groups', []),
+            }
+            break
+
+    raw_deck['interactions'] = interactions
+    _touch_last_modified(raw_deck)
+
+    with open(json_path, 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    return jsonify({'success': True, 'interactions': interactions})
+
+
+@app.route('/deck/<deck_name>/interactions/<interaction_id>/delete', methods=['POST'])
+def delete_interaction(deck_name, interaction_id):
+    """Delete an interaction."""
+    deck_name = unquote(deck_name)
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    json_path = deck_data['json_path']
+    with open(json_path, 'r') as f:
+        raw_deck = json.load(f)
+
+    raw_deck['interactions'] = [
+        item for item in raw_deck.get('interactions', [])
+        if item.get('id') != interaction_id
+    ]
+    _touch_last_modified(raw_deck)
+
+    with open(json_path, 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    return jsonify({'success': True, 'interactions': raw_deck['interactions']})
 
 
 def launch_ui(debug=True, port=7860):
