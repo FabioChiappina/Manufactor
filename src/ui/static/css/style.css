@@ -4066,6 +4066,25 @@ footer p {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
+}
+
+.idf-groups-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.idf-search-filtered-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: #666;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
 }
 
 .idf-groups-container {

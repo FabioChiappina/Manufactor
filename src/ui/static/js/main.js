@@ -4300,33 +4300,51 @@ function _doBasicAction(color, action, btn) {
     var _interactions = [];
     var _interactionEditingId = null;
     var _interactionDeleteTargetId = null;
+    var _ixImageCache = {};   // cardName → image src, built once before filtering runs
+    var _ixAllCardNames = []; // all card names, built once before filtering runs
 
-    function _ixEnsureCardDatalist() {
-        if ($id('ix-card-datalist')) return;
-        var dl = document.createElement('datalist');
-        dl.id = 'ix-card-datalist';
-        var names = [];
-        document.querySelectorAll('.card-gallery-item[data-card-name]').forEach(function(el) {
-            var n = el.dataset.cardName;
-            if (n && names.indexOf(n) === -1) names.push(n);
+    function _ixBuildStaticCaches() {
+        // Run before applyCardControls can detach items from the DOM.
+        // getCanonicalItems() returns ALL cards captured at first call (before filtering).
+        getCanonicalItems().forEach(function(el) {
+            var name = el.dataset.cardName;
+            if (!name || _ixImageCache[name]) return;
+            var img = el.querySelector('img.card-image');
+            if (img) _ixImageCache[name] = img.dataset.frontSrc || img.src || null;
+            if (name && _ixAllCardNames.indexOf(name) === -1) _ixAllCardNames.push(name);
         });
-        names.sort(function(a, b) { return a.localeCompare(b); }).forEach(function(name) {
+        // Also capture commander images from the header (stat items have no img)
+        document.querySelectorAll('[data-commander-name]').forEach(function(el) {
+            var name = el.dataset.commanderName;
+            if (!name) return;
+            if (!_ixImageCache[name]) {
+                var img = el.querySelector('img');
+                if (img) _ixImageCache[name] = img.src || null;
+            }
+            if (_ixAllCardNames.indexOf(name) === -1) _ixAllCardNames.push(name);
+        });
+        _ixAllCardNames.sort(function(a, b) { return a.localeCompare(b); });
+    }
+
+    function _ixGetCardImageSrc(cardName) {
+        return _ixImageCache[cardName] || null;
+    }
+
+    function _ixRebuildCardDatalist() {
+        var filteredOnly = !!($id('ix-search-filtered-cb') && $id('ix-search-filtered-cb').checked);
+        var dl = $id('ix-card-datalist');
+        if (!dl) {
+            dl = document.createElement('datalist');
+            dl.id = 'ix-card-datalist';
+            document.body.appendChild(dl);
+        }
+        dl.innerHTML = '';
+        var names = filteredOnly ? (_currentFilteredCardNames || []).slice() : _ixAllCardNames.slice();
+        names.forEach(function(name) {
             var opt = document.createElement('option');
             opt.value = name;
             dl.appendChild(opt);
         });
-        document.body.appendChild(dl);
-    }
-
-    function _ixGetCardImageSrc(cardName) {
-        var escaped = cardName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        var imgEl = document.querySelector(
-            '.card-gallery-item[data-card-name="' + escaped + '"] img.card-image,' +
-            '.token-gallery-item[data-token-key="' + escaped + '"] img.card-image,' +
-            '[data-commander-name="' + escaped + '"] img'
-        );
-        if (imgEl) return imgEl.dataset.frontSrc || imgEl.src || null;
-        return null;
     }
 
     function _ixUpdateTabBadge(count) {
@@ -4497,7 +4515,6 @@ function _doBasicAction(color, action, btn) {
         input.className = 'idf-card-input idf-input';
         input.placeholder = 'Card name…';
         input.value = cardName || '';
-        _ixEnsureCardDatalist();
         input.setAttribute('list', 'ix-card-datalist');
         var removeBtn = document.createElement('button');
         removeBtn.type = 'button';
@@ -4572,6 +4589,7 @@ function _doBasicAction(color, action, btn) {
         $id('idf-title').value = '';
         $id('idf-description').value = '';
         $id('idf-groups-container').innerHTML = '';
+        _ixRebuildCardDatalist();
         _ixAddGroupRow('', []);
         _ixAddGroupRow('', []);
         $id('interaction-dialog').showModal();
@@ -4583,6 +4601,7 @@ function _doBasicAction(color, action, btn) {
         $id('idf-title').value = interaction.title || '';
         $id('idf-description').value = interaction.description || '';
         $id('idf-groups-container').innerHTML = '';
+        _ixRebuildCardDatalist();
         var groups = interaction.groups || [];
         if (groups.length === 0) { _ixAddGroupRow('', []); _ixAddGroupRow('', []); }
         else groups.forEach(function(g) { _ixAddGroupRow(g.label, g.cards); });
@@ -4632,6 +4651,8 @@ function _doBasicAction(color, action, btn) {
         // Load initial data from server-rendered attribute
         var tabEl = $id('tab-interactions');
         if (!tabEl) return;
+        // Build image + name caches from canonical items (all cards, incl. detached ones)
+        _ixBuildStaticCaches();
         try { _interactions = JSON.parse(tabEl.dataset.interactions || '[]'); } catch(e) { _interactions = []; }
         _ixRender(_interactions);
 
@@ -4640,6 +4661,9 @@ function _doBasicAction(color, action, btn) {
 
         var addGroupBtn = $id('idf-add-group-btn');
         if (addGroupBtn) addGroupBtn.addEventListener('click', function() { _ixAddGroupRow('', []); });
+
+        var searchFilteredCb = $id('ix-search-filtered-cb');
+        if (searchFilteredCb) searchFilteredCb.addEventListener('change', _ixRebuildCardDatalist);
 
         var saveBtn = $id('interaction-dialog-save-btn');
         if (saveBtn) saveBtn.addEventListener('click', _ixSave);
