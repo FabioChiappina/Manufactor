@@ -148,13 +148,13 @@ After implementing, Publish a deck that has tokens in its JSON. Open Cockatrice 
 
 ### Test Project Structure
 
-Create a dedicated `tests/` directory that can grow beyond token tests:
+Update the existing dedicated (and mostly empty) `tests/` directory that can grow beyond token tests:
 
 ```
 tests/
     __init__.py
     conftest.py                          # shared fixtures (common_tokens mock, Card mock)
-    token_discovery/
+    test_token_discovery/
         __init__.py
         test_token_parser.py             # parametrized tests, one per rules-text example
         fixtures/
@@ -167,6 +167,7 @@ tests/
 
 ### Test Data Format (`token_test_cases.json`)
 
+A draft initial version of this file (`tests/test_token_discovery/fixtures/token_test_cases.json`) has already been created. This will eventually be populated with many more test cases, but it is a good starting point.
 Each entry maps a rules text string to the expected token(s):
 
 ```json
@@ -175,7 +176,7 @@ Each entry maps a rules text string to the expected token(s):
     "id": "basic_creature_token",
     "description": "Simple creature token with P/T",
     "card_name": "Example Card",
-    "rules_text": "Create a 1/1 white Soldier creature token.",
+    "rules": "Create a 1/1 white Soldier creature token.",
     "expected_specialized": [
       {
         "name": "Soldier",
@@ -192,7 +193,7 @@ Each entry maps a rules text string to the expected token(s):
     "id": "clue_token",
     "description": "Clue token (common token)",
     "card_name": "Example Investigator",
-    "rules_text": "Investigate. (Create a colorless Clue artifact token with \"{2}, Sacrifice this artifact: Draw a card.\")",
+    "rules": "Investigate. (Create a colorless Clue artifact token with \"{2}, Sacrifice this artifact: Draw a card.\")",
     "expected_specialized": [],
     "expected_common": ["Clue"]
   }
@@ -556,6 +557,7 @@ That rules text should lead to a token of card type Creature, subtype Human, pow
 
 **Item 2 — Token discovery test cases (ongoing, iterative)**  
 Once the test infrastructure is in place, provide rules text examples + expected token outputs so the test data repository can be built up. This will happen across multiple sessions. Format: the full rules text of the card, and for each token it creates: name, cardtype, subtype, P/T (if any), rules text. Flag cases where the current parser is known to fail.
+**Answer**: A draft initial version of `tests/test_token_discovery/fixtures/token_test_cases.json` is provided. This contains 10-15 initial token test cases from one known set of already discovered tokens. Many further additions to this JSON file will be necessary, but this is a good starting point.
 
 ### Needed for Phase T3 (Manual Token Creation)
 

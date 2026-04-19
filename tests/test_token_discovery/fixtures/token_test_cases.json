@@ -1,0 +1,206 @@
+[
+    {
+        "id": "clue_token",
+        "description": "Clue token (common token)",
+        "card_name": "Example Investigator",
+        "rules": "Investigate. (Create a colorless Clue artifact token with \"{2}, Sacrifice this artifact: Draw a card.\")",
+        "expected_specialized": [],
+        "expected_common": ["Clue"]
+    },
+        {
+        "id": "clue_token_no_reminder_text",
+        "description": "Clue token (common token) without reminder text in rules. Should still be identified as a Clue token.",
+        "card_name": "Example Investigator 2",
+        "rules": "Create two Clue tokens. Then discard two cards.",
+        "expected_specialized": [],
+        "expected_common": ["Clue"]
+    },
+    {
+        "id": "treasure_token",
+        "description": "Treasure token (common token)",
+        "card_name": "Black Mask, Of The False Face Society",
+        "rules": "<i>Extortion</i> \u2014 Whenever a creature enters the battlefield under an opponent's control for the first time each turn, that player may have you create a Treasure token. If they don't, create and attach to that creature a colorless Equipment artifact token named Black Mask with \"At the beginning of each end step, put a -1/-1 counter on equipped creature.\"\nTreasures you control are Clues in addition to their other types.",
+        "expected_specialized": [],
+        "expected_common": ["Treasure"]
+    },
+    {
+        "id": "treasure_token_that_many",
+        "description": "Treasure token (common token) with phrasing for 'that many' tokens",
+        "card_name": "Example Treasure Maker",
+        "rules": "Whenever this creature deals combat damage to a player, create that many Treasure tokens.",
+        "expected_specialized": [],
+        "expected_common": ["Treasure"]
+    },
+    {
+        "id": "treasure_token_a_number_of",
+        "description": "Treasure token (common token) with phrasing for 'a number of' tokens",
+        "card_name": "Example Treasure Maker 2",
+        "rules": "Flying\nWhenever this creature deals combat damage to a player, roll a d20. Create a number of Treasure tokens equal to the result.",
+        "expected_specialized": [],
+        "expected_common": ["Treasure"]
+    },
+    {
+        "id": "multiple_diff_common_tokens",
+        "description": "Clue token and food token (common tokens)",
+        "card_name": "Condiment King, Brainwashed Comedian",
+        "rules": "<i>Playing \"Ketchup\"</i> \u2014 Whenever an opponent draws their second card each turn, create a Food token. (It's an artifact with \"{2}, {t}, Sacrifice this artifact: You gain 3 life.\")\n<i>Hot Sauce Packet</i> \u2014 {t}, Sacrifice a Food: Target creature gets -3/-0 until end of turn. Investigate. (Create a colorless Clue artifact token with \"{2}, Sacrifice this artifact: Draw a card.\")",
+        "expected_specialized": [],
+        "expected_common": ["Clue", "Food"]
+    },
+    {
+        "id": "basic_creature_token",
+        "description": "Simple creature token with P/T",
+        "card_name": "Example Soldier Maker",
+        "rules": "When this creature enters the battlefield, draw a card.\nAt the beginning of your upkeep, create a 1/1 white Soldier creature token.\nCycling {2}",
+        "expected_specialized": [
+            {
+                "name": "Soldier",
+                "cardtype": "Token Creature",
+                "subtype": "Soldier",
+                "power": "1",
+                "toughness": "1",
+                "rules": "",
+                "frame": "w_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "token_with_multi_word_ability_in_quotes",
+        "description": "Token with an ability other than a single-word keyword, wrapped in quotes.",
+        "card_name": "Mana Dork Token Maker",
+        "rules": "Create a 2/1 green Elf Warrior creature token with \"{t}: Add {G}.\".",
+        "expected_specialized": [
+            {
+                "name": "",
+                "cardtype": "Token Creature",
+                "subtype": "Elf Warrior",
+                "power": "2",
+                "toughness": "1",
+                "rules": "{t}: Add {G}.",
+                "frame": "g_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "token_with_two_multi_word_abilities_in_quotes",
+        "description": "Token with TWO abilities other than a single-word keyword, both wrapped in quotes.",
+        "card_name": "Mana Dork Token Maker 2",
+        "rules": "Create a 2/1 green Elf Warrior creature token with \"{t}: Add {G}.\" and \"When this creature dies, draw a card.\"",
+        "expected_specialized": [
+            {
+                "name": "",
+                "cardtype": "Token Creature",
+                "subtype": "Elf Warrior",
+                "power": "2",
+                "toughness": "1",
+                "rules": "{t}: Add {G}.\nWhen this creature dies, draw a card.",
+                "frame": "g_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "token_with_keyword_plus_two_multi_word_abilities_in_quotes",
+        "description": "Token with a single keyword ability plus TWO abilities other than a single-word keyword, both wrapped in quotes.",
+        "card_name": "Mana Dork Token Maker 3",
+        "rules": "Create a 2/1 green Elf Warrior creature token with reach, \"{t}: Add {G}.\", and \"When this creature dies, draw a card.\"",
+        "expected_specialized": [
+            {
+                "name": "",
+                "cardtype": "Token Creature",
+                "subtype": "Elf Warrior",
+                "power": "2",
+                "toughness": "1",
+                "rules": "Reach\n{t}: Add {G}.\nWhen this creature dies, draw a card.",
+                "frame": "g_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "custom_keyword_ability_with_reminder_text",
+        "description": "Token with a keyword ability that is specifically defined in an external user settings/config, or in an ability registry class with predefined reminder text, or just has reminder text present on the card. Reminder text should appear on the token.",
+        "card_name": "Bane, Gotham's Reckoning",
+        "rules": "<i>The Fire Rises</i> \u2014 Whenever you draw a card except the first one you draw in each of your draw steps, put a +1/+1 counter on Bane and create a 1/1 red Human Anarchist creature token with anarky. (A creature with anarky attacks a randomly selected opponent each combat if able.)\n<i>You Merely Adopted The Dark</i> \u2014 Creatures your opponents control have anarky.\n<i>I Was Born In It</i> \u2014 Whenever an opponent attacks you, draw a card.",
+        "expected_specialized": [
+            {
+                "name": "",
+                "cardtype": "Token Creature",
+                "subtype": "Human Anarchist",
+                "power": "1",
+                "toughness": "1",
+                "rules": "Anarky (This creature attacks a randomly selected opponent each combat if able.)",
+                "frame": "r_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "role_token_1",
+        "description": "Enchantment role token with extra reminder text that shouldn't end up in the token rules text.",
+        "card_name": "Example Role Maker",
+        "rules": "Draw two cards. Then, choose up to one target creature with power 5 or less. If you do, create an Imprisoned Role token attached to it. (If you control another Role on it, put that one into the graveyard. Enchanted creature has no abilities and cannot attack or block.)",
+        "expected_specialized": [
+            {
+                "name": "Imprisoned",
+                "cardtype": "Token Enchantment",
+                "subtype": "Aura Role",
+                "rules": "Enchant creature\nEnchanted creature has no abilities and cannot attack or block.",
+                "frame": "c_token_noncreature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "role_token_2",
+        "description": "Different enchantment role token with extra reminder text that shouldn't end up in the token rules text.",
+        "card_name": "Riddler, Enigmatic Mastermind",
+        "rules": "<i>Riddle Me This</i> \u2014 When Riddler enters the battlefield, each player investigates. For each opponent, create a Detective Role token attached to target creature that player controls. (If you control another Role on it, put that one into the graveyard. Enchanted creature has no abilities as long as its controller controls a Clue.)\nWhenever an opponent sacrifices a Clue for the first time each turn, target player investigates.",
+        "expected_specialized": [
+            {
+                "name": "Detective",
+                "cardtype": "Token Enchantment",
+                "subtype": "Aura Role",
+                "rules": "Enchant creature\nEnchanted creature has no abilities as long as its controller controls a Clue.",
+                "frame": "c_token_noncreature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "role_token_3",
+        "description": "Yet another enchantment role token with extra reminder text that shouldn't end up in the token rules text. Harder because 'that' must change to 'this' in token rules text.",
+        "card_name": "Mad Hatter, Hypnotist",
+        "rules": "<i>Callooh! Callay!</i> \u2014 When Mad Hatter enters the battlefield, target creature's controller investigates. Untap that creature. It gains haste until end of turn. Create a Hypnotized Role token attached to it. (If you control another Role on it, put that one into the graveyard. You control enchanted creature. Sacrifice that Role if enchanted creature's owner controls no Clues.)",
+        "expected_specialized": [
+            {
+                "name": "Detective",
+                "cardtype": "Token Enchantment",
+                "subtype": "Aura Role",
+                "rules": "Enchant creature\nYou control enchanted creature. Sacrifice this Role if enchanted creature's owner controls no Clues.",
+                "frame": "c_token_noncreature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "custom_token_common_types",
+        "description": "Token with a subtype that is among common/predefined tokens, but with a unique combination of types that should prevent it from being misidentified as a common token.",
+        "card_name": "Penguin, King Of Gotham",
+        "rules": "<i>Penguin Commandos</i> \u2014 Whenever you discard one or more cards for the first time each turn, create a 1/1 colorless Clue Bird artifact creature token with \"{2}, Sacrifice this permanent: Draw a card.\".\nWhenever you sacrifice a Bird, that creature deals 1 damage to each opponent and you create a tapped Treasure token.",
+        "expected_specialized": [
+            {
+                "name": "Clue Bird",
+                "cardtype": "Token Artifact Creature",
+                "subtype": "Clue Bird",
+                "power": "1",
+                "toughness": "1",
+                "rules": "{2}, Sacrifice this permanent: Draw a card.",
+                "frame": "c_token_artifact-creature.jpg"
+            }
+        ],
+        "expected_common": []
+    }
+]
