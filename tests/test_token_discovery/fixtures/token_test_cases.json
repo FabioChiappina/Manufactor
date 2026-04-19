@@ -97,6 +97,24 @@
         "expected_common": []
     },
     {
+        "id": "basic_creature_token_multiple_colors",
+        "description": "Simple creature token with P/T and multiple colors",
+        "card_name": "D'Vorah, Who Breathes Pestilence",
+        "rules": "Reach\n<i>Fatality!</i> \u2014 Whenever a creature dealt damage by D'Vorah this turn dies, mill four cards and create two 1/1 black and green Insect creature tokens.\nWhen D'Vorah dies, return up to one land card from your graveyard to the battlefield.",
+        "expected_specialized": [
+            {
+                "name": "Insect",
+                "cardtype": "Token Creature",
+                "subtype": "Insect",
+                "rules": "",
+                "power": "1",
+                "toughness": "1",
+                "frame": "bg_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
         "id": "basic_creature_token_phrasing_uses_creates",
         "description": "Simple creature token with P/T, but phrasing uses 'creates' instead of 'create'",
         "card_name": "Kinglor Forest",
@@ -343,6 +361,42 @@
         "expected_common": []
     },
     {
+        "id": "legendary_artifact_token_with_symbols",
+        "description": "Legendary artifact token with a multi-word ability wrapped in quotes and including a tap symbol.",
+        "card_name": "Shinnok, The Fallen God",
+        "rules": "Pay 2 life: Return a creature card from your graveyard to your hand. Until end of turn, Shinnok gains all abilities of that card and gets +X/+X, where X is that card's mana value. Activate only once each turn.\nWhen Shinnok dies, exile it, then create Shinnok's Amulet, a legendary colorless artifact token with \"{t}, Sacrifice this permanent: Put Shinnok, The Fallen God from exile on top of your library. Activate only if a creature died this turn.\"",
+        "expected_specialized": [
+            {
+                "name": "Shinnok's Amulet",
+                "cardtype": "Token Artifact",
+                "subtype": "",
+                "rules": "{t}, Sacrifice this permanent: Put Shinnok, The Fallen God from exile on top of your library. Activate only if a creature died this turn.",
+                "frame": "c_token_artifact-noncreature_legendary.jpg",
+                "legendary": 1
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "legendary_creature_token_with_multiple_keyword_abilities_and_specific_name",
+        "description": "Legendary creature token with P/T and multiple keyword abilities, and it has a specific and defined name.",
+        "card_name": "Noob Saibot, Resurrected",
+        "rules": "You can only cast Noob Saibot from your graveyard. When you do, create Saibot, a legendary 2/2 black Wraith Ninja creature token with lifelink and shadow.\nFlash, Lifelink, Shadow (This creature can block or be blocked by only creatures with shadow.)\nWhen Noob Saibot dies, you may sacrifice another creature. If you do, draw a card, then return Noob Saibot to the battlefield and it deals 2 damage to each opponent.\nCycling {2} ({2}, Discard this card: Draw a card.)",
+        "expected_specialized": [
+            {
+                "name": "Saibot",
+                "cardtype": "Token Creature",
+                "subtype": "Wraith Ninja",
+                "rules": "Lifelink, shadow (This creature can block or be blocked by only creatures with shadow.)",
+                "power": "2",
+                "toughness": "2",
+                "frame": "b_token_creature_legendary.jpg",
+                "legendary": 1
+            }
+        ],
+        "expected_common": []
+    },
+    {
         "id": "three_complex_creature_tokens",
         "description": "Three complex creature tokens with different P/T, some keyword abilities, and some complex abilities defined in quotes.",
         "card_name": "Newt Scamander, Magizoologist",
@@ -397,8 +451,8 @@
         "expected_common": []
     },
     {
-        "id": "token_with_multi_word_ability_in_quotes",
-        "description": "Token with an ability other than a single-word keyword, wrapped in quotes.",
+        "id": "creature_token_with_multi_word_ability_in_quotes",
+        "description": "Creature token with an ability other than a single-word keyword, wrapped in quotes.",
         "card_name": "Mana Dork Token Maker",
         "rules": "Create a 2/1 green Elf Warrior creature token with \"{t}: Add {G}.\".",
         "expected_specialized": [
@@ -415,8 +469,8 @@
         "expected_common": []
     },
     {
-        "id": "token_with_two_multi_word_abilities_in_quotes",
-        "description": "Token with TWO abilities other than a single-word keyword, both wrapped in quotes.",
+        "id": "creature_token_with_two_multi_word_abilities_in_quotes",
+        "description": "Creature token with TWO abilities other than a single-word keyword, both wrapped in quotes.",
         "card_name": "Mana Dork Token Maker 2",
         "rules": "Create a 2/1 green Elf Warrior creature token with \"{t}: Add {G}.\" and \"When this creature dies, draw a card.\"",
         "expected_specialized": [
@@ -433,8 +487,8 @@
         "expected_common": []
     },
     {
-        "id": "token_with_keyword_plus_multi_word_ability_in_quotes",
-        "description": "Token with a single keyword ability plus another multi-word ability wrapped in quotes.",
+        "id": "creature_token_with_keyword_plus_multi_word_ability_in_quotes",
+        "description": "Creature token with a single keyword ability plus another multi-word ability wrapped in quotes.",
         "card_name": "Rubeus Hagrid, Jolly Groundskeeper",
         "rules": "This spell costs {1} less to cast for each instant and sorcery card in your graveyard.\n<i>Magecraft</i> \u2014 Whenever you cast or copy an instant or sorcery spell, create a 0/0 blue Hippogriff creature token with flying and \"This creature gets +1/+1 for each card in your hand.\"",
         "expected_specialized": [
@@ -451,8 +505,26 @@
         "expected_common": []
     },
     {
-        "id": "token_with_keyword_plus_two_multi_word_abilities_in_quotes",
-        "description": "Token with a single keyword ability plus TWO abilities other than a single-word keyword, both wrapped in quotes.",
+        "id": "that_many_tokens_with_keyword_plus_multi_word_ability_in_quotes",
+        "description": "Token with a single keyword ability plus another multi-word ability wrapped in quotes. 'That many' of those tokens are created.",
+        "card_name": "Kenshi, Of The Spirit Blade",
+        "rules": "Flash\n<i>Enrage</i> \u2014 Whenever Kenshi is dealt damage, create that many 1/1 black and red Spirit Ninja creature tokens with lifelink and \"When this creature enters the battlefield, it fights another target creature.\"\nProtection from Spirits",
+        "expected_specialized": [
+            {
+                "name": "Spirit Ninja",
+                "cardtype": "Token Creature",
+                "subtype": "Spirit Ninja",
+                "rules": "Lifelink\nWhen this creature enters the battlefield, it fights another target creature.",
+                "power": "1",
+                "toughness": "1",
+                "frame": "br_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "creature_token_with_keyword_plus_two_multi_word_abilities_in_quotes",
+        "description": "Creature token with a single keyword ability plus TWO abilities other than a single-word keyword, both wrapped in quotes.",
         "card_name": "Mana Dork Token Maker 3",
         "rules": "Create a 2/1 green Elf Warrior creature token with reach, \"{t}: Add {G}.\", and \"When this creature dies, draw a card.\"",
         "expected_specialized": [
@@ -464,6 +536,22 @@
                 "toughness": "1",
                 "rules": "Reach\n{t}: Add {G}.\nWhen this creature dies, draw a card.",
                 "frame": "g_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "artifact_token_with_multi_word_ability_in_quotes",
+        "description": "Artifact token with a single multi-word ability wrapped in quotes.",
+        "card_name": "Cyrax, The Misguided",
+        "rules": "Whenever Cyrax deals kombat damage to a player, create a colorless Bomb artifact token with \"{t}, Sacrifice this permanent: This permanent deals 1 damage to each creature and each player.\"\n<i>Self Destruct!</i> \u2014 When Cyrax dies, discard any number of cards. Cyrax deals that much damage to each creature and each player. Draw that many cards plus one.",
+        "expected_specialized": [
+            {
+                "name": "Bomb",
+                "cardtype": "Token Artifact",
+                "subtype": "Bomb",
+                "rules": "{t}, Sacrifice this permanent: This permanent deals 1 damage to each creature and each player.",
+                "frame": "c_token_artifact-noncreature.jpg"
             }
         ],
         "expected_common": []
@@ -676,6 +764,14 @@
         "description": "Card that just mentions tokens ('copies becomes tokens') but creates no tokens of its own. Token discovery should not create a token here.",
         "card_name": "Zakru",
         "rules": "Replicate {3}{G} (When you cast this spell, copy it for each time you paid its replicate cost. Copies of permanent spells become tokens.)\n<i>Channel</i> — {G}{G}, Discard Zakru: Until end of turn, primal creatures you control have base power and toughness 8/10 as long as they aren’t attacking. (A permanent is primal if it has no activated or triggered abilities except mana abilities.)\n",
+        "expected_specialized": [],
+        "expected_common": []
+    },
+    {
+        "id": "mentions_token_creates_no_tokens",
+        "description": "Card that mentions the word 'tokens', but doesn't actually create any tokens with its own unique text. Token discovery should not create a token here.",
+        "card_name": "Test Token Booster",
+        "rules": "Tokens have hexproof.",
         "expected_specialized": [],
         "expected_common": []
     }
