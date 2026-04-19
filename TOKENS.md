@@ -468,32 +468,45 @@ For the Cockatrice fix, we need to handle common tokens properly. Currently in t
 
 ## Implementation Phases (Recommended Order)
 
-### Phase T1: Fix Cockatrice Predefined Tokens (Bug Fix) ★ Do First
+### ✅ Phase T1: Fix Cockatrice Predefined Tokens (Bug Fix)
 
-**Effort**: Small — 1 session  
-**Files**: `src/integration/cockatrice.py`  
-**Risk**: Low — isolated change
+**Status**: Complete  
+**Files changed**: `src/integration/cockatrice.py`
 
-Steps:
-1. Replace the `Deck.from_json(... _Tokens.json ...)` block with code that reads `deck.tokens` and constructs `Card` objects
-2. Fix `card.related` handling so it accepts a list of source cards for `<reverse-related>` tags
-3. Fix the `.cod` predefined tokens zone to use the reconstructed token cards list
-4. Test: Publish a deck with tokens → open Cockatrice → confirm predefined tokens appear
+What was done:
+1. Replaced `Deck.from_json(... _Tokens.json ...)` block with code that reads `deck.tokens` and constructs `Card` objects directly — the sidecar file no longer exists for web-UI decks
+2. Tokens without local images (e.g. common tokens like Clue, Treasure) now still appear in `tokens.xml` and the `.cod` predefined zone — previously they were silently dropped
+3. Fixed `<reverse-related>` normalization: source card names are now run through the same normalization as card names in `custom.xml` (strip apostrophes, dots, Unicode curly quotes, `//` → `--`). Without this, Cockatrice's right-click "Create token" menu couldn't match the source card
+4. Fixed `.cod` predefined tokens zone: uses `set()` to deduplicate; removed the stale `tokens_deck.common_tokens` reference
+5. Removed the now-unused `Deck` import from `cockatrice.py`
 
-### Phase T2: Unit Tests — Token Discovery
+Manual testing still needed: Publish a deck with tokens → open Cockatrice → confirm predefined tokens appear in the "T" zone and right-click "Create token" works per-card.
 
-**Effort**: Medium, spread across multiple sessions (iterative with user)  
-**Files**: New `tests/` directory  
-**Risk**: Low — no production code changes until a test fails
+---
 
-Steps:
-1. Create test infrastructure (`tests/`, `conftest.py`, parametrized test file)
-2. Seed `token_test_cases.json` with 5–10 known-good cases
-3. Run tests, identify failures
-4. Work with user to add more cases iteratively
-5. Fix `token_parser.py` as edge cases are discovered
+### ✅ Phase T2: Unit Tests — Token Discovery (Infrastructure + First Pass)
 
-**Action needed from user**: After infrastructure is set up, provide rules text examples + expected tokens so the test data can be built up.
+**Status**: Infrastructure complete; 26/26 tests passing; iterative expansion ongoing  
+**Files changed/created**:
+- `tests/conftest.py` — `mock_common_tokens` fixture
+- `tests/test_token_discovery/__init__.py`
+- `tests/test_token_discovery/test_token_parser.py` — parametrized test runner
+- `tests/test_token_discovery/fixtures/token_test_cases.json` — 26 test cases (all passing)
+- `src/token_generation/token_parser.py` — three parser bug fixes (see below)
+
+Parser bugs fixed during this phase:
+- **`(create` in reminder text**: `Investigate. (Create a Clue token...)` now correctly detects the token — strips leading `(` before the "create" detection and index lookup
+- **`"a number of X tokens"` phrasing**: added "Number" and "Of" to `words_to_exclude_from_names_and_subtypes`, so "Treasure" is now correctly extracted from "a number of Treasure tokens"
+- **`keyword, "quoted ability"` formatting**: added a postprocessing step that splits `Reach, "{t}: Add {G}."` into `Reach\n{t}: Add {G}.` (only when the keyword before `, "` contains no `{`)
+
+Test data corrections made:
+- `role_token_3`: expected token name corrected "Detective" → "Hypnotized" (copy-paste error)
+- `treasure_token`: added `Black Mask` Equipment token to `expected_specialized` (parser was correct, test data was incomplete)
+- `custom_token_common_types`: added `"Treasure"` to `expected_common` (the card's second ability also creates a Treasure token)
+
+**Next steps for Phase T2** (iterative — needs user input):
+- Add more test cases to `token_test_cases.json` covering the categories listed in the "Categories of rules text" section above
+- Run `pytest tests/test_token_discovery/ -v` after each addition; fix parser if tests fail
 
 ### Phase T3: Manual Token Creation in Tokens Tab
 
@@ -529,17 +542,20 @@ Steps:
 
 | File | Relevance |
 |---|---|
-| `src/integration/cockatrice.py` | **Bug fix target** — reads `_Tokens.json`, ignores `deck.tokens` |
-| `src/token_generation/token_parser.py` | Token parser — target for improvements from unit test discoveries |
+| `src/integration/cockatrice.py` | ✅ Fixed — now reads `deck.tokens` dict; `_Tokens.json` load removed |
+| `src/token_generation/token_parser.py` | ✅ Three parser bugs fixed (see Phase T2 above); target for further improvements |
 | `src/core/deck.py` | `get_tokens()` — runs discovery on whole deck; `_from_json_new_format` — loads `tokens` dict |
 | `src/core/card.py` | `get_tokens()` / `get_tokens_from_rules_text()` — per-card discovery |
-| `src/ui/app.py` | Forge, forge-all, publish endpoints; token routes to be added |
+| `src/ui/app.py` | Forge, forge-all, publish endpoints; token routes to be added (Phase T3) |
 | `src/ui/helpers.py` | `load_deck_by_name()` loads `tokens_with_images`; staging helpers |
 | `src/ui/templates/deck.html` | Tokens tab UI; card editor panel |
 | `src/ui/static/js/main.js` | Editor logic, forge handler, assembly line |
 | `src/services/cockatrice_exporter.py` | Calls `update_cockatrice`; no changes needed |
 | `config/common_tokens.json` | Common token definitions used by parser |
-| `tests/` | New directory — unit test infrastructure |
+| `tests/conftest.py` | ✅ Created — `mock_common_tokens` pytest fixture |
+| `tests/test_token_discovery/__init__.py` | ✅ Created |
+| `tests/test_token_discovery/test_token_parser.py` | ✅ Created — 26 parametrized test cases, all passing |
+| `tests/test_token_discovery/fixtures/token_test_cases.json` | ✅ 26 test cases; needs iterative expansion |
 
 ---
 

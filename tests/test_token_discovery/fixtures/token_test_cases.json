@@ -224,6 +224,42 @@
         "expected_common": []
     },
     {
+        "id": "three_complex_creature_tokens",
+        "description": "Three complex creature tokens with different P/T, some keyword abilities, and some complex abilities defined in quotes.",
+        "card_name": "Newt Scamander, Magizoologist",
+        "rules": "<i>Magecraft</i> \u2014 Whenever you cast or copy an instant or sorcery spell, choose one at random:\n\u2022 Create a 0/1 green Bowtruckle creature token.\n\u2022 Create a 1/1 white Demiguise creature token with \"{t}, Sacrifice this creature: Return target permanent you control to its owner's hand.\"\n\u2022 Create a 4/4 black Obscurus creature token with flying and \"Whenever you cast or copy a spell, target opponent loses 1 life.\"",
+        "expected_specialized": [
+            {
+                "name": "Bowtruckle",
+                "cardtype": "Token Creature",
+                "subtype": "Bowtruckle",
+                "rules": "",
+                "power": "0",
+                "toughness": "1",
+                "frame": "g_token_creature.jpg"
+            },
+            {
+                "name": "Demiguise",
+                "cardtype": "Token Creature",
+                "subtype": "Demiguise",
+                "rules": "{t}, Sacrifice this creature: Return target permanent you control to its owner's hand.",
+                "power": "1",
+                "toughness": "1",
+                "frame": "w_token_creature.jpg"
+            },
+            {
+                "name": "Obscurus",
+                "cardtype": "Token Creature",
+                "subtype": "Obscurus",
+                "rules": "Flying\nWhenever you cast or copy a spell, target opponent loses 1 life.",
+                "power": "4",
+                "toughness": "4",
+                "frame": "b_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
         "id": "token_two_keyword_abilities_in_subspell_permanent",
         "description": "Creature token with P/T and two keyword abilities. In a card that has a subspell, but the token is defined in the main spell's rules text (the permanent side).",
         "card_name": "Varang, Flame Of The Mangkwam / Nightwraith's Fury",
