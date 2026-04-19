@@ -9,7 +9,6 @@ import os
 import json
 import shutil
 from random import randint
-from src.core.deck import Deck
 from src.core.card import Card
 from src.core.card_set import CardSet
 from src.utils.paths import DECK_PATH, COCKATRICE_PATH, COCKATRICE_MANUFACTOR_PATH, COCKATRICE_IMAGE_PATH, COCKATRICE_CUSTOMSETS_PATH, COCKATRICE_DECKS_PATH
@@ -54,16 +53,26 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
         setname = deck.setname
     else:
         setname = CardSet.adjust_forbidden_custom_setname((deck.name.lower().replace("the ",""))[0:3].upper())
-    # Get any tokens that must be updated in Cockatrice
-    tokens_deck = None
-    try:
-        # Use folder_name for filesystem paths
-        tokens_deck = Deck.from_json(os.path.join(DECK_PATH, deck.folder_name, deck.folder_name+'_Tokens.json'), setname, deck.folder_name+"_Tokens")
-        tokens_cards = tokens_deck.cards
-    except Exception as e:
-        tokens_cards = []
-    if error_archiving_original_tokens:
-        tokens_cards = []
+    # Build token Card objects from deck.tokens dict (new format).
+    # The legacy _Tokens.json sidecar no longer exists for web-UI-managed decks.
+    tokens_cards = []
+    for token_key, token_data in (deck.tokens or {}).items():
+        if not isinstance(token_data, dict):
+            continue
+        token_card = Card(
+            name=token_data.get('name', ''),
+            cardtype=token_data.get('cardtype', 'Token Creature'),
+            subtype=token_data.get('subtype') or None,
+            rules=token_data.get('rules') or None,
+            power=token_data.get('power') or None,
+            toughness=token_data.get('toughness') or None,
+            frame=token_data.get('frame') or None,
+            colors=token_data.get('colors') or None,
+            related=token_data.get('source_cards') or None,
+            token=1,
+            complete=token_data.get('complete', 0),
+        )
+        tokens_cards.append(token_card)
     cdict = {} # Cards
     tdict = {} # Tokens
     all_token_names_this_deck = []
@@ -96,6 +105,8 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                     break
             if not found_this_token:
                 print(f"\nWARNING: Could not find any tokens with the name {card.name} in the tokens path:", os.path.join(DECK_PATH, deck.folder_name, "Tokens"), "  This token's artwork was not added to Cockatrice.")
+                # Still register in tdict and .cod even without a local image (e.g. common tokens)
+                duplicate_token_names.append(this_card_name.replace('"', '').replace(".", " "))
             for saved_token_path, target_cockatrice_token_path in zip(tokens_with_this_name_paths, tokens_cockatrice_target_paths):
                 try:
                     shutil.copy(saved_token_path, target_cockatrice_token_path)
@@ -168,7 +179,11 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 tdict[duplicate_token_name] += '            <set>' +setname+ '</set>\n'
                 if (card.related is not None) and isinstance(card.related, list) and (len(card.related) > 0):
                     for this_related in card.related:
-                        tdict[duplicate_token_name] += '            <reverse-related>' +this_related+ '</reverse-related>\n'
+                        normalized_related = this_related.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
+                        tdict[duplicate_token_name] += '            <reverse-related>' + normalized_related + '</reverse-related>\n'
+                elif (card.related is not None) and isinstance(card.related, str) and len(card.related) > 0:
+                    normalized_related = card.related.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
+                    tdict[duplicate_token_name] += '            <reverse-related>' + normalized_related + '</reverse-related>\n'
                 tdict[duplicate_token_name] += '            <token>1</token>\n'
                 tdict[duplicate_token_name] += '            <tablerow>2</tablerow>\n'
                 tdict[duplicate_token_name] += '        </card>\n'
@@ -292,11 +307,8 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 cdeck.write('        <card number="'+str(basic_count)+'" name="'+basic_name.title().strip()+'"/>\n')
             cdeck.write('    </zone>\n')
             cdeck.write('    <zone name="tokens">\n')
-            for cdeck_tokenname in sorted(all_token_names_this_deck):
+            for cdeck_tokenname in sorted(set(all_token_names_this_deck)):
                 cdeck.write('        <card number="1" name="'+cdeck_tokenname+'"/>\n')
-            if tokens_deck is not None:
-                for cdeck_common_tokenname in sorted(tokens_deck.common_tokens):
-                    cdeck.write('        <card number="1" name="'+cdeck_common_tokenname+' Token"/>\n')
             cdeck.write('    </zone>\n')
             cdeck.write('</cockatrice_deck>\n')
         cdeck.close()

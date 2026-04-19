@@ -95,12 +95,17 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
             found_power_toughness = False
             original_words = line.split()
             words = [w.lower() for w in original_words]
-            if not (("create" in words) or ("creates" in words)) or not (("token" in [w.replace(',','').replace('.','') for w in words]) or ("tokens" in [w.replace(',','').replace('.','') for w in words])):
+            # Strip leading '(' to handle reminder-text patterns like "(Create a ... token)"
+            words_stripped_parens = [w.lstrip('(') for w in words]
+            if not (("create" in words_stripped_parens) or ("creates" in words_stripped_parens)) or not (("token" in [w.replace(',','').replace('.','') for w in words_stripped_parens]) or ("tokens" in [w.replace(',','').replace('.','') for w in words_stripped_parens])):
                 continue
             try:
-                create_word_index = words.index("create")
+                create_word_index = words_stripped_parens.index("create")
             except:
-                create_word_index = words.index("creates")
+                create_word_index = words_stripped_parens.index("creates")
+            # Strip any leading '(' from the create/creates word so downstream parsing is clean
+            words[create_word_index] = words_stripped_parens[create_word_index]
+            original_words[create_word_index] = original_words[create_word_index].lstrip('(')
             words = words[create_word_index:]
             original_words = original_words[create_word_index:]
             create_word_index = 0
@@ -148,7 +153,7 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
             if ("token copy" in " ".join(original_words)) or ("token that's a copy" in " ".join(original_words)) or ("tokens that are copies" in " ".join(original_words)):
                 continue
             # Extract name
-            words_to_exclude_from_names_and_subtypes = ["Goaded", "Attach", "To", "That", "Many"]
+            words_to_exclude_from_names_and_subtypes = ["Goaded", "Attach", "To", "That", "Many", "Number", "Of"]
             name_default_to_subtype = False
             if ("named" in words[create_word_index:]): # Check if "named" appears -- if so, the phrase that follows is the name.
                 words_until_next_punctuation = []
@@ -265,6 +270,21 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
             if len(rules_split)>1:
                 rules = rules_split[0].strip()+"\n"+rules_split[1].strip().replace("\"","",1)
             rules = rules.replace(",\n","\n")
+            # Split a bare keyword from a following comma-quoted ability on the same line.
+            # e.g., 'Reach, "{t}: Add {G}."' → 'Reach\n{t}: Add {G}.'
+            rules_split_parts = []
+            for rline in rules.split("\n"):
+                if ', "' in rline:
+                    split_idx = rline.index(', "')
+                    before = rline[:split_idx].strip()
+                    after = rline[split_idx + 3:].strip().rstrip('"')
+                    # Only split if 'before' has no '{' (not an activated cost)
+                    if before and '{' not in before:
+                        rules_split_parts.append(before)
+                        rules_split_parts.append(after)
+                        continue
+                rules_split_parts.append(rline)
+            rules = "\n".join(rules_split_parts)
             # Postprocess rules again in search of keyword lists that can be better formatted
             rules_lines = rules.split("\n")
             postprocessed_rules = ""
