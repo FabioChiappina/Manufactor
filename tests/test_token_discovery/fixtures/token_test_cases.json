@@ -22,6 +22,16 @@
     {
         "id": "treasure_token",
         "description": "Treasure token (common token)",
+        "card_name": "Firesale",
+        "rules": "Flash\n<i>PowerUp</i> \u2014 Whenever a Zombie dies, if Firesale isn't powered-up, it becomes powered-up and you draw a card.\n{t}, Sacrifice Firesale: If Firesale was powered-up, create two Treasure tokens and search your library, graveyard, and hand for an artifact card named Mystery Box and put it onto the battlefield, then shuffle. At the beginning of the next end step, shuffle Mystery Box into your library.",
+        "expected_specialized": [],
+        "expected_common": [
+            "Treasure"
+        ]
+    },
+    {
+        "id": "treasure_token_and_specialized_token",
+        "description": "Treasure token (common token) plus specialized token",
         "card_name": "Black Mask, Of The False Face Society",
         "rules": "<i>Extortion</i> — Whenever a creature enters the battlefield under an opponent's control for the first time each turn, that player may have you create a Treasure token. If they don't, create and attach to that creature a colorless Equipment artifact token named Black Mask with \"At the beginning of each end step, put a -1/-1 counter on equipped creature.\"\nTreasures you control are Clues in addition to their other types.",
         "expected_specialized": [
@@ -237,6 +247,78 @@
                 "toughness": "4",
                 "rules": "Reach, trample, haste",
                 "frame": "c_token_artifact-creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "goaded_creature_token_with_keyword_ability",
+        "description": "Simple creature token with P/T and a keyword ability, but it's goaded. Token discovery shouldn't include the word 'goaded'.",
+        "card_name": "Corruption Engine",
+        "rules": "{t}, Sacrifice Corruption Engine: Target opponent creates two goaded 2/2 black Zombie creature tokens with decayed. Reveal cards from the top of your library until you reveal a land card and put it onto the battlefield tapped. Put the rest on the bottom of your library in any order.\n{b}{b}: Return Corruption Engine from your graveyard to your hand. Activate only if an opponent controls a Zombie.",
+        "expected_specialized": [
+            {
+                "name": "Zombie",
+                "cardtype": "Token Creature",
+                "subtype": "Zombie",
+                "power": "2",
+                "toughness": "2",
+                "rules": "Decayed (This creature can't block. When it attacks, sacrifice it at end of combat.)",
+                "frame": "b_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "creature_token_with_keyword_ability_and_reminder_text",
+        "description": "Creature token with P/T and a keyword ability, which should get reminder text on the token because it's in the ability registry or configured in settings to have reminder text, or because the reminder text is in the card's rules text.",
+        "card_name": "Wittenau Sanatorium, Verr\u00fcckt Asylum",
+        "rules": "{t}: Add {c}.\n{t}: Add {b}. Target opponent creates a 2/2 black Zombie creature token with decayed. (A creature with decayed can't block. When it attacks, sacrifice it at end of combat.)",
+        "expected_specialized": [
+            {
+                "name": "Zombie",
+                "cardtype": "Token Creature",
+                "subtype": "Zombie",
+                "power": "2",
+                "toughness": "2",
+                "rules": "Decayed (This creature can't block. When it attacks, sacrifice it at end of combat.)",
+                "frame": "b_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "creature_token_with_multiple_keyword_abilities_and_reminder_text",
+        "description": "Creature token with P/T and multiple keyword abilities, one of which should get reminder text on the token because it's in the ability registry or configured in settings to have reminder text, or because the reminder text is in the card's rules text.",
+        "card_name": "Fetch Me Their Souls",
+        "rules": "At the beginning of each player's upkeep, that player creates two goaded 2/2 black Zombie Hound creature tokens with haste, lifelink, and decayed. (A creature with decayed can't block. When it attacks, sacrifice it at end of combat.)\nAt the beginning of each opponent's end step, if that player's life total exceeds yours, putrefy target creature they control and draw a card.",
+        "expected_specialized": [
+            {
+                "name": "Zombie Hound",
+                "cardtype": "Token Creature",
+                "subtype": "Zombie Hound",
+                "power": "2",
+                "toughness": "2",
+                "rules": "Haste, lifelink, decayed (This creature can't block. When it attacks, sacrifice it at end of combat.)",
+                "frame": "b_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "creature_token_with_keyword_ability_usually_with_reminder_text_but_also_multi_word_ability_in_quotes",
+        "description": "Creature token with P/T and a keyword ability, which usually would get reminder text on the token because it's in the ability registry or configured in settings to have reminder text. But this token has an extra multi-word ability in quotes, so token discovery shouldn't include the reminder text for the keyword ability, and should include the multi-word ability in quotes.",
+        "card_name": "The Arrival Of The Witches",
+        "rules": "Create X goaded 2/2 black Zombie Witch creature tokens with haste, decayed, and \"When this creature deals combat damage to a creature, that creature becomes a 2/2 black Zombie with decayed and loses all other abilities.\". (A creature with decayed can't block. When it attacks, sacrifice it at end of combat.)",
+        "expected_specialized": [
+            {
+                "name": "Zombie Witch",
+                "cardtype": "Token Creature",
+                "subtype": "Zombie Witch",
+                "power": "2",
+                "toughness": "2",
+                "rules": "Haste, decayed\nWhen this creature deals combat damage to a creature, that creature becomes a 2/2 black Zombie with decayed and loses all other abilities.",
+                "frame": "b_token_creature.jpg"
             }
         ],
         "expected_common": []
@@ -570,6 +652,22 @@
         "description": "Card that creates a token that's a copy of another creature, but doesn't actually create any tokens with its own unique text. Token discovery should not create a token here.",
         "card_name": "Darth Plagueis, The Wise",
         "rules": "Force 3\nPay 2 life, Sacrifice a creature: Surveil 2.\nWhenever a creature you control dies, proliferate. Then, if X is the number of Midichlorian counters that were on that creature, create a token that's a copy of target creature on the battlefield or creature card in a graveyard with mana value less than or equal to X, except the token isn't legendary.",
+        "expected_specialized": [],
+        "expected_common": []
+    },
+    {
+        "id": "card_type_token_creates_no_tokens",
+        "description": "Card that mentions creating tokens of a card type, but doesn't actually create any tokens with its own unique text. Token discovery should not create a token here.",
+        "card_name": "Test Token Payoff",
+        "rules": "Whenever you create an artifact token, draw a card.",
+        "expected_specialized": [],
+        "expected_common": []
+    },
+    {
+        "id": "noncreature_token_creates_no_tokens",
+        "description": "Card that mentions creating noncreature tokens, but doesn't actually create any tokens with its own unique text. Token discovery should not create a token here.",
+        "card_name": "Shoeshining 100",
+        "rules": "Equipped creature gets +1/+0.\nWhenever you cast a noncreature spell or create a noncreature token, equipped creature deals 1 damage to target player and each Zombie they control.\nEquip {0}",
         "expected_specialized": [],
         "expected_common": []
     },
