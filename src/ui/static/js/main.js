@@ -4300,20 +4300,22 @@ function _doBasicAction(color, action, btn) {
     var _interactions = [];
     var _interactionEditingId = null;
     var _interactionDeleteTargetId = null;
-    var _ixImageCache = {};   // cardName → image src, built once before filtering runs
-    var _ixAllCardNames = []; // all card names, built once before filtering runs
+    var _ixImageCache     = {};  // cardName → front image src
+    var _ixBackImageCache = {};  // cardName → back image src (null if single-faced)
+    var _ixAllCardNames   = [];  // all card names, sorted
 
     function _ixBuildStaticCaches() {
-        // Run before applyCardControls can detach items from the DOM.
-        // getCanonicalItems() returns ALL cards captured at first call (before filtering).
         getCanonicalItems().forEach(function(el) {
             var name = el.dataset.cardName;
             if (!name || _ixImageCache[name]) return;
             var img = el.querySelector('img.card-image');
-            if (img) _ixImageCache[name] = img.dataset.frontSrc || img.src || null;
-            if (name && _ixAllCardNames.indexOf(name) === -1) _ixAllCardNames.push(name);
+            if (img) {
+                _ixImageCache[name]     = img.dataset.frontSrc || img.src || null;
+                _ixBackImageCache[name] = img.dataset.backSrc  || null;
+            }
+            if (_ixAllCardNames.indexOf(name) === -1) _ixAllCardNames.push(name);
         });
-        // Also capture commander images from the header (stat items have no img)
+        // Commander images live in the header, not in gallery stat items
         document.querySelectorAll('[data-commander-name]').forEach(function(el) {
             var name = el.dataset.commanderName;
             if (!name) return;
@@ -4326,8 +4328,13 @@ function _doBasicAction(color, action, btn) {
         _ixAllCardNames.sort(function(a, b) { return a.localeCompare(b); });
     }
 
-    function _ixGetCardImageSrc(cardName) {
+    function _ixGetCardImageSrc(cardName, flipped) {
+        if (flipped) return _ixBackImageCache[cardName] || _ixImageCache[cardName] || null;
         return _ixImageCache[cardName] || null;
+    }
+
+    function _ixCardHasBack(cardName) {
+        return !!(_ixBackImageCache[cardName]);
     }
 
     function _ixRebuildCardDatalist() {
@@ -4368,6 +4375,7 @@ function _doBasicAction(color, action, btn) {
     function _ixBuildGroupEl(group) {
         var cards = (group.cards || []).filter(function(c) { return c.trim(); });
         var currentIdx = 0;
+        var isFlipped = false;
 
         var el = document.createElement('div');
         el.className = 'interaction-group';
@@ -4392,10 +4400,40 @@ function _doBasicAction(color, action, btn) {
         cardNameEl.className = 'interaction-group-card-name';
         el.appendChild(cardNameEl);
 
+        // Nav row: always created so flip button has a home even on single-card groups
+        var navEl = document.createElement('div');
+        navEl.className = 'interaction-group-nav';
+
+        var prevBtn = null;
+        var nextBtn = null;
+        if (cards.length > 1) {
+            prevBtn = document.createElement('button');
+            prevBtn.className = 'ig-nav-btn';
+            prevBtn.type = 'button';
+            prevBtn.textContent = '←';
+            nextBtn = document.createElement('button');
+            nextBtn.className = 'ig-nav-btn';
+            nextBtn.type = 'button';
+            nextBtn.textContent = '→';
+            navEl.appendChild(prevBtn);
+            navEl.appendChild(nextBtn);
+        }
+
+        var flipBtn = document.createElement('button');
+        flipBtn.className = 'ig-nav-btn ig-flip-btn';
+        flipBtn.type = 'button';
+        flipBtn.title = 'Flip card';
+        flipBtn.textContent = '↻';
+        flipBtn.style.display = 'none';
+        navEl.appendChild(flipBtn);
+
+        el.appendChild(navEl);
+
         function showCard(idx) {
+            isFlipped = false;
             var name = cards[idx] || '';
             cardNameEl.textContent = name;
-            var src = name ? _ixGetCardImageSrc(name) : null;
+            var src = name ? _ixGetCardImageSrc(name, false) : null;
             if (src) {
                 img.src = src;
                 img.style.display = '';
@@ -4405,19 +4443,10 @@ function _doBasicAction(color, action, btn) {
                 ph.textContent = name || '—';
                 ph.style.display = '';
             }
+            flipBtn.style.display = _ixCardHasBack(name) ? '' : 'none';
         }
 
-        if (cards.length > 1) {
-            var navEl = document.createElement('div');
-            navEl.className = 'interaction-group-nav';
-            var prevBtn = document.createElement('button');
-            prevBtn.className = 'ig-nav-btn';
-            prevBtn.type = 'button';
-            prevBtn.textContent = '←';
-            var nextBtn = document.createElement('button');
-            nextBtn.className = 'ig-nav-btn';
-            nextBtn.type = 'button';
-            nextBtn.textContent = '→';
+        if (prevBtn) {
             prevBtn.addEventListener('click', function() {
                 currentIdx = (currentIdx - 1 + cards.length) % cards.length;
                 showCard(currentIdx);
@@ -4426,10 +4455,19 @@ function _doBasicAction(color, action, btn) {
                 currentIdx = (currentIdx + 1) % cards.length;
                 showCard(currentIdx);
             });
-            navEl.appendChild(prevBtn);
-            navEl.appendChild(nextBtn);
-            el.appendChild(navEl);
         }
+
+        flipBtn.addEventListener('click', function() {
+            isFlipped = !isFlipped;
+            var name = cards[currentIdx] || '';
+            var src = _ixGetCardImageSrc(name, isFlipped);
+            if (src) {
+                img.src = src;
+                img.style.display = '';
+                ph.style.display = 'none';
+            }
+            flipBtn.textContent = isFlipped ? '↺' : '↻';
+        });
 
         showCard(0);
         return el;
