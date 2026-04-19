@@ -559,6 +559,219 @@
         "expected_common": []
     },
     {
+        "id": "creature_token_defined_by_reminder_text",
+        "description": "Creature token with a keyword ability and defined entirely in reminder text (in parentheses) rather than in the main rules text. The token should still be auto-discovered.",
+        "card_name": "Quarantine Zone",
+        "rules": "{g}: Put a strain counter on Quarantine Zone. You may tap an untapped creature you control. If you do, exile up to one target card in a graveyard.\nRemove four strain counters from Quarantine Zone and sacrifice it: Create a Charger token. (It's a 4/2 black and green Zombie creature with trample and haste.)",
+        "expected_specialized": [
+            {
+                "name": "Charger",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "Trample, haste",
+                "power": "4",
+                "toughness": "2",
+                "frame": "bg_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "creature_token_defined_by_reminder_text_controller_creates",
+        "description": "Creature token with a keyword ability and defined entirely in reminder text (in parentheses) rather than in the main rules text, except the phrasing says 'its controller creates' instead of just 'create'. The token should still be auto-discovered.",
+        "card_name": "Overtaken By The Flu",
+        "rules": "Exile target creature. Its controller creates a Charger token. (It's a 4/2 black and green Zombie creature with trample and haste.)\nBasic landcycling {b}{g} ({b}{g}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.)",
+        "expected_specialized": [
+            {
+                "name": "Charger",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "Trample, haste",
+                "power": "4",
+                "toughness": "2",
+                "frame": "bg_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "creature_token_defined_by_reminder_text_plural",
+        "description": "Creature tokens defined entirely in reminder text (in parentheses) rather than in the main rules text, except this time multiple tokens are created. The token should still be auto-discovered.",
+        "card_name": "Boomer Bile",
+        "rules": "Flash\n{1}{g}, Tap an untapped creature you control, Sacrifice Boomer Bile: Remove all creatures from combat. Create four Infected tokens. (They're 1/1 black and green Zombie creatures.)\nSupply run {1}{g} (Whenever a land enters the battlefield under your control, you may tap an untapped creature you control and pay {1}{g}. If you do, return this card from your graveyard to your hand.)",
+        "expected_specialized": [
+            {
+                "name": "Infected",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "",
+                "power": "1",
+                "toughness": "1",
+                "frame": "bg_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "creature_token_defined_by_reminder_text_plural_controller_creates",
+        "description": "Creature tokens defined entirely in reminder text (in parentheses) rather than in the main rules text, except this time multiple tokens are created, and the phrasing says 'its controller creates' instead of just 'create'. The token should still be auto-discovered.",
+        "card_name": "Lost To The Rot",
+        "rules": "Exile target permanent. Its controller creates two Infected tokens. (They're 1/1 black and green Zombie creatures.)\nFlashback {b}{b/g}{b/g}{b/g}{g} (You may cast this spell from your graveyard for its flashback cost. Then exile it.)",
+        "expected_specialized": [
+            {
+                "name": "Infected",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "",
+                "power": "1",
+                "toughness": "1",
+                "frame": "bg_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "creature_token_defined_by_reminder_text_tapped_and_replacement_effect",
+        "description": "Creature tokens defined entirely in reminder text (in parentheses) rather than in the main rules text, except this time they're tapped, and the phrasing is that of a replacement effect, so it is extra complicated. The token should still be auto-discovered.",
+        "card_name": "Green Infestation",
+        "rules": "If you would create one or more tokens, instead create those tokens plus a tapped Infected token. (It's a 1/1 black and green Zombie creature.)\nWhenever a creature you control dies, target opponent loses 1 life.",
+        "expected_specialized": [
+            {
+                "name": "Infected",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "",
+                "power": "1",
+                "toughness": "1",
+                "frame": "bg_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "creature_token_defined_by_reminder_text_multi_word_ability_in_quotes",
+        "description": "Creature token with a keyword ability and defined entirely in reminder text (in parentheses) rather than in the main rules text. The token has a complex, multi-word ability wrapped in quotes. The token should still be auto-discovered.",
+        "card_name": "Disturb The Witch",
+        "rules": "Choose target spell or ability that targets one or more creatures.\nCreate a Witch token. (It's a 5/4 black and green Zombie creature with defender and \"Whenever this creature is dealt damage or targeted, it loses all abilities. Each opponent loses 5 life.\")\nChange a target of the targeted spell or ability to that token.",
+        "expected_specialized": [
+            {
+                "name": "Witch",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "Defender\nWhenever this creature is dealt damage or targeted, it loses all abilities. Each opponent loses 5 life.",
+                "power": "5",
+                "toughness": "5",
+                "frame": "bg_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "creature_token_defined_by_reminder_text_contains_unrelated_reminder",
+        "description": "Creature token with a keyword ability and defined entirely in reminder text (in parentheses) rather than in the main rules text. The token has a complex, multi-word ability wrapped in quotes. The reminder text contains a sentence before the token definition that is not relevant to the token and should not be included. The token should still be auto-discovered.",
+        "card_name": "Always Look Above You",
+        "rules": "Counter up to one target activated or triggered ability from an artifact or enchantment source. Create a Hunter token. (Mana abilities can't be targeted. Hunters are 3/3 black and green Zombie creatures with \"When this creature enters the battlefield, it fights target creature.\")\nBasic landcycling {2} ({2}, Discard this card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.)",
+        "expected_specialized": [
+            {
+                "name": "Hunter",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "When this creature enters the battlefield, it fights target creature.",
+                "power": "3",
+                "toughness": "3",
+                "frame": "bg_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "creature_token_defined_by_reminder_text_multi_word_ability_in_quotes_further_from_token_name",
+        "description": "Creature token with a keyword ability and defined entirely in reminder text (in parentheses) rather than in the main rules text. The token has a complex, multi-word ability wrapped in quotes. The reminder text is far away from the token's name, but the token should still be auto-discovered.",
+        "card_name": "Pact With Calamity",
+        "rules": "Whenever you cast a noncreature spell, you may pay {b/g}. If you do, create a Jockey token. Otherwise, you lose 1 life and draw a card. (A Jockey is a 1/1 black and green Zombie creature with menace, haste, and \"When this creature enters the battlefield, it deals 2 damage to target creature.\")",
+        "expected_specialized": [
+            {
+                "name": "Jockey",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "Menace, haste\nWhen this creature enters the battlefield, it deals 2 damage to target creature.",
+                "power": "1",
+                "toughness": "1",
+                "frame": "bg_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "two_creature_tokens_defined_by_reminder_text",
+        "description": "Two different creature tokens each defined entirely in reminder text (in parentheses) rather than in the main rules text. The token should still be auto-discovered.",
+        "card_name": "Approach Of The Deadswarm",
+        "rules": "Kicker \u2014 {b}{g}, Sacrifice two creatures (You may pay this additional cost as you cast this spell.)\nCreate four Infected tokens. (They're 1/1 black and green Zombie creatures.)\nIf this spell was kicked, create a Tank token. (It's a 4/7 black and green Zombie creature with menace and trample.)\nPopulate. (Create a token that's a copy of a creature token you control.)",
+        "expected_specialized": [
+            {
+                "name": "Infected",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "",
+                "power": "1",
+                "toughness": "1",
+                "frame": "bg_token_creature.jpg"
+            },
+            {
+                "name": "Tank",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "Menace, trample",
+                "power": "4",
+                "toughness": "7",
+                "frame": "bg_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "two_creature_tokens_defined_by_the_same_reminder_text",
+        "description": "Two different creature tokens each defined entirely in reminder text (in parentheses) rather than in the main rules text. A single reminder text defines both tokens. The token should still be auto-discovered.",
+        "card_name": "Alert The Horde",
+        "rules": "Whenever an opponent casts their second spell in a turn or attacks you with two or more creatures, sacrifice Alert The Horde and create four Infected tokens and a Smoker token. (Infected are 1/1 black and green Zombie creatures. Smokers are 3/1 black and green Zombie creatures with reach, deathtouch, and \"When this creature dies, each opponent loses 1 life.\")",
+        "expected_specialized": [
+            {
+                "name": "Infected",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "",
+                "power": "1",
+                "toughness": "1",
+                "frame": "bg_token_creature.jpg"
+            },
+            {
+                "name": "Smoker",
+                "cardtype": "Creature",
+                "subtype": "Zombie",
+                "rules": "Reach, deathtouch\nWhen this creature dies, each opponent loses 1 life.",
+                "power": "3",
+                "toughness": "1",
+                "frame": "bg_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "artifact_token_defined_by_reminder_text_multi_word_ability_in_quotes",
+        "description": "Artifact token defined entirely in reminder text (in parentheses) rather than in the main rules text. The token has a complex, multi-word ability wrapped in quotes. The token should still be auto-discovered.",
+        "card_name": "Metro International Airport",
+        "rules": "Metro International Airport enters the battlefield tapped. When it does, create a Pain-Pills token. (It's a colorless artifact with \"{t}, Sacrifice this artifact: Target creature gets +1/+1 until end of turn.\")\n{t}: Add {b} or {g}.",
+        "expected_specialized": [
+            {
+                "name": "Pain-Pills",
+                "cardtype": "Artifact",
+                "rules": "{t}, Sacrifice this artifact: Target creature gets +1/+1 until end of turn.",
+                "frame": "c_token_artifact-noncreature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
         "id": "artifact_token_with_multi_word_ability_in_quotes",
         "description": "Artifact token with a single multi-word ability wrapped in quotes.",
         "card_name": "Cyrax, The Misguided",
@@ -669,7 +882,6 @@
         ],
         "expected_common": []
     },
-
     {
         "id": "protection_from_everything_with_reminder_text",
         "description": "Token with protection from everything, which has reminder text in external user settings/config, or in an ability registry class with predefined reminder text, or just has reminder text present on the card. Reminder text should appear on the token.",
