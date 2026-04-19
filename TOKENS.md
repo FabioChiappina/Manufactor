@@ -566,7 +566,15 @@ Known gap (intentional): the token discovery panel does **not** update live as t
 ---
 
 ### Phase T5: Ensure Finer Points From "Additional Features & Design Decisions" Section Are Implemented
-(Steps not fleshed out yet)
+
+**Effort**: Medium — 1–2 sessions  
+**Prerequisite**: T4 complete ✅
+
+Steps (not fully fleshed out yet):
+1. **F1 — Orphaned token cleanup flow**: The yellow gallery outline and editor warning are already in place (T3). What's missing is a first-class "Delete this orphaned token" prompt in the Assembly Line when a token's `source_cards` becomes empty after a forge. Currently the user must open the token editor and manually delete it.
+2. **F3 — Multiple artworks per token**: Tokens tab should show all artwork variants (`<TokenName>_1.jpg`, `<TokenName>_2.jpg`, etc.) as stacked thumbnails or a carousel. Forging should discover all `Artwork/<TokenName>_N.jpg` variants and stage them all. Cockatrice exporter already handles the `_N` suffix naming.
+3. **F4 — Token discovery for DFC back faces / subspells / multi-rules boxes**: Already done in T4 (`card.get_tokens()` now scans `.back` and `.subspell`). Verify that Sagas (`rules1`–`rules6` on the front face) also work — they should, since `_parse_face()` iterates all six slots.
+4. **F5 — Common tokens in Cockatrice predefined zone**: Already handled in T1 (common tokens appear in `.cod` even without a local image). Confirm this holds end-to-end after T3/T4 changes.
 
 ---
 
@@ -574,16 +582,17 @@ Known gap (intentional): the token discovery panel does **not** update live as t
 
 | File | Relevance |
 |---|---|
-| `src/integration/cockatrice.py` | ✅ Fixed — now reads `deck.tokens` dict; `_Tokens.json` load removed |
-| `src/token_generation/token_parser.py` | ✅ Three parser bugs fixed (see Phase T2 above); target for further improvements |
+| `src/integration/cockatrice.py` | ✅ Fixed — now reads `deck.tokens` dict; `_Tokens.json` load removed; `<reverse-related>` normalization fixed |
+| `src/token_generation/token_parser.py` | ✅ Three parser bugs fixed (see Phase T2); target for further improvements |
 | `src/core/deck.py` | `get_tokens()` — runs discovery on whole deck; `_from_json_new_format` — loads `tokens` dict |
-| `src/core/card.py` | `get_tokens()` / `get_tokens_from_rules_text()` — per-card discovery |
-| `src/ui/app.py` | Forge, forge-all, publish endpoints; token routes to be added (Phase T3) |
-| `src/ui/helpers.py` | `load_deck_by_name()` loads `tokens_with_images`; staging helpers |
-| `src/ui/templates/deck.html` | Tokens tab UI; card editor panel |
-| `src/ui/static/js/main.js` | Editor logic, forge handler, assembly line |
+| `src/core/card.py` | ✅ `get_tokens()` extended — now scans front, back (DFC), and subspell faces; all rules1–6 slots |
+| `src/ui/app.py` | ✅ Token routes added (T3); `_apply_token_discovery` helper (T4); forge/forge-all/publish all handle tokens |
+| `src/ui/helpers.py` | ✅ `card_from_editor_dict` extended for token `colors` and `token` flag; staging helpers |
+| `src/ui/templates/deck.html` | ✅ Token editor (T3): color picker, source cards, orphan warning, delete dialog; T4: disable-auto-tokens checkbox, discovered-tokens panel |
+| `src/ui/static/js/main.js` | ✅ Full token editor wiring (T3); `_updateDiscoveredTokensPanel`, `disable_auto_tokens` serialize/populate (T4) |
+| `src/ui/static/css/style.css` | ✅ Token editor styles (T3); discovered tokens panel styles (T4) |
 | `src/services/cockatrice_exporter.py` | Calls `update_cockatrice`; no changes needed |
-| `config/common_tokens.json` | Common token definitions used by parser |
+| `config/common_tokens.json` | Common token definitions used by parser and `_apply_token_discovery` |
 | `tests/conftest.py` | ✅ Created — `mock_common_tokens` pytest fixture |
 | `tests/test_token_discovery/__init__.py` | ✅ Created |
 | `tests/test_token_discovery/test_token_parser.py` | ✅ Created — 26 parametrized test cases, all passing |
@@ -607,25 +616,17 @@ That rules text should lead to a token of card type Creature, subtype Human, pow
 Once the test infrastructure is in place, provide rules text examples + expected token outputs so the test data repository can be built up. This will happen across multiple sessions. Format: the full rules text of the card, and for each token it creates: name, cardtype, subtype, P/T (if any), rules text. Flag cases where the current parser is known to fail.
 **Answer**: A draft initial version of `tests/test_token_discovery/fixtures/token_test_cases.json` is provided. This contains 10-15 initial token test cases from one known set of already discovered tokens. Many further additions to this JSON file will be necessary, but this is a good starting point.
 
-### Needed for Phase T3 (Manual Token Creation)
+### Resolved for Phase T3 (Manual Token Creation) ✅
 
-**Item 3 — Token editor UX**  
-**Question**: When clicking an existing token in the Tokens tab gallery, should it open in the same card editor split-panel used for cards? Or a simpler dedicated form? Should users be able to edit tokens via raw JSON (CodeMirror), or form-only? Should token deletion be supported from the UI, and if so what confirmation flow?
-**Answer**: It should still open in the same card editor split-panel, but a couple of elements won't be there, so it'll be slightly simplified. e.g., no tags on tokens, no subspells, no "Set As Commander" button, no quantity input field, no double-faced dropdown input field for now, no front/back toggle for now. Yes, users should be able to edit through Form or JSON. Yes, token deletion should be supported, and it should look just like card deletion -- a popup comes up and asks if you're sure, and if you click OK, then the deletion of the token becomes a staged change in the assembly line. You then have to publish that change to ACTUALLY delete the token.
+**Item 3 — Token editor UX**: Reuses `#card-editor-panel` with token mode active (no tags, subspells, commander button, quantity, DFC, face toggle). Form and JSON modes both supported. Deletion is staged via confirmation dialog, applied on publish. *(Implemented in T3)*
 
-**Item 4 — Common tokens in Cockatrice predefined zone**  
-**Question**: Common tokens (Clue, Treasure, Food, etc.) from `common_tokens.json` often have no local image file in `Tokens/`. Should they still be listed in the `.cod` predefined tokens zone (they'll show in Cockatrice's token list but use its built-in art or a blank), or should they be skipped unless a local image exists?
-**Answer**: 100% they should be listed in the predefined tokens. The built-in images from Cockatrice are perfectly fine.
+**Item 4 — Common tokens in Cockatrice predefined zone**: Always listed in `.cod` regardless of whether a local image exists. *(Implemented in T1)*
 
-### Needed for Phase T4 (Forge-Time Auto-Discovery)
+### Resolved for Phase T4 (Forge-Time Auto-Discovery) ✅
 
-**Item 5 — Token discovery scope**  
-**Question**: Should token discovery scan only `front.rules`, or also `back.rules` (DFC back face) and `subspell.rules` (Adventure/Omen subspell)?
-**Answer**: All of the above. Plus for spells with multiple rules boxes like Sagas or Planeswalkers (I think they're labeled as rules1, rules2, etc.), you should scan all those rules boxes too.
+**Item 5 — Token discovery scope**: `card.get_tokens()` now scans front face (`rules`, `rules1`–`rules6`), back face (DFC), and subspell face. Multi-rules-box cards (Sagas, Planeswalkers) are covered because their rules use `rules1`–`rules6` slots on the front face. *(Implemented in T4)*
 
-**Item 6 — Renaming cards + source_cards**
-**Question**: If a card is renamed, should `source_cards` on its tokens auto-update?
-**Answer**: Yes, handle in forge endpoint.
+**Item 6 — Renaming cards + source_cards**: `_apply_token_discovery` receives both `prev_deck_key` and `deck_key`; when they differ (subspell added/changed causes a rename), any token whose `source_cards` contains `prev_deck_key` gets it replaced with `deck_key`. *(Implemented in T4)*
 
 ---
 

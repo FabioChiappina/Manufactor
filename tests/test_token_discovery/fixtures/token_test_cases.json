@@ -205,6 +205,24 @@
         "expected_common": []
     },
     {
+        "id": "basic_creature_xx_that_many",
+        "description": "Creature token with P/T both X, and you create 'that many' of those tokens.",
+        "card_name": "The Damaged, Scion Of The Forgotten World",
+        "rules": "At the beginning of your end step, exile each Corrupted token you control. Choose any number of cards in exile with different mana values. Create that many X/X colorless Corrupted creature tokens, where X is the number of different card types among the exiled cards.\nExile a permanent you control: Nullify 2. You may play those cards this turn if either shares no card types with the exiled permanent. (To nullify 2, exile the top two cards of your library.)\nIndestructible, Ward \u2014 Nullify 10",
+        "expected_specialized": [
+            {
+                "name": "Corrupted",
+                "cardtype": "Token Creature",
+                "subtype": "Corrupted",
+                "power": "X",
+                "toughness": "X",
+                "rules": "",
+                "frame": "c_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
         "id": "basic_creature_token_unrelated_reminder_text",
         "description": "Simple creature token with P/T and a keyword ability, followed by reminder text not relevant to the token. Token discovery shouldn't include the reminder text.",
         "card_name": "The Forbidden Forest",
@@ -557,6 +575,22 @@
         "expected_common": []
     },
     {
+        "id": "artifact_token_with_multi_word_ability_in_quotes_and_symbols",
+        "description": "Artifact token with a single multi-word ability wrapped in quotes, and the ability includes tap and mana symbols.",
+        "card_name": "Seedspinner",
+        "rules": "Whenever an opponent draws a card, they may nullify 4. If they don't, create a tapped Demonbloom artifact token with \"{t}, Nullify 2, Sacrifice this permanent: Add {c}.\"\nReach",
+        "expected_specialized": [
+            {
+                "name": "Demonbloom",
+                "cardtype": "Token Artifact",
+                "subtype": "Demonbloom",
+                "rules": "{t}, Nullify 2, Sacrifice this permanent: Add {c}.",
+                "frame": "c_token_artifact-noncreature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
         "id": "token_that_creates_common_token",
         "description": "Token with a multi-word ability wrapped in quotes, in which it creates a common (Treasure) token.",
         "card_name": "Quidditch Match",
@@ -617,6 +651,25 @@
         ],
         "expected_common": []
     },
+    {
+        "id": "custom_keyword_ability_with_reminder_text_on_different_line",
+        "description": "Token with a keyword ability that has reminder text defined earlier in the rules text, but in a totally separate line. Since the token has that keyword ability and no other abilities after that ability, there is room to add the reminder text. Token discovery should find that ability's reminder text earlier in the card (in an earlier line) and put the reminder text on the token.",
+        "card_name": "Pestilence Spawn",
+        "rules": "First Strike, Menace, Nulllink (Damage dealt by a source with nulllink causes its controller to exile that many cards from the top of their library.)\nOther Corrupted you control get +1/+1.\nExile a permanent you control: Target player nullifies 2. If the exiled permanent didn't have nulllink, create a 1/1 colorless Corrupted Devil creature token with nulllink.",
+        "expected_specialized": [
+            {
+                "name": "Corrupted Devil",
+                "cardtype": "Token Creature",
+                "subtype": "Corrupted Devil",
+                "rules": "Nulllink (Damage dealt by a source with nulllink causes its controller to exile that many cards from the top of their library.)",
+                "power": "1",
+                "toughness": "1",
+                "frame": "c_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+
     {
         "id": "protection_from_everything_with_reminder_text",
         "description": "Token with protection from everything, which has reminder text in external user settings/config, or in an ability registry class with predefined reminder text, or just has reminder text present on the card. Reminder text should appear on the token.",
@@ -710,6 +763,22 @@
                 "cardtype": "Token Enchantment",
                 "subtype": "Aura Role",
                 "rules": "Enchant creature\nEnchanted creature has no abilities and cannot attack or block.",
+                "frame": "c_token_noncreature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "role_token_6",
+        "description": "Enchantment role token with extra reminder text that shouldn't end up in the token rules text. Harder because there's some extra text indicating what to attach the role to.",
+        "card_name": "Consumed Thereomancers",
+        "rules": "Other Corrupted you control get +1/+1.\n{c}{c}, Nullify 2, Tap another untapped Corrupted you control: Put a +1/+1 counter on that creature and draw a card. Create a Consumed Role token attached to Consumed Thereomancers. (If you control another Role on it, put that one into the graveyard. Enchanted permanent loses all names, supertypes, card types, subtypes, and colors.)",
+        "expected_specialized": [
+            {
+                "name": "Consumed",
+                "cardtype": "Token Enchantment",
+                "subtype": "Aura Role",
+                "rules": "Enchant creature\nEnchanted permanent loses all names, supertypes, card types, subtypes, and colors.",
                 "frame": "c_token_noncreature.jpg"
             }
         ],
