@@ -66,6 +66,42 @@
         "expected_common": []
     },
     {
+        "id": "basic_creature_token_phrasing_uses_creates",
+        "description": "Simple creature token with P/T, but phrasing uses 'creates' instead of 'create'",
+        "card_name": "Kinglor Forest",
+        "rules": "({t}: Add {G}.)\nKinglor Forest enters the battlefield tapped unless you control two or more other primal lands.\n<i>Channel</i> \u2014 {2}{G}{G}, Discard Kinglor Forest: Shuffle target creature into it\u2019s owner\u2019s library. Its controller creates two 0/1 green Plant creature tokens.",
+        "expected_specialized": [
+            {
+                "name": "Plant",
+                "cardtype": "Token Creature",
+                "subtype": "Plant",
+                "power": "0",
+                "toughness": "1",
+                "rules": "",
+                "frame": "g_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "token_two_keyword_abilities_in_subspell_permanent",
+        "description": "Creature token with P/T and two keyword abilities. In a card that has a subspell, but the token is defined in the main spell's rules text (the permanent side).",
+        "card_name": "Varang, Flame Of The Mangkwam / Nightwraith's Fury",
+        "rules": "Tsaheylu\nIf an opponent would draw their second card in a turn, instead they skip that draw and you create a 3/3 red Drake creature token with flying and haste.",
+        "expected_specialized": [
+            {
+                "name": "Drake",
+                "cardtype": "Token Creature",
+                "subtype": "Drake",
+                "power": "3",
+                "toughness": "3",
+                "rules": "Flying, haste",
+                "frame": "r_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
         "id": "token_with_multi_word_ability_in_quotes",
         "description": "Token with an ability other than a single-word keyword, wrapped in quotes.",
         "card_name": "Mana Dork Token Maker",
