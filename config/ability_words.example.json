@@ -1,0 +1,17 @@
+{
+  "Decayed": {
+    "name": "Decayed",
+    "selfDescription": "This creature can't block. When it attacks, sacrifice it at end of combat.",
+    "generalDescription": "A creature with decayed can't block. When it attacks, sacrifice it at end of combat."
+  },
+  "Shadow": {
+    "name": "Shadow",
+    "selfDescription": "This creature can block or be blocked by only creatures with shadow.",
+    "generalDescription": "A creature with shadow can block or be blocked by only creatures with shadow."
+  },
+  "MyCustomAbility": {
+    "name": "MyCustomAbility",
+    "selfDescription": "This creature does something special when it attacks.",
+    "generalDescription": "A creature with MyCustomAbility does something special when it attacks."
+  }
+}

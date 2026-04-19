@@ -13,6 +13,52 @@ from num2words import num2words # type: ignore
 from src.core.mana import Mana
 from src.core.ability import AbilityElements
 
+def _load_ability_words_dict():
+    """
+    Load ability word definitions from config/ability_words.json, falling back
+    to the hardcoded AbilityElements list if the config file is absent.
+
+    Returns:
+        Dict mapping normalized ability name (lowercase, no spaces/dots) → selfDescription
+    """
+    try:
+        from pathlib import Path as _Path
+        from src.utils.paths import PROJECT_ROOT as _PROJECT_ROOT
+        _config_path = _Path(_PROJECT_ROOT) / "config" / "ability_words.json"
+        if _config_path.exists():
+            with open(_config_path, 'r') as _f:
+                data = json.load(_f)
+            return {k.lower().replace(" ", "").replace(".", ""): v.get("selfDescription", "")
+                    for k, v in data.items() if v.get("selfDescription")}
+    except Exception:
+        pass
+    # Fallback to hardcoded
+    return {
+        ab.name.lower().replace(" ", "").replace(".", ""): ab.selfDescription
+        for ab in AbilityElements.all_abilities
+        if ab.selfDescription
+    }
+
+
+def _inject_ability_reminder_text(rules: str) -> str:
+    """
+    Scan each line of token rules text.  For any line that is a bare keyword
+    (≤ 4 words, no '{', no '(') that exactly matches a configured ability word,
+    append that ability's reminder text in parentheses.
+    """
+    ability_words = _load_ability_words_dict()
+    lines = rules.split("\n")
+    result = []
+    for line in lines:
+        stripped = line.strip().rstrip(".")
+        # Only consider short lines with no mana symbols or existing reminder text
+        if "{" not in line and "(" not in line and len(stripped.split()) <= 4:
+            key = stripped.lower().replace(" ", "").replace(",", "").replace(".", "")
+            if key in ability_words and ability_words[key]:
+                line = stripped + " (" + ability_words[key] + ")"
+        result.append(line)
+    return "\n".join(result)
+
 
 def load_common_token_definitions() -> Dict[str, Any]:
     """
@@ -350,10 +396,8 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
                     postprocessed_rules += "\n"
                 postprocessed_rules += rules_line
             rules = postprocessed_rules.replace("..",".")
-            # If there's only a few words, and the final word in the line of text is an ability that needs elaborating, automatically provide the description
-            if len(rules.split()) <= 6:
-                if any([ability.name.lower().replace(" ","").replace(".","") == rules.split(",")[-1].lower().replace(" ","").replace(".","") for ability in AbilityElements.all_abilities]):
-                    rules += " (" + AbilityElements.all_abilities_dict[rules.split(",")[-1].lower().replace(" ","").replace(".","")].selfDescription + ")"
+            # Inject reminder text for any configured ability words found on keyword-only lines
+            rules = _inject_ability_reminder_text(rules)
             # Handle the special case of Roles
             if "Role" in subtype.split():
                 subtype = "Aura Role"

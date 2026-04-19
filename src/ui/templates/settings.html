@@ -122,4 +122,77 @@
         </form>
     </div>
 </div>
+
+<!-- Ability Words -->
+<div class="settings-section">
+    <h3>Ability Word Reminder Text</h3>
+    <p>Configure ability words that should automatically have reminder text appended when they appear on token cards. When the token parser produces a rules line containing only a matching ability word, the reminder text is added in parentheses.</p>
+
+    {% if ability_words %}
+    <div class="tokens-table-wrapper">
+        <table class="tokens-table">
+            <thead>
+                <tr>
+                    <th>Ability Word</th>
+                    <th>Reminder Text (on token: "This creature…")</th>
+                    <th>General Description (optional)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for name, data in ability_words.items() %}
+                <tr>
+                    <td><strong>{{ name }}</strong></td>
+                    <td>{{ data.selfDescription }}</td>
+                    <td>{{ data.generalDescription or '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty-message">No ability words defined yet.</p>
+    {% endif %}
+
+    <!-- Add Ability Word Form -->
+    <div class="token-form">
+        <h4>Add New Ability Word</h4>
+        <form method="POST" action="/settings/ability-words/add">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="ability_name">Ability Word</label>
+                    <input type="text" id="ability_name" name="ability_name" placeholder="e.g., Anarky" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="ability_self_description">Reminder Text <span class="form-help-inline">(used on the token itself — "This creature…")</span></label>
+                <textarea id="ability_self_description" name="ability_self_description" rows="2" placeholder="e.g., This creature attacks a randomly selected opponent each combat if able." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="ability_general_description">General Description <span class="form-help-inline">(optional — used in other contexts)</span></label>
+                <textarea id="ability_general_description" name="ability_general_description" rows="2" placeholder="e.g., A creature with anarky attacks a randomly selected opponent each combat if able."></textarea>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-secondary">Add Ability Word</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Delete Ability Word Form -->
+    <div class="token-form">
+        <h4>Delete Ability Word</h4>
+        <form method="POST" action="/settings/ability-words/delete">
+            <div class="form-group">
+                <label for="delete_ability_name">Ability Word to Delete</label>
+                <input type="text" id="delete_ability_name" name="delete_ability_name" placeholder="e.g., Anarky" required>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-danger">Delete Ability Word</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}

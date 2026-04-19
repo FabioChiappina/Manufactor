@@ -2995,6 +2995,35 @@ function _doBasicAction(color, action, btn) {
         row.appendChild(header);
         row.appendChild(images);
 
+        // Orphaned token warning: token staged with no source cards
+        if (item.is_token && !item.pending_delete && Array.isArray(item.source_cards) && item.source_cards.length === 0) {
+            var orphanBar = document.createElement('div');
+            orphanBar.className = 'assembly-orphan-warning';
+            var orphanText = document.createElement('span');
+            orphanText.textContent = 'Warning: No cards create this token. ';
+            var deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn assembly-orphan-delete-btn';
+            deleteBtn.textContent = 'Delete Token';
+            deleteBtn.addEventListener('click', function () {
+                if (confirm('Delete orphaned token "' + item.card_name.replace(/^_TOKEN_/, '') + '"? This cannot be undone after publishing.')) {
+                    fetch('/deck/' + encodeURIComponent(_deckName) + '/stage-delete-token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token_key: item.card_name }),
+                    })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data.error) { alert(data.error); return; }
+                        if (row) row.remove();
+                        _updatePublishBar(data.staged_count || 0);
+                    });
+                }
+            });
+            orphanBar.appendChild(orphanText);
+            orphanBar.appendChild(deleteBtn);
+            row.appendChild(orphanBar);
+        }
+
         // Change summary message
         if (!item.is_new && !item.pending_delete) {
             var changeMsg = document.createElement('div');
@@ -5012,10 +5041,39 @@ function _doBasicAction(color, action, btn) {
                 _originalJson = JSON.stringify(normaliseTokenData(data));
                 populateTokenForm(data);
                 updatePreview(data.image_base64 || null);
+                _updateTokenAltArtStrip(data.alt_images_base64 || []);
                 setArtworkStatus('', '');
                 updateButtonStates();
             })
             .catch(function () { setArtworkStatus('missing', 'Failed to load token'); });
+    }
+
+    function _updateTokenAltArtStrip(altImages) {
+        var section = $id('editor-token-alt-art-section');
+        var strip   = $id('editor-token-alt-art-strip');
+        if (!section || !strip) return;
+        strip.innerHTML = '';
+        if (!altImages || altImages.length === 0) {
+            section.style.display = 'none';
+            return;
+        }
+        altImages.forEach(function (b64, i) {
+            var thumb = document.createElement('img');
+            thumb.src = b64;
+            thumb.alt = 'Alt art ' + (i + 1);
+            thumb.className = 'token-alt-art-thumb';
+            thumb.title = 'Alternate artwork ' + (i + 1);
+            thumb.addEventListener('click', function () {
+                updatePreview(b64);
+                // Highlight active thumb
+                strip.querySelectorAll('.token-alt-art-thumb').forEach(function (t) {
+                    t.classList.remove('token-alt-art-thumb--active');
+                });
+                thumb.classList.add('token-alt-art-thumb--active');
+            });
+            strip.appendChild(thumb);
+        });
+        section.style.display = '';
     }
 
     function openNewTokenEditor() {
@@ -5037,6 +5095,7 @@ function _doBasicAction(color, action, btn) {
         history.replaceState(null, '', '#new-token');
 
         populateTokenForm({ name: '', cardtype: 'Token Creature', subtype: '', power: '', toughness: '', rules: '', colors: [], source_cards: [] });
+        _updateTokenAltArtStrip([]);
         setArtworkStatus('', '');
         updatePreview(null);
         updateButtonStates();
@@ -5051,6 +5110,7 @@ function _doBasicAction(color, action, btn) {
         $id('card-editor-panel').style.display = 'none';
         $id('cards-tab-main').style.display = '';
 
+        _updateTokenAltArtStrip([]);
         setArtworkStatus('', '');
         updatePreview(null);
         $id('editor-card-title').textContent = '';
@@ -5105,6 +5165,13 @@ function _doBasicAction(color, action, btn) {
             updateButtonStates();
             // Mark the token gallery item as staged
             _markTokenStaged(_currentTokenKey);
+            // Refresh the alt art strip from server (new variants may have been generated)
+            if (_currentTokenKey) {
+                fetch('/deck/' + encodeURIComponent(_deckName) + '/token-data?key=' + encodeURIComponent(_currentTokenKey))
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) { _updateTokenAltArtStrip(d.alt_images_base64 || []); })
+                    .catch(function () {});
+            }
         })
         .catch(function (err) {
             console.error('Token forge error:', err);

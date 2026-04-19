@@ -582,6 +582,16 @@ def load_deck_by_name(deck_name):
                                 break
                         if token_image:
                             break
+                # No primary image — fall back to _1 variant (tokens with only numbered artworks)
+                if not token_image and os.path.isdir(tokens_folder):
+                    alt_path = os.path.join(tokens_folder, f"{display_token_name}_1.jpg")
+                    if os.path.isfile(alt_path):
+                        try:
+                            with open(alt_path, 'rb') as f:
+                                b64 = base64.b64encode(f.read()).decode('utf-8')
+                                token_image = f"data:image/jpeg;base64,{b64}"
+                        except Exception:
+                            pass
                 # Load back face image for double-faced tokens
                 token_back_image = None
                 if token_data.get('double_faced_type'):
@@ -598,11 +608,24 @@ def load_deck_by_name(deck_name):
                                     pass
                                 break
 
+                # Count alternate artwork variants (<name>_1.jpg, <name>_2.jpg, ...)
+                alt_art_count = 0
+                if os.path.isdir(tokens_folder):
+                    n = 1
+                    while True:
+                        alt_path = os.path.join(tokens_folder, f"{display_token_name}_{n}.jpg")
+                        if os.path.isfile(alt_path):
+                            alt_art_count += 1
+                            n += 1
+                        else:
+                            break
+
                 tokens_with_images[token_key] = {
                     **token_data,
                     'image_base64': token_image,
                     'back_image_base64': token_back_image,
                     'quantity': token_data.get('quantity', 1),
+                    'alt_art_count': alt_art_count,
                 }
 
             return {
@@ -649,6 +672,33 @@ def save_common_tokens(tokens_dict):
     tokens_path = Path(PROJECT_ROOT) / "config" / "common_tokens.json"
     with open(tokens_path, 'w') as f:
         json.dump(tokens_dict, f, indent=2)
+
+
+def load_ability_words():
+    """
+    Load configurable ability word definitions from config/ability_words.json.
+
+    Returns:
+        Dictionary mapping ability word name to definition dict
+        (keys: name, selfDescription, generalDescription)
+    """
+    words_path = Path(PROJECT_ROOT) / "config" / "ability_words.json"
+    if words_path.exists():
+        with open(words_path, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def save_ability_words(words_dict):
+    """
+    Save ability word definitions to config/ability_words.json.
+
+    Args:
+        words_dict: Dictionary mapping ability word name to definition dict
+    """
+    words_path = Path(PROJECT_ROOT) / "config" / "ability_words.json"
+    with open(words_path, 'w') as f:
+        json.dump(words_dict, f, indent=2)
 
 
 # ─── Staging helpers ────────────────────────────────────────────────────────

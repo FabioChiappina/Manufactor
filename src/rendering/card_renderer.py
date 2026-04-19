@@ -591,7 +591,7 @@ class CardDraw:
         else:
             fill = False
         text_blocks = text.split('\n')
-        if text_flavor is None:
+        if not text_flavor:
             flavor_block_index = None
         else:
             flavor_block_index = len(text_blocks)

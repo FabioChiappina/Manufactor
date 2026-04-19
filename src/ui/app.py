@@ -20,6 +20,8 @@ from src.ui.helpers import (
     load_deck_by_name,
     load_common_tokens,
     save_common_tokens,
+    load_ability_words,
+    save_ability_words,
     load_staging,
     save_staging,
     get_staging_path,
@@ -531,16 +533,46 @@ def token_data(deck_name):
         token_json = dict(staged_entry.get('updated') or {})
         token_name = token_json.get('name') or token_key.replace('_TOKEN_', '')
         staged_img = os.path.join(staging_dir, f"{token_name}.jpg")
-        token_json['image_base64'] = _img_b64(staged_img) or _img_b64(
-            os.path.join(folder_path, 'Tokens', f"{token_name}.jpg"))
+        token_json['image_base64'] = (
+            _img_b64(staged_img)
+            or _img_b64(os.path.join(staging_dir, f"{token_name}_1.jpg"))
+            or _img_b64(os.path.join(folder_path, 'Tokens', f"{token_name}.jpg"))
+            or _img_b64(os.path.join(folder_path, 'Tokens', f"{token_name}_1.jpg"))
+        )
+        # Collect alternate artwork variants from Staging/, falling back to Tokens/
+        alt_images = []
+        n = 1
+        while True:
+            alt_staged = os.path.join(staging_dir, f"{token_name}_{n}.jpg")
+            alt_published = os.path.join(folder_path, 'Tokens', f"{token_name}_{n}.jpg")
+            b64 = _img_b64(alt_staged) or _img_b64(alt_published)
+            if b64:
+                alt_images.append(b64)
+                n += 1
+            else:
+                break
+        token_json['alt_images_base64'] = alt_images
     else:
         token_dict = raw_deck.get('tokens', {}).get(token_key)
         if token_dict is None:
             return jsonify({'error': 'Token not found'}), 404
         token_json = dict(token_dict)
         token_name = token_json.get('name') or token_key.replace('_TOKEN_', '')
-        token_json['image_base64'] = _img_b64(
-            os.path.join(folder_path, 'Tokens', f"{token_name}.jpg"))
+        token_json['image_base64'] = (
+            _img_b64(os.path.join(folder_path, 'Tokens', f"{token_name}.jpg"))
+            or _img_b64(os.path.join(folder_path, 'Tokens', f"{token_name}_1.jpg"))
+        )
+        # Collect alternate artwork variants from Tokens/
+        alt_images = []
+        n = 1
+        while True:
+            b64 = _img_b64(os.path.join(folder_path, 'Tokens', f"{token_name}_{n}.jpg"))
+            if b64:
+                alt_images.append(b64)
+                n += 1
+            else:
+                break
+        token_json['alt_images_base64'] = alt_images
 
     return jsonify(token_json)
 
@@ -607,9 +639,17 @@ def forge_token(deck_name):
                 os.rename(os.path.join(staging_dir, fname), img_path)
                 break
 
+    # If no primary image was generated (only numbered artworks like Zombie_1.jpg exist),
+    # fall back to the first numbered variant for the preview.
+    preview_path = img_path
+    if not os.path.isfile(preview_path):
+        alt1 = os.path.join(staging_dir, f"{token_name}_1.jpg")
+        if os.path.isfile(alt1):
+            preview_path = alt1
+
     img_b64 = None
-    if os.path.isfile(img_path):
-        with open(img_path, 'rb') as _f:
+    if os.path.isfile(preview_path):
+        with open(preview_path, 'rb') as _f:
             img_b64 = 'data:image/jpeg;base64,' + base64.b64encode(_f.read()).decode('utf-8')
 
     # Stage the new/updated token entry
@@ -624,10 +664,15 @@ def forge_token(deck_name):
         with open(deck_data['json_path'], 'w') as f:
             json.dump(raw_deck, f, indent=2)
 
+    # Preserve source_cards from the deck JSON if the client didn't send them
+    # (serializeTokenForm() doesn't include source_cards, so re-forging an
+    # existing token would otherwise wipe them out in the staged updated dict).
+    source_cards = data.get('source_cards') or original.get('source_cards') or []
+
     staging = load_staging(folder_path)
     staging[token_key] = {
         'original': original,
-        'updated': {**data, 'token': 1},
+        'updated': {**data, 'token': 1, 'source_cards': source_cards},
         'staged_image_path': f"Staging/{token_name}.jpg",
         'front_name': token_name,
         'is_token': True,
@@ -1468,11 +1513,16 @@ def assembly_line_data(deck_name):
         staged_img_rel = entry.get('staged_image_path', '')
         staged_img_filename = os.path.basename(staged_img_rel) if staged_img_rel else f"{front_name}.jpg"
         staged_b64 = _b64(os.path.join(staging_dir, staged_img_filename))
+        # For tokens with only numbered artworks (e.g. Zombie_1.jpg), fall back to the first variant
+        if staged_b64 is None and (entry.get('is_token', False) or card_name.startswith('_TOKEN_')):
+            base = os.path.splitext(staged_img_filename)[0]
+            staged_b64 = _b64(os.path.join(staging_dir, f"{base}_1.jpg"))
 
         is_token_entry = entry.get('is_token', False) or card_name.startswith('_TOKEN_')
         if is_token_entry:
             token_name = entry.get('front_name') or card_name.replace('_TOKEN_', '')
-            original_b64 = _b64(os.path.join(folder_path, 'Tokens', f"{token_name}.jpg"))
+            original_b64 = (_b64(os.path.join(folder_path, 'Tokens', f"{token_name}.jpg"))
+                            or _b64(os.path.join(folder_path, 'Tokens', f"{token_name}_1.jpg")))
         else:
             original_b64 = get_card_image_base64(folder_path, card_name)
 
@@ -1501,7 +1551,7 @@ def assembly_line_data(deck_name):
         else:
             change_type = 'artwork_only'
 
-        items.append({
+        item = {
             'card_name': card_name,
             'is_new': is_new,
             'is_real': entry.get('is_real', False),
@@ -1512,7 +1562,11 @@ def assembly_line_data(deck_name):
             'original_back_image_base64': orig_back_b64,
             'staged_back_image_base64': staged_back_b64,
             'change_type': change_type,
-        })
+        }
+        if is_token_entry:
+            updated_token = entry.get('updated') or {}
+            item['source_cards'] = updated_token.get('source_cards') or []
+        items.append(item)
 
     return jsonify(items)
 
@@ -1880,6 +1934,16 @@ def publish_assembly_line(deck_name):
             # Copy staged image → Tokens/
             if os.path.isfile(staged_img):
                 shutil.copy2(staged_img, os.path.join(tokens_dir, staged_img_filename))
+            # Also copy alternate artwork variants (front_name_1.jpg, front_name_2.jpg, ...)
+            token_basename = (entry.get('front_name') or card_name.replace('_TOKEN_', ''))
+            n = 1
+            while True:
+                alt_staged = os.path.join(staging_dir, f"{token_basename}_{n}.jpg")
+                if os.path.isfile(alt_staged):
+                    shutil.copy2(alt_staged, os.path.join(tokens_dir, f"{token_basename}_{n}.jpg"))
+                    n += 1
+                else:
+                    break
             # Update deck JSON tokens section
             updated_data = entry.get('updated') or {}
             old_token = raw_deck.get('tokens', {}).get(card_name, {})
@@ -2782,11 +2846,13 @@ def settings():
     """Settings page."""
     settings_mgr = SettingsManager()
     tokens = load_common_tokens()
+    ability_words = load_ability_words()
 
     return render_template('settings.html',
                          deck_path=settings_mgr.get_deck_path(),
                          cockatrice_path=settings_mgr.get_cockatrice_path(),
-                         tokens=tokens)
+                         tokens=tokens,
+                         ability_words=ability_words)
 
 
 @app.route('/settings/save', methods=['POST'])
@@ -2884,6 +2950,59 @@ def delete_token():
     save_common_tokens(tokens)
 
     flash(f'Token "{name}" deleted successfully!', 'success')
+    return redirect(url_for('settings'))
+
+
+@app.route('/settings/ability-words/add', methods=['POST'])
+def add_ability_word():
+    """Add a new ability word definition."""
+    name = request.form.get('ability_name', '').strip()
+    self_desc = request.form.get('ability_self_description', '').strip()
+    general_desc = request.form.get('ability_general_description', '').strip()
+
+    if not name:
+        flash('Ability word name is required', 'error')
+        return redirect(url_for('settings'))
+    if not self_desc:
+        flash('Self description is required', 'error')
+        return redirect(url_for('settings'))
+
+    words = load_ability_words()
+
+    if name in words:
+        flash(f'Ability word "{name}" already exists. Delete it first to replace it.', 'error')
+        return redirect(url_for('settings'))
+
+    words[name] = {
+        "name": name,
+        "selfDescription": self_desc,
+        "generalDescription": general_desc or self_desc,
+    }
+    save_ability_words(words)
+
+    flash(f'Ability word "{name}" added successfully!', 'success')
+    return redirect(url_for('settings'))
+
+
+@app.route('/settings/ability-words/delete', methods=['POST'])
+def delete_ability_word():
+    """Delete an ability word definition."""
+    name = request.form.get('delete_ability_name', '').strip()
+
+    if not name:
+        flash('Please enter an ability word name to delete', 'error')
+        return redirect(url_for('settings'))
+
+    words = load_ability_words()
+
+    if name not in words:
+        flash(f'Ability word "{name}" not found', 'error')
+        return redirect(url_for('settings'))
+
+    del words[name]
+    save_ability_words(words)
+
+    flash(f'Ability word "{name}" deleted successfully!', 'success')
     return redirect(url_for('settings'))
 
 
