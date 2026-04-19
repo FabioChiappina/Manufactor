@@ -508,32 +508,64 @@ Test data corrections made:
 - Add more test cases to `token_test_cases.json` covering the categories listed in the "Categories of rules text" section above
 - Run `pytest tests/test_token_discovery/ -v` after each addition; fix parser if tests fail
 
-### Phase T3: Manual Token Creation in Tokens Tab
+### ✅ Phase T3: Manual Token Creation in Tokens Tab
 
-**Effort**: Medium — 1–2 sessions  
-**Files**: `deck.html`, `main.js`, `app.py`, `style.css`
+**Status**: Complete  
+**Files changed**: `deck.html`, `main.js`, `app.py`, `style.css`, `helpers.py`
 
-Steps:
-1. Add "+ Create Token" button to the Tokens tab toolbar
-2. Wire it to open the card editor pre-configured for token mode
-3. Add new Flask routes for token forge, discard, and data loading
-4. Extend publish logic to handle `_TOKEN_` staged entries
-5. Update Assembly Line tab to show staged tokens
+What was done:
+1. Added `+ Create Token` button to the Tokens tab toolbar
+2. Token editor reuses `#card-editor-panel` — on open the editor switches to the Cards tab, hides `#cards-tab-main`, enters token mode (hides mana/rarity/qty/DFC/subspell/tags; shows color picker and source cards panel)
+3. Back button is patched via clone/replace: routes to `closeTokenEditor()` in token mode, `closeCardEditor()` otherwise
+4. Added Flask routes: `GET /deck/<name>/token-data`, `POST /deck/<name>/forge-token`, `POST /deck/<name>/stage-delete-token`
+5. Publish and discard endpoints extended to handle `_TOKEN_<name>` staging keys; token images publish to `Tokens/` folder
+6. Assembly line shows token rows with a `(token)` label; discard path is `onDiscardToken()`
+7. Token gallery items with no `source_cards` show yellow orphan outline; orphan warning shown below image in editor
+8. Token delete confirmation dialog: staged deletion, applied on publish
 
-### Phase T4: Forge-Time Auto-Discovery + Card Editor Token Panel
+Key implementation details:
+- Token staging key: `_TOKEN_<name>` in `_staging.json` with `is_token: True` flag
+- Token JSON is flat (no `front`/`back` nesting); `card_from_editor_dict` extended to accept `token` and `colors` at top level
+- `helpers.py`: `card_from_editor_dict` passes explicit `colors` and `token` fallback for tokens
+- `_exitTokenMode()` skips restoring `ef-subspell-section` (managed by `_setSubspellActive`) and `ef-discovered-tokens-panel`
 
-**Effort**: Large — 2–3 sessions  
-**Files**: `app.py`, `deck.html`, `main.js`, `src/core/card.py` (possibly)
+---
 
-Steps:
-1. Add "Skip automatic token discovery" checkbox to card editor form
-2. Extend Forge endpoint to run token discovery and stage token changes
-3. Add "Tokens" collapsible panel to the card editor right pane (shows discovered tokens)
-4. Extend "Forge All Cards" to also process tokens
-5. Update Assembly Line to display/handle staged token additions and modifications
-6. Add logic to handle tokens with empty `source_cards` (orphan detection)
+### ✅ Phase T4: Forge-Time Auto-Discovery + Card Editor Token Panel
 
-### Phase T5: Ensure Finer Points From "Additional Features & Design Decisions" Section Are Implemennted
+**Status**: Complete  
+**Files changed**: `src/core/card.py`, `app.py`, `deck.html`, `main.js`, `style.css`
+
+What was done:
+1. **`src/core/card.py`** — `get_tokens()` extended to scan all rules fields on the back face (DFC `.back`) and subspell face (Adventure/Omen `.subspell`) in addition to the front face, via a shared `_parse_face()` inner helper.
+
+2. **`app.py`** — New `_apply_token_discovery(folder_path, raw_deck, deck_key, prev_deck_key, card_obj, staging)` helper:
+   - Deduplicates discovered tokens by name (case-insensitive)
+   - For each discovered token: adds `deck_key` to `source_cards` on existing tokens (handles renames from `prev_deck_key` → `deck_key`); creates placeholder in `raw_deck["tokens"]` and stages new tokens
+   - Handles common tokens (Clue, Treasure, etc.) the same way, pulling definition from `common_tokens.json`
+   - Orphan detection: tokens currently attributed to this card that are no longer discovered → removes card from their `source_cards`, stages the update
+   - Called from `_do_forge` (per interactive forge), `forge_one` (per-card in Forge All List), and `forge_all` (bulk forge)
+   - `_do_forge` response now includes `discovered_tokens` list: `[{ name, cardtype, power, toughness, is_new, is_orphaned }]`
+
+3. **`deck.html`** — Two additions in the card editor right pane (inside `#editor-form-mode`):
+   - `#ef-disable-auto-tokens-row` — "Skip automatic token discovery for this card" checkbox; hidden in token mode via `_TOKEN_FIELDS_TO_HIDE`
+   - `#ef-discovered-tokens-panel` — panel below the form, shows tokens found after forge with New/Updated/Orphaned badges; hidden in token mode and on editor close
+
+4. **`main.js`**:
+   - `populateForm()` reads `disable_auto_tokens` into the checkbox
+   - `serializeForm()` writes `disable_auto_tokens: true` when checked
+   - `onForgeClick()` calls `_updateDiscoveredTokensPanel(data.discovered_tokens)` after a successful forge
+   - `_updateDiscoveredTokensPanel(tokens)` — builds the panel rows, shows/hides the panel
+   - `closeCardEditor()` hides `#ef-discovered-tokens-panel`
+   - `ef-discovered-tokens-panel` added to `_TOKEN_FIELDS_TO_HIDE` (so it hides on entering token mode) and skipped in `_exitTokenMode` restore loop (visibility managed by forge response)
+
+5. **`style.css`** — Styles for `.ef-disable-auto-tokens-row`, `.ef-checkbox-label--subtle`, `.ef-discovered-tokens-panel`, `.ef-discovered-tokens-header`, `.ef-discovered-tokens-title`, `.ef-discovered-tokens-list`, `.ef-discovered-token-row`, `.ef-discovered-token-name`, `.ef-discovered-token-badge` and its `--new`, `--existing`, `--orphaned` variants.
+
+Known gap (intentional): the token discovery panel does **not** update live as the user types (debounced preview). It only updates after clicking Forge. This can be added later if desired.
+
+---
+
+### Phase T5: Ensure Finer Points From "Additional Features & Design Decisions" Section Are Implemented
 (Steps not fleshed out yet)
 
 ---

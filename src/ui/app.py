@@ -501,6 +501,193 @@ def card_data(deck_name):
     return jsonify(card_json)
 
 
+@app.route('/deck/<deck_name>/token-data')
+def token_data(deck_name):
+    """Return token JSON for the inline token editor."""
+    deck_name = unquote(deck_name)
+    token_key = request.args.get('key', '')
+    if not token_key:
+        return jsonify({'error': 'Token key required'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    staging = load_staging(folder_path)
+    staging_dir = get_staging_path(folder_path)
+
+    def _img_b64(path):
+        if path and os.path.isfile(path):
+            with open(path, 'rb') as _f:
+                return 'data:image/jpeg;base64,' + base64.b64encode(_f.read()).decode('utf-8')
+        return None
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    staged_entry = staging.get(token_key)
+    if staged_entry:
+        token_json = dict(staged_entry.get('updated') or {})
+        token_name = token_json.get('name') or token_key.replace('_TOKEN_', '')
+        staged_img = os.path.join(staging_dir, f"{token_name}.jpg")
+        token_json['image_base64'] = _img_b64(staged_img) or _img_b64(
+            os.path.join(folder_path, 'Tokens', f"{token_name}.jpg"))
+    else:
+        token_dict = raw_deck.get('tokens', {}).get(token_key)
+        if token_dict is None:
+            return jsonify({'error': 'Token not found'}), 404
+        token_json = dict(token_dict)
+        token_name = token_json.get('name') or token_key.replace('_TOKEN_', '')
+        token_json['image_base64'] = _img_b64(
+            os.path.join(folder_path, 'Tokens', f"{token_name}.jpg"))
+
+    return jsonify(token_json)
+
+
+@app.route('/deck/<deck_name>/forge-token', methods=['POST'])
+def forge_token(deck_name):
+    """Forge a token image from editor data and stage it."""
+    deck_name = unquote(deck_name)
+    token_key_param = request.args.get('key', '').strip()  # '_TOKEN_Foo' or empty for new
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    setname = deck_data['metadata'].get('setname', 'UNK')
+    staging_dir = get_staging_path(folder_path)
+    os.makedirs(staging_dir, exist_ok=True)
+
+    token_name = (data.get('name') or '').strip()
+    if not token_name:
+        return jsonify({'error': 'Token name required'}), 400
+
+    token_key = token_key_param or f"_TOKEN_{token_name}"
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    is_new = token_key not in raw_deck.get('tokens', {})
+    original = raw_deck.get('tokens', {}).get(token_key, {})
+
+    # Always set token=1
+    data['token'] = 1
+
+    # Wrap flat token dict in 'front' structure for card_from_editor_dict
+    wrapped = {
+        'front': {k: v for k, v in data.items() if k not in ('token', 'colors', 'source_cards', 'complete')},
+        'token': 1,
+        'colors': data.get('colors'),
+    }
+
+    gen = ImageGenerator()
+    try:
+        cards = card_from_editor_dict(wrapped, setname=setname)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+    card = cards[0]
+    success = gen.generate_single_card_image(card, save_path=staging_dir, include_printing=False)
+    if not success:
+        return jsonify({'error': 'Image generation failed'}), 500
+
+    # Ensure the image file is named by token_name (normalize apostrophes like forge-card does)
+    img_path = os.path.join(staging_dir, f"{token_name}.jpg")
+    if not os.path.isfile(img_path):
+        def _anorm(s):
+            return s.replace('\u2019', "'").replace('\u2018', "'").replace('\u02bc', "'").lower()
+        canon = _anorm(token_name)
+        for fname in sorted(os.listdir(staging_dir)):
+            if fname.endswith('.jpg') and _anorm(fname[:-4]) == canon:
+                os.rename(os.path.join(staging_dir, fname), img_path)
+                break
+
+    img_b64 = None
+    if os.path.isfile(img_path):
+        with open(img_path, 'rb') as _f:
+            img_b64 = 'data:image/jpeg;base64,' + base64.b64encode(_f.read()).decode('utf-8')
+
+    # Stage the new/updated token entry
+    if is_new:
+        # Placeholder in deck JSON so the token shows up immediately
+        raw_deck.setdefault('tokens', {})[token_key] = {
+            **data,
+            'token': 1,
+            'complete': 0,
+        }
+        _touch_last_modified(raw_deck)
+        with open(deck_data['json_path'], 'w') as f:
+            json.dump(raw_deck, f, indent=2)
+
+    staging = load_staging(folder_path)
+    staging[token_key] = {
+        'original': original,
+        'updated': {**data, 'token': 1},
+        'staged_image_path': f"Staging/{token_name}.jpg",
+        'front_name': token_name,
+        'is_token': True,
+        'is_new': is_new,
+    }
+    save_staging(folder_path, staging)
+
+    return jsonify({
+        'image_base64': img_b64,
+        'staged_count': len(staging),
+        'token_key': token_key,
+        'is_new': is_new,
+    })
+
+
+@app.route('/deck/<deck_name>/stage-delete-token', methods=['POST'])
+def stage_delete_token(deck_name):
+    """Stage a token for deletion; the removal is applied when the assembly line is published."""
+    deck_name = unquote(deck_name)
+    token_key = request.args.get('key', '').strip()
+    if not token_key:
+        return jsonify({'error': 'key required'}), 400
+
+    try:
+        deck_data = load_deck_by_name(deck_name)
+        if not deck_data:
+            return jsonify({'error': 'Deck not found'}), 404
+
+        folder_path = deck_data['folder_path']
+        staging = load_staging(folder_path)
+
+        with open(deck_data['json_path'], 'r') as f:
+            raw_deck = json.load(f)
+        original = raw_deck.get('tokens', {}).get(token_key, {})
+        token_name = original.get('name') or token_key.replace('_TOKEN_', '')
+
+        # Discard any existing staged image
+        staging_dir = get_staging_path(folder_path)
+        old_entry = staging.get(token_key, {})
+        old_img = os.path.join(staging_dir, f"{token_name}.jpg")
+        if os.path.isfile(old_img):
+            os.remove(old_img)
+
+        was_new = old_entry.get('is_new', False)
+        staging[token_key] = {
+            'original': original,
+            'updated': None,
+            'front_name': token_name,
+            'is_token': True,
+            'pending_delete': True,
+            'is_new': was_new,
+        }
+        save_staging(folder_path, staging)
+        return jsonify({'success': True, 'staged_count': len(staging)})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to stage token deletion: {e}'}), 500
+
+
 @app.route('/deck/<deck_name>/add-card-tag', methods=['POST'])
 def add_card_tag(deck_name):
     """Add a tag to a card and ensure it exists in deck metadata."""
@@ -904,6 +1091,188 @@ def forge_card(deck_name):
         return jsonify({'error': f'Forge failed unexpectedly: {e}'}), 500
 
 
+def _apply_token_discovery(folder_path, raw_deck, deck_key, prev_deck_key, card_obj, staging):
+    """
+    Discover tokens created by a card and stage any additions/removals.
+
+    - deck_key:      current deck-JSON key for the card (may differ from prev_deck_key
+                     when a subspell was added/changed)
+    - prev_deck_key: the deck-JSON key the card had *before* this forge (same as
+                     deck_key unless the card was renamed/subspell-changed)
+    - card_obj:      the forged Card object (front face; back/subspell attached)
+    - staging:       the in-memory staging dict (mutated in place)
+
+    Returns a list of dicts describing discovered tokens (for the UI panel):
+      [{ 'name', 'cardtype', 'power', 'toughness', 'is_new', 'is_orphaned' }, ...]
+    """
+    from src.ui.helpers import load_common_tokens
+
+    specialized, common_names = card_obj.get_tokens()
+
+    # Deduplicate by name (case-insensitive) — keep first occurrence
+    seen = set()
+    deduped_specialized = []
+    for t in specialized:
+        key = t['name'].lower()
+        if key not in seen:
+            seen.add(key)
+            deduped_specialized.append(t)
+
+    discovered_lower = {t['name'].lower() for t in deduped_specialized}
+    for cn in common_names:
+        discovered_lower.add(cn.lower())
+
+    existing_tokens = raw_deck.get('tokens', {})
+    common_defs = load_common_tokens()
+
+    # Tokens currently attributed to prev_deck_key (the card's old name, for rename handling)
+    currently_attributed = {
+        tk: td for tk, td in existing_tokens.items()
+        if isinstance(td, dict) and prev_deck_key in (td.get('source_cards') or [])
+    }
+
+    ui_tokens = []
+
+    # ── Handle specialized discovered tokens ────────────────────────────────
+    for token_data in deduped_specialized:
+        token_name = token_data['name']
+        token_key  = f'_TOKEN_{token_name}'
+        existing   = existing_tokens.get(token_key)
+        is_tok_new = existing is None
+
+        if existing:
+            # Update source_cards: replace prev_deck_key with deck_key if renamed,
+            # or just add deck_key if not present.
+            src = list(existing.get('source_cards') or [])
+            if prev_deck_key in src and prev_deck_key != deck_key:
+                src = [deck_key if s == prev_deck_key else s for s in src]
+            elif deck_key not in src:
+                src.append(deck_key)
+            if src != (existing.get('source_cards') or []):
+                updated = dict(existing)
+                updated['source_cards'] = src
+                old_stage = staging.get(token_key, {})
+                staging[token_key] = {
+                    'original': old_stage.get('original') or existing,
+                    'updated':  updated,
+                    'is_token': True,
+                    'front_name': token_name,
+                    'staged_image_path': old_stage.get('staged_image_path') or f'Staging/{token_name}.jpg',
+                    'is_new': old_stage.get('is_new', False),
+                }
+        else:
+            # New token — add placeholder to deck JSON and stage it
+            new_token = dict(token_data)
+            new_token['token'] = 1
+            new_token['source_cards'] = [deck_key]
+            new_token['complete'] = 0
+            raw_deck.setdefault('tokens', {})[token_key] = new_token
+            staging[token_key] = {
+                'original': {},
+                'updated':  new_token,
+                'is_token': True,
+                'front_name': token_name,
+                'staged_image_path': f'Staging/{token_name}.jpg',
+                'is_new': True,
+            }
+
+        ui_tokens.append({
+            'name': token_name,
+            'cardtype': token_data.get('cardtype', 'Token Creature'),
+            'power': token_data.get('power', ''),
+            'toughness': token_data.get('toughness', ''),
+            'is_new': is_tok_new,
+            'is_orphaned': False,
+        })
+
+    # ── Handle common tokens ────────────────────────────────────────────────
+    for cn in set(common_names):
+        token_key = f'_TOKEN_{cn}'
+        existing  = existing_tokens.get(token_key)
+        is_tok_new = existing is None
+
+        if existing:
+            src = list(existing.get('source_cards') or [])
+            if prev_deck_key in src and prev_deck_key != deck_key:
+                src = [deck_key if s == prev_deck_key else s for s in src]
+            elif deck_key not in src:
+                src.append(deck_key)
+            if src != (existing.get('source_cards') or []):
+                updated = dict(existing)
+                updated['source_cards'] = src
+                old_stage = staging.get(token_key, {})
+                staging[token_key] = {
+                    'original': old_stage.get('original') or existing,
+                    'updated':  updated,
+                    'is_token': True,
+                    'front_name': cn,
+                    'staged_image_path': old_stage.get('staged_image_path') or f'Staging/{cn}.jpg',
+                    'is_new': old_stage.get('is_new', False),
+                }
+        else:
+            # Pull definition from common_tokens config if available
+            common_def = next((d for d in (common_defs or []) if d.get('name', '').lower() == cn.lower()), {})
+            new_token = dict(common_def)
+            new_token.setdefault('name', cn)
+            new_token['token'] = 1
+            new_token['source_cards'] = [deck_key]
+            new_token['complete'] = 0
+            raw_deck.setdefault('tokens', {})[token_key] = new_token
+            staging[token_key] = {
+                'original': {},
+                'updated':  new_token,
+                'is_token': True,
+                'front_name': cn,
+                'staged_image_path': f'Staging/{cn}.jpg',
+                'is_new': True,
+            }
+
+        ui_tokens.append({
+            'name': cn,
+            'cardtype': 'Token Artifact',
+            'power': '',
+            'toughness': '',
+            'is_new': is_tok_new,
+            'is_orphaned': False,
+        })
+
+    # ── Orphan detection: tokens formerly attributed to this card that are no
+    #    longer discovered ────────────────────────────────────────────────────
+    for tk, td in currently_attributed.items():
+        tok_name = td.get('name', tk.replace('_TOKEN_', ''))
+        if tok_name.lower() in discovered_lower:
+            continue  # still discovered — not an orphan
+
+        # Remove this card from the token's source_cards
+        src = list(td.get('source_cards') or [])
+        for old_key in (prev_deck_key, deck_key):
+            if old_key in src:
+                src.remove(old_key)
+        updated = dict(td)
+        updated['source_cards'] = src
+
+        old_stage = staging.get(tk, {})
+        staging[tk] = {
+            'original': old_stage.get('original') or td,
+            'updated':  updated,
+            'is_token': True,
+            'front_name': tok_name,
+            'staged_image_path': old_stage.get('staged_image_path') or f'Staging/{tok_name}.jpg',
+            'is_new': old_stage.get('is_new', False),
+        }
+
+        ui_tokens.append({
+            'name': tok_name,
+            'cardtype': td.get('cardtype', ''),
+            'power': td.get('power', ''),
+            'toughness': td.get('toughness', ''),
+            'is_new': False,
+            'is_orphaned': True,
+        })
+
+    return ui_tokens
+
+
 def _do_forge(deck_data, card_name, is_new, data):
     """Inner forge logic — always returns a Flask response."""
     folder_path = deck_data['folder_path']
@@ -1032,11 +1401,32 @@ def _do_forge(deck_data, card_name, is_new, data):
     if not is_new and full_deck_key != card_name:
         staging_entry['original_key'] = card_name
     staging[staging_key] = staging_entry
+
+    # ── Token discovery ──────────────────────────────────────────────────────
+    discovered_tokens = []
+    if not data.get('disable_auto_tokens'):
+        try:
+            # Reload raw_deck in case it was written during the new-card placeholder step
+            with open(deck_data['json_path'], 'r') as f:
+                raw_deck = json.load(f)
+            discovered_tokens = _apply_token_discovery(
+                folder_path, raw_deck, full_deck_key, card_name, cards[0], staging
+            )
+            # Persist deck JSON changes (new token placeholders) and staging
+            _touch_last_modified(raw_deck)
+            with open(deck_data['json_path'], 'w') as f:
+                json.dump(raw_deck, f, indent=2)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            # Non-fatal — token discovery failure should not fail the forge
+
     save_staging(folder_path, staging)
 
     result = {
         'image_base64': images.get(front_name),
         'staged_count': len(staging),
+        'discovered_tokens': discovered_tokens,
     }
     if len(cards) > 1:
         result['back_image_base64'] = images.get(cards[1].name)
@@ -1078,7 +1468,13 @@ def assembly_line_data(deck_name):
         staged_img_rel = entry.get('staged_image_path', '')
         staged_img_filename = os.path.basename(staged_img_rel) if staged_img_rel else f"{front_name}.jpg"
         staged_b64 = _b64(os.path.join(staging_dir, staged_img_filename))
-        original_b64 = get_card_image_base64(folder_path, card_name)
+
+        is_token_entry = entry.get('is_token', False) or card_name.startswith('_TOKEN_')
+        if is_token_entry:
+            token_name = entry.get('front_name') or card_name.replace('_TOKEN_', '')
+            original_b64 = _b64(os.path.join(folder_path, 'Tokens', f"{token_name}.jpg"))
+        else:
+            original_b64 = get_card_image_base64(folder_path, card_name)
 
         # Back face images for double-faced cards
         orig_card = entry.get('original') or {}
@@ -1109,6 +1505,7 @@ def assembly_line_data(deck_name):
             'card_name': card_name,
             'is_new': is_new,
             'is_real': entry.get('is_real', False),
+            'is_token': is_token_entry,
             'pending_delete': pending_delete,
             'original_image_base64': original_b64,
             'staged_image_base64': staged_b64,
@@ -1134,22 +1531,26 @@ def discard_card(deck_name):
     staging = load_staging(folder_path)
     entry = staging.pop(card_name, None)
     is_new_card = entry.get('is_new', False) if entry else False
+    is_token_entry = (entry.get('is_token', False) or card_name.startswith('_TOKEN_')) if entry else card_name.startswith('_TOKEN_')
 
-    # If card was brand-new (placeholder only), remove it from the deck JSON too.
+    # If card/token was brand-new (placeholder only), remove it from the deck JSON too.
     # If card was renamed (subspell added/changed), revert the rename.
     original_key = entry.get('original_key') if entry else None
     if entry and (entry.get('is_new') or original_key):
         with open(deck_data['json_path'], 'r') as f:
             raw_deck = json.load(f)
-        cards_dict = raw_deck.get('cards', {})
-        if entry.get('is_new'):
-            cards_dict.pop(card_name, None)
-        if original_key:
-            # Remove the renamed entry and restore the original
-            cards_dict.pop(card_name, None)
-            orig_data = entry.get('original')
-            if orig_data is not None:
-                cards_dict[original_key] = orig_data
+        if is_token_entry:
+            raw_deck.get('tokens', {}).pop(card_name, None)
+        else:
+            cards_dict = raw_deck.get('cards', {})
+            if entry.get('is_new'):
+                cards_dict.pop(card_name, None)
+            if original_key:
+                # Remove the renamed entry and restore the original
+                cards_dict.pop(card_name, None)
+                orig_data = entry.get('original')
+                if orig_data is not None:
+                    cards_dict[original_key] = orig_data
         _touch_last_modified(raw_deck)
         with open(deck_data['json_path'], 'w') as f:
             json.dump(raw_deck, f, indent=2)
@@ -1313,6 +1714,18 @@ def forge_one(deck_name):
         'disable_auto_tokens': card_dict.get('disable_auto_tokens', False),
         'is_new': False,
     }
+
+    # Token discovery
+    if not card_dict.get('disable_auto_tokens'):
+        try:
+            _apply_token_discovery(folder_path, raw_deck, card_name, card_name, cards[0], staging)
+            _touch_last_modified(raw_deck)
+            with open(deck_data['json_path'], 'w') as f:
+                json.dump(raw_deck, f, indent=2)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
     save_staging(folder_path, staging)
 
     return jsonify({
@@ -1387,6 +1800,22 @@ def forge_all(deck_name):
             }
             forged += 1
 
+            # Token discovery per card
+            if not card_dict.get('disable_auto_tokens'):
+                try:
+                    _apply_token_discovery(folder_path, raw_deck, card_name, card_name, cards[0], staging)
+                except Exception:
+                    import traceback
+                    traceback.print_exc()
+
+    # Persist any new token placeholders added during token discovery
+    try:
+        _touch_last_modified(raw_deck)
+        with open(deck_data['json_path'], 'w') as f:
+            json.dump(raw_deck, f, indent=2)
+    except Exception:
+        pass
+
     save_staging(folder_path, staging)
     return jsonify({'forged': forged, 'staged_count': len(staging), 'errors': errors})
 
@@ -1420,21 +1849,50 @@ def publish_assembly_line(deck_name):
     printing_ok = True
     printing_errors = []
 
+    tokens_dir = os.path.join(folder_path, 'Tokens')
+    os.makedirs(tokens_dir, exist_ok=True)
+
     for card_name, entry in staging.items():
-        # Pending-delete: remove from deck JSON and Cards/ image
+        is_token_entry = entry.get('is_token', False) or card_name.startswith('_TOKEN_')
+
+        # Pending-delete: remove from deck JSON and image file
         if entry.get('pending_delete'):
-            raw_deck.get('cards', {}).pop(card_name, None)
-            card_img = os.path.join(cards_dir, f"{card_name}.jpg")
-            if os.path.isfile(card_img):
-                os.remove(card_img)
+            if is_token_entry:
+                raw_deck.get('tokens', {}).pop(card_name, None)
+                token_img_name = entry.get('front_name') or card_name.replace('_TOKEN_', '')
+                token_img = os.path.join(tokens_dir, f"{token_img_name}.jpg")
+                if os.path.isfile(token_img):
+                    os.remove(token_img)
+            else:
+                raw_deck.get('cards', {}).pop(card_name, None)
+                card_img = os.path.join(cards_dir, f"{card_name}.jpg")
+                if os.path.isfile(card_img):
+                    os.remove(card_img)
             cards_updated += 1
             continue
 
         front_name = entry.get('front_name') or card_name
-        # Use staged_image_path if present (handles sanitized filenames for DFC real cards)
         staged_img_rel = entry.get('staged_image_path', '')
         staged_img_filename = os.path.basename(staged_img_rel) if staged_img_rel else f"{front_name}.jpg"
         staged_img = os.path.join(staging_dir, staged_img_filename)
+
+        if is_token_entry:
+            # Copy staged image → Tokens/
+            if os.path.isfile(staged_img):
+                shutil.copy2(staged_img, os.path.join(tokens_dir, staged_img_filename))
+            # Update deck JSON tokens section
+            updated_data = entry.get('updated') or {}
+            old_token = raw_deck.get('tokens', {}).get(card_name, {})
+            new_token = dict(updated_data)
+            # Preserve source_cards from original if not in updated
+            if 'source_cards' not in new_token and 'source_cards' in old_token:
+                new_token['source_cards'] = old_token['source_cards']
+            new_token['complete'] = 1
+            raw_deck.setdefault('tokens', {})[card_name] = new_token
+            cards_updated += 1
+            continue
+
+        # Use staged_image_path if present (handles sanitized filenames for DFC real cards)
         # Copy staged image → Cards/
         if os.path.isfile(staged_img):
             shutil.copy2(staged_img, os.path.join(cards_dir, staged_img_filename))

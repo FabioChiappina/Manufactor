@@ -177,6 +177,24 @@
         "expected_common": []
     },
     {
+        "id": "basic_creature_token_unrelated_reminder_text",
+        "description": "Simple creature token with P/T and a keyword ability, followed by reminder text not relevant to the token. Token discovery shouldn't include the reminder text.",
+        "card_name": "The Forbidden Forest",
+        "rules": "The Forbidden Forest enters the battlefield tapped unless you have cast a spell this turn.\n{t}: Add {b}.\nInvigorate 5: Create two 1/3 black Spider creature tokens with reach. (Activate by exiling this card and five others from your graveyard.)",
+        "expected_specialized": [
+            {
+                "name": "Spider",
+                "cardtype": "Token Creature",
+                "subtype": "Spider",
+                "rules": "Reach",
+                "power": "1",
+                "toughness": "3",
+                "frame": "b_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
         "id": "basic_creature_token_plus_common_token",
         "description": "Simple creature token with P/T plus a Treasure token (common).",
         "card_name": "General Grievous, The Collector",
@@ -219,6 +237,25 @@
                 "toughness": "4",
                 "rules": "Reach, trample, haste",
                 "frame": "c_token_artifact-creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "legendary_creature_token_with_keyword_ability_and_specific_name",
+        "description": "Legendary creature token with P/T and a keyword ability, and it has a specific and defined name.",
+        "card_name": "The Chamber Of Secrets",
+        "rules": "The Chamber Of Secrets enters the battlefield tapped unless there are four or more cards in your hand.\n{t}: Add {u} or {b}.\n{4}{b}, Pay 1 life, {t}: Create a legendary 4/4 black Snake creature token with deathtouch named The Basilisk. This ability costs {1} less to activate for each spell you've cast this turn.",
+        "expected_specialized": [
+            {
+                "name": "The Basilisk",
+                "cardtype": "Token Creature",
+                "subtype": "Snake",
+                "rules": "Deathtouch",
+                "power": "4",
+                "toughness": "4",
+                "frame": "b_token_creature_legendary.jpg",
+                "legendary": 1
             }
         ],
         "expected_common": []
@@ -314,6 +351,24 @@
         "expected_common": []
     },
     {
+        "id": "token_with_keyword_plus_multi_word_ability_in_quotes",
+        "description": "Token with a single keyword ability plus another multi-word ability wrapped in quotes.",
+        "card_name": "Rubeus Hagrid, Jolly Groundskeeper",
+        "rules": "This spell costs {1} less to cast for each instant and sorcery card in your graveyard.\n<i>Magecraft</i> \u2014 Whenever you cast or copy an instant or sorcery spell, create a 0/0 blue Hippogriff creature token with flying and \"This creature gets +1/+1 for each card in your hand.\"",
+        "expected_specialized": [
+            {
+                "name": "Hippogriff",
+                "cardtype": "Token Creature",
+                "subtype": "Hippogriff",
+                "rules": "Flying\nThis creature gets +1/+1 for each card in your hand.",
+                "power": "0",
+                "toughness": "0",
+                "frame": "u_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
         "id": "token_with_keyword_plus_two_multi_word_abilities_in_quotes",
         "description": "Token with a single keyword ability plus TWO abilities other than a single-word keyword, both wrapped in quotes.",
         "card_name": "Mana Dork Token Maker 3",
@@ -330,6 +385,24 @@
             }
         ],
         "expected_common": []
+    },
+    {
+        "id": "token_that_creates_common_token",
+        "description": "Token with a multi-word ability wrapped in quotes, in which it creates a common (Treasure) token.",
+        "card_name": "Quidditch Match",
+        "rules": "Untap target permanent. Its controller creates a colorless artifact token named The Golden Snitch with \"Whenever a player attacks you, that player gains control of The Golden Snitch and Quidditch Match's owner creates a Treasure token.\" and \"{3}: Sacrifice this permanent.\"",
+        "expected_specialized": [
+            {
+                "name": "The Golden Snitch",
+                "cardtype": "Token Artifact",
+                "subtype": "",
+                "rules": "Whenever a player attacks you, that player gains control of The Golden Snitch and Quidditch Match's owner creates a Treasure token.\n{3}: Sacrifice this permanent.",
+                "frame": "c_token_artifact-noncreature.jpg"
+            }
+        ],
+        "expected_common": [
+            "Treasure"
+        ]
     },
     {
         "id": "simple_artifact_token_plus_complex_creature_token_with_multi_word_ability_in_quotes",
@@ -370,6 +443,24 @@
                 "toughness": "1",
                 "rules": "Anarky (This creature attacks a randomly selected opponent each combat if able.)",
                 "frame": "r_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "protection_from_everything_with_reminder_text",
+        "description": "Token with protection from everything, which has reminder text in external user settings/config, or in an ability registry class with predefined reminder text, or just has reminder text present on the card. Reminder text should appear on the token.",
+        "card_name": "Expecto Patronum",
+        "rules": "Exile target creature and any number of cards from its controller's graveyard.\nCreate a 2/2 white Stag creature token with vigilance and protection from everything.",
+        "expected_specialized": [
+            {
+                "name": "Stag",
+                "cardtype": "Token Creature",
+                "subtype": "Stag",
+                "rules": "Vigilance, protection from everything (This creature can't be blocked, targeted, dealt damage, enchanted, or equipped by anything.)",
+                "power": "2",
+                "toughness": "2",
+                "frame": "w_token_creature.jpg"
             }
         ],
         "expected_common": []
@@ -417,6 +508,38 @@
                 "cardtype": "Token Enchantment",
                 "subtype": "Aura Role",
                 "rules": "Enchant creature\nYou control enchanted creature. Sacrifice this Role if enchanted creature's owner controls no Clues.",
+                "frame": "c_token_noncreature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "role_token_4",
+        "description": "Enchantment role token with extra reminder text that shouldn't end up in the token rules text. Harder because the role token's name is inside of the same parentheses as the reminder text.",
+        "card_name": "Imperio",
+        "rules": "Unforgivable (As an additional cost to cast this spell, create an Imprisoned Role token attached to a nontoken creature you control. If you control another Role on it, put that one into the graveyard. Enchanted creature has no abilities and cannot attack or block.)\nGain control of target creature.\nCycling {u}{u} ({u}{u}, Discard this card: Draw a card.)",
+        "expected_specialized": [
+            {
+                "name": "Imprisoned",
+                "cardtype": "Token Enchantment",
+                "subtype": "Aura Role",
+                "rules": "Enchant creature\nEnchanted creature has no abilities and cannot attack or block.",
+                "frame": "c_token_noncreature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "role_token_5",
+        "description": "Enchantment role token with extra reminder text that shouldn't end up in the token rules text. Harder because there's an extra 'Activate only a sorcery' sentence before the reminder text.",
+        "card_name": "Azkaban, Wizarding Prison",
+        "rules": "{1}, {t}: Add {u}{b}.\n{1}{u}{b}, Discard Azkaban, Wizarding Prison, Exile X cards from your graveyard: Create an Imprisoned Role token attached to target creature with mana value X. Activate only as a sorcery. (If you control another Role on it, put that one into the graveyard. Enchanted creature has no abilities and cannot attack or block.)",
+        "expected_specialized": [
+            {
+                "name": "Imprisoned",
+                "cardtype": "Token Enchantment",
+                "subtype": "Aura Role",
+                "rules": "Enchant creature\nEnchanted creature has no abilities and cannot attack or block.",
                 "frame": "c_token_noncreature.jpg"
             }
         ],

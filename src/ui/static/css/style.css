@@ -1587,6 +1587,151 @@ footer p {
     font-size: 12px;
 }
 
+/* Orphaned token outline (no source cards) */
+.token-gallery-item--orphan .card-image-container,
+.token-gallery-item--orphan .card-image-placeholder {
+    outline: 2px solid #f0b429;
+    outline-offset: -2px;
+}
+
+/* ── Token editor extras ─────────────────────────────────────────────────── */
+
+.editor-token-color-section {
+    margin-top: 14px;
+}
+
+.token-color-checkboxes {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.token-color-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 3px 5px;
+    border-radius: 5px;
+    border: 2px solid transparent;
+    transition: border-color 0.15s, background 0.15s;
+}
+.token-color-label:has(input:checked) { border-color: #667eea; background: rgba(102,126,234,0.08); }
+.token-color-label input[type="checkbox"] { display: none; }
+.token-color-symbol { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+
+.editor-token-source-section {
+    margin-top: 14px;
+}
+
+.editor-token-source-list {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.token-source-chip {
+    background: #e8eaf0;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+    color: #444;
+}
+
+.token-source-empty {
+    font-size: 12px;
+    color: #aaa;
+    font-style: italic;
+}
+
+.editor-token-orphan-warning {
+    margin-top: 10px;
+    background: #fff8e1;
+    border: 1px solid #f0b429;
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #7a5900;
+}
+
+/* ── Disable auto-tokens checkbox ────────────────────────────────────────── */
+
+.ef-disable-auto-tokens-row {
+    margin-top: 8px;
+}
+
+.ef-checkbox-label--subtle {
+    font-size: 12px;
+    color: #888;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ── Discovered Tokens Panel ─────────────────────────────────────────────── */
+
+.ef-discovered-tokens-panel {
+    border-top: 1px solid #e8e8e8;
+    margin-top: 12px;
+    padding-top: 10px;
+}
+
+.ef-discovered-tokens-header {
+    margin-bottom: 6px;
+}
+
+.ef-discovered-tokens-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #888;
+}
+
+.ef-discovered-tokens-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ef-discovered-token-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 3px 0;
+}
+
+.ef-discovered-token-name {
+    color: #333;
+}
+
+.ef-discovered-token-badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.ef-discovered-token-badge--new {
+    background: #e6f4ea;
+    color: #2e7d32;
+}
+
+.ef-discovered-token-badge--existing {
+    background: #e8f0fe;
+    color: #1a56b0;
+}
+
+.ef-discovered-token-badge--orphaned {
+    background: #fff8e1;
+    color: #7a5900;
+}
+
 /* ── Assembly Line Tab ───────────────────────────────────────────────────── */
 
 .assembly-publish-bar {

@@ -1178,6 +1178,11 @@ function _doBasicAction(color, action, btn) {
     var _multiSectionMode = null;   // null | 'saga' | 'class' | 'planeswalker'
     var _commanderNames  = [];      // card names currently set as commanders
 
+    // ── Token editor state ────────────────────────────────────────────────────
+    var _isTokenMode       = false;  // true when editing a token instead of a card
+    var _currentTokenKey   = null;   // e.g. '_TOKEN_Soldier'
+    var _isNewToken        = false;
+
     // ── Real Card Dialog state ─────────────────────────────────────────────────
     var _rcdMode           = 'add';  // 'add' | 'edit'
     var _rcdSelectedCard   = null;   // card object from Scryfall search
@@ -1506,6 +1511,17 @@ function _doBasicAction(color, action, btn) {
             openNewCardEditor();
             return;
         }
+        if (hash.startsWith('#edit-token/')) {
+            var tokenKey = decodeURIComponent(hash.slice(12));
+            switchTab('tokens', false);
+            openTokenEditor(tokenKey);
+            return;
+        }
+        if (hash === '#new-token') {
+            switchTab('tokens', false);
+            openNewTokenEditor();
+            return;
+        }
         switchTab('cards', false);
     }
 
@@ -1629,6 +1645,10 @@ function _doBasicAction(color, action, btn) {
 
         $id('card-editor-panel').style.display = 'none';
         $id('cards-tab-main').style.display    = '';
+
+        // Hide discovered tokens panel when editor closes
+        var dtPanel = $id('ef-discovered-tokens-panel');
+        if (dtPanel) dtPanel.style.display = 'none';
 
         if (updateHash !== false) history.replaceState(null, '', '#cards');
 
@@ -1968,6 +1988,7 @@ function _doBasicAction(color, action, btn) {
 
     // ── Form Population ───────────────────────────────────────────────────────
     function populateForm(data) {
+        if (_isTokenMode) { populateTokenForm(data); return; }
         var frontFace;
         if (data.front) {
             // Backward compat: old JSONs store frame at top-level; inject into front face if not already set
@@ -1991,6 +2012,8 @@ function _doBasicAction(color, action, btn) {
         if (dfcEl) dfcEl.value = data.double_faced_type || '';
         var artistEl = $id('ef-artist');
         if (artistEl) artistEl.value = data.artist || '';
+        var datEl = $id('ef-disable-auto-tokens');
+        if (datEl) datEl.checked = !!(data.disable_auto_tokens);
         var qtyEl = $id('ef-quantity');
         if (qtyEl) qtyEl.value = parseInt(data.quantity, 10) || 1;
         populateFaceForm(frontFace);
@@ -2000,6 +2023,7 @@ function _doBasicAction(color, action, btn) {
 
     // ── Serialise form → card JSON ────────────────────────────────────────────
     function serializeForm() {
+        if (_isTokenMode) return serializeTokenForm();
         _faceCache[_currentFace] = captureCurrentFace();
         var rarEl   = $id('ef-rarity');
         var dfcEl   = $id('ef-dfc-type');
@@ -2019,11 +2043,14 @@ function _doBasicAction(color, action, btn) {
         if (artistVal) result.artist = artistVal;
         var ss = _captureSubspell();
         if (ss) result.subspell = ss;
+        var datEl = $id('ef-disable-auto-tokens');
+        if (datEl && datEl.checked) result.disable_auto_tokens = true;
         return result;
     }
 
     // Normalise server card dict into canonical shape for dirty comparison
     function normaliseCard(data) {
+        if (_isTokenMode) return normaliseTokenData(data);
         var frontFace;
         if (data.front) {
             // Backward compat: old JSONs store frame at top-level; inject into front face if not already set
@@ -2056,12 +2083,25 @@ function _doBasicAction(color, action, btn) {
 
     // ── Change Detection ──────────────────────────────────────────────────────
     function onFormChange() {
+        if (_isTokenMode) {
+            _editorIsDirty = _isNewToken || (JSON.stringify(serializeTokenForm()) !== _originalJson);
+            updateButtonStates();
+            return;
+        }
         if (!_currentCardName && !_isNewCard) return;
         _editorIsDirty = _isNewCard || (JSON.stringify(serializeForm()) !== _originalJson);
         updateButtonStates();
     }
 
     function onJsonChange() {
+        if (_isTokenMode) {
+            var rawT = _cmEditor ? _cmEditor.getValue() : (($id('editor-json-textarea') || {}).value || '{}');
+            try {
+                _editorIsDirty = _isNewToken || (JSON.stringify(normaliseTokenData(JSON.parse(rawT))) !== _originalJson);
+            } catch (e) { /* invalid JSON */ }
+            updateButtonStates();
+            return;
+        }
         if (!_currentCardName && !_isNewCard) return;
         var raw = _cmEditor ? _cmEditor.getValue() : (($id('editor-json-textarea') || {}).value || '{}');
         try {
@@ -2071,7 +2111,7 @@ function _doBasicAction(color, action, btn) {
     }
 
     function updateButtonStates() {
-        var active = _editorIsDirty || _isNewCard;
+        var active = _editorIsDirty || _isNewCard || _isNewToken;
         var forgeBtn = $id('forge-btn');
         if (forgeBtn) {
             forgeBtn.classList.toggle('btn-forge--active', active);
@@ -2573,6 +2613,8 @@ function _doBasicAction(color, action, btn) {
     }
 
     function onForgeClick() {
+        if (_isTokenMode) { onForgeTokenClick(); return; }
+
         var cardData = getEditorJson();
         if (!cardData) return;
 
@@ -2686,6 +2728,9 @@ function _doBasicAction(color, action, btn) {
             if (_currentCardName) {
                 _markCanonicalItemStaged(_currentCardName);
             }
+
+            // Show discovered tokens panel
+            _updateDiscoveredTokensPanel(data.discovered_tokens || []);
 
         })
         .catch(function (err) {
@@ -2831,13 +2876,22 @@ function _doBasicAction(color, action, btn) {
 
         var label = document.createElement('div');
         label.className = 'assembly-card-label' + (item.pending_delete ? ' assembly-card-label--delete' : '');
-        label.textContent = item.card_name + (item.is_new ? ' (new)' : '') + (item.pending_delete ? ' — pending delete' : '');
+        var displayName = item.is_token
+            ? (item.card_name.replace(/^_TOKEN_/, '') + ' (token)')
+            : item.card_name;
+        label.textContent = displayName + (item.is_new ? ' (new)' : '') + (item.pending_delete ? ' — pending delete' : '');
         label.title = item.card_name;
 
         var discardBtn = document.createElement('button');
         discardBtn.className = 'btn assembly-discard-btn';
         discardBtn.textContent = 'Discard';
-        discardBtn.addEventListener('click', function () { onDiscardCard(item.card_name, row); });
+        discardBtn.addEventListener('click', function () {
+            if (item.is_token) {
+                onDiscardToken(item.card_name, row);
+            } else {
+                onDiscardCard(item.card_name, row);
+            }
+        });
 
         header.appendChild(label);
         header.appendChild(discardBtn);
@@ -2855,7 +2909,7 @@ function _doBasicAction(color, action, btn) {
         origWrap.className = 'assembly-img-wrap';
         var origCaption = document.createElement('div');
         origCaption.className = 'assembly-img-caption';
-        origCaption.textContent = item.is_new ? 'New' : 'Original';
+        origCaption.textContent = item.is_new ? (item.is_token ? 'New Token' : 'New') : 'Original';
         if (item.original_image_base64 && !item.is_new) {
             var origImgEl = document.createElement('div');
             origImgEl.className = 'assembly-img-inner';
@@ -4721,5 +4775,462 @@ function _doBasicAction(color, action, btn) {
             _interactionDeleteTargetId = null;
         });
     }
+
+    // ── Discovered Tokens Panel ───────────────────────────────────────────────
+
+    function _updateDiscoveredTokensPanel(tokens) {
+        var panel = $id('ef-discovered-tokens-panel');
+        var list  = $id('ef-discovered-tokens-list');
+        if (!panel || !list) return;
+
+        if (!tokens || tokens.length === 0) {
+            panel.style.display = 'none';
+            return;
+        }
+
+        list.innerHTML = '';
+        tokens.forEach(function (t) {
+            var row = document.createElement('div');
+            row.className = 'ef-discovered-token-row';
+
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'ef-discovered-token-name';
+            nameSpan.textContent = t.name;
+            if (t.power && t.toughness) {
+                nameSpan.textContent += ' (' + t.power + '/' + t.toughness + ')';
+            }
+            row.appendChild(nameSpan);
+
+            var badge = document.createElement('span');
+            if (t.is_orphaned) {
+                badge.className = 'ef-discovered-token-badge ef-discovered-token-badge--orphaned';
+                badge.textContent = 'Orphaned';
+            } else if (t.is_new) {
+                badge.className = 'ef-discovered-token-badge ef-discovered-token-badge--new';
+                badge.textContent = 'New';
+            } else {
+                badge.className = 'ef-discovered-token-badge ef-discovered-token-badge--existing';
+                badge.textContent = 'Updated';
+            }
+            row.appendChild(badge);
+
+            list.appendChild(row);
+        });
+
+        panel.style.display = '';
+    }
+
+
+    // ── Token Editor ──────────────────────────────────────────────────────────
+
+    var _TOKEN_FIELDS_TO_HIDE = [
+        'ef-mana-group', 'ef-rarity-group', 'ef-quantity-group', 'ef-dfc-group',
+        'ef-subspell-section', 'ef-add-subspell-row', 'editor-face-tabs',
+        'editor-tags-section', 'ef-disable-auto-tokens-row', 'ef-discovered-tokens-panel',
+    ];
+    var _TOKEN_FIELDS_TO_SHOW = [
+        'editor-token-color-section', 'editor-token-source-section',
+    ];
+
+    function _enterTokenMode() {
+        _isTokenMode = true;
+        _TOKEN_FIELDS_TO_HIDE.forEach(function (id) {
+            var el = $id(id);
+            if (el) el.style.display = 'none';
+        });
+        _TOKEN_FIELDS_TO_SHOW.forEach(function (id) {
+            var el = $id(id);
+            if (el) el.style.display = '';
+        });
+        var delCardBtn = $id('delete-card-btn');
+        if (delCardBtn) {
+            delCardBtn.textContent = 'Delete Token';
+            delCardBtn.style.display = '';
+        }
+        var scBtn = $id('set-commander-btn');
+        if (scBtn) scBtn.style.display = 'none';
+        var tokenFlagEl = $id('ef-token-flag');
+        if (tokenFlagEl) tokenFlagEl.value = '1';
+    }
+
+    function _exitTokenMode() {
+        _isTokenMode  = false;
+        _currentTokenKey = null;
+        _isNewToken   = false;
+        // Restore fields — but:
+        //   ef-subspell-section stays hidden (managed by _setSubspellActive)
+        //   ef-discovered-tokens-panel stays hidden (shown only after a forge returns tokens)
+        _TOKEN_FIELDS_TO_HIDE.forEach(function (id) {
+            if (id === 'ef-subspell-section') return;
+            if (id === 'ef-discovered-tokens-panel') return;
+            var el = $id(id);
+            if (el) el.style.display = '';
+        });
+        _TOKEN_FIELDS_TO_SHOW.forEach(function (id) {
+            var el = $id(id);
+            if (el) el.style.display = 'none';
+        });
+        var orphanWarn = $id('editor-token-orphan-warning');
+        if (orphanWarn) orphanWarn.style.display = 'none';
+        var delCardBtn = $id('delete-card-btn');
+        if (delCardBtn) delCardBtn.textContent = 'Delete Card';
+        var tokenFlagEl = $id('ef-token-flag');
+        if (tokenFlagEl) tokenFlagEl.value = '0';
+    }
+
+    // Populate token-specific color checkboxes and source cards
+    function _populateTokenExtras(data) {
+        var colors = data.colors || [];
+        ['w', 'u', 'b', 'r', 'g'].forEach(function (c) {
+            var cb = $id('ef-token-color-' + c);
+            if (cb) cb.checked = colors.indexOf(c) !== -1;
+        });
+        var sourceList = $id('editor-token-source-list');
+        if (sourceList) {
+            sourceList.innerHTML = '';
+            var sources = data.source_cards || [];
+            if (sources.length === 0) {
+                var orphanWarn = $id('editor-token-orphan-warning');
+                if (orphanWarn) orphanWarn.style.display = '';
+                var empty = document.createElement('span');
+                empty.className = 'token-source-empty';
+                empty.textContent = 'None';
+                sourceList.appendChild(empty);
+            } else {
+                var orphanWarnH = $id('editor-token-orphan-warning');
+                if (orphanWarnH) orphanWarnH.style.display = 'none';
+                sources.forEach(function (cardName) {
+                    var chip = document.createElement('span');
+                    chip.className = 'token-source-chip';
+                    chip.textContent = cardName;
+                    sourceList.appendChild(chip);
+                });
+            }
+        }
+    }
+
+    function populateTokenForm(data) {
+        // Populate the shared form fields from a flat token dict
+        var fields = {
+            'ef-name':      data.name || '',
+            'ef-cardtype':  data.cardtype || '',
+            'ef-subtype':   data.subtype || '',
+            'ef-power':     data.power || '',
+            'ef-toughness': data.toughness || '',
+            'ef-frame':     data.frame || '',
+            'ef-artist':    data.artist || '',
+        };
+        Object.keys(fields).forEach(function (id) {
+            var el = $id(id);
+            if (el) el.value = fields[id];
+        });
+        // Rules text
+        var rulesEl = $id('ef-rules');
+        if (rulesEl) {
+            rulesEl.value = data.rules || '';
+            var rulesGroup = $id('ef-rules-single');
+            if (rulesGroup) rulesGroup.style.display = '';
+        }
+        var rulesMulti = $id('ef-rules-multi');
+        if (rulesMulti) rulesMulti.style.display = 'none';
+        var flavorEl = $id('ef-flavor');
+        if (flavorEl) flavorEl.value = data.flavor || '';
+        // Clear supertype checkboxes (tokens don't use legendary/basic/snow typically)
+        ['ef-legendary', 'ef-basic', 'ef-snow'].forEach(function (id) {
+            var el = $id(id);
+            if (el) el.checked = false;
+        });
+        _populateTokenExtras(data);
+    }
+
+    function _getTokenColors() {
+        var colors = [];
+        ['w', 'u', 'b', 'r', 'g'].forEach(function (c) {
+            var cb = $id('ef-token-color-' + c);
+            if (cb && cb.checked) colors.push(c);
+        });
+        return colors;
+    }
+
+    function serializeTokenForm() {
+        var v = function (id) { var el = $id(id); return el ? el.value.trim() : ''; };
+        return {
+            name:       v('ef-name'),
+            cardtype:   v('ef-cardtype'),
+            subtype:    v('ef-subtype'),
+            power:      v('ef-power'),
+            toughness:  v('ef-toughness'),
+            rules:      v('ef-rules'),
+            flavor:     v('ef-flavor'),
+            frame:      v('ef-frame'),
+            artist:     v('ef-artist'),
+            token:      1,
+            colors:     _getTokenColors(),
+        };
+    }
+
+    var _TOKEN_NORM_FIELDS = ['name', 'cardtype', 'subtype', 'power', 'toughness', 'rules', 'flavor', 'frame', 'artist'];
+    function normaliseTokenData(data) {
+        var result = { token: 1, colors: (data.colors || []).slice().sort() };
+        _TOKEN_NORM_FIELDS.forEach(function (k) { result[k] = data[k] || ''; });
+        return result;
+    }
+
+    function openTokenEditor(tokenKey) {
+        _savedScrollY    = window.scrollY;
+        _currentTokenKey = tokenKey;
+        _isNewToken      = false;
+        _editorIsDirty   = false;
+        _editorOpenedAt  = Date.now();
+        _serverData      = null;
+
+        var displayName = tokenKey.replace(/^_TOKEN_/, '');
+        $id('editor-card-title').textContent = displayName;
+
+        // The editor panel lives inside #tab-cards; switch to that tab so it's visible,
+        // but hide the cards gallery so only the editor shows.
+        switchTab('cards', false);
+        $id('cards-tab-main').style.display = 'none';
+        $id('card-editor-panel').style.display = '';
+
+        _enterTokenMode();
+        switchEditorMode('form', true);
+        history.replaceState(null, '', '#edit-token/' + encodeURIComponent(tokenKey));
+
+        // Scroll to editor
+        setTimeout(function () {
+            var panel = $id('card-editor-panel');
+            if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 30);
+
+        // Load token data
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/token-data?key=' + encodeURIComponent(tokenKey))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) { setArtworkStatus('missing', 'Error: ' + data.error); return; }
+                _serverData   = data;
+                _originalJson = JSON.stringify(normaliseTokenData(data));
+                populateTokenForm(data);
+                updatePreview(data.image_base64 || null);
+                setArtworkStatus('', '');
+                updateButtonStates();
+            })
+            .catch(function () { setArtworkStatus('missing', 'Failed to load token'); });
+    }
+
+    function openNewTokenEditor() {
+        _savedScrollY    = window.scrollY;
+        _currentTokenKey = null;
+        _isNewToken      = true;
+        _editorIsDirty   = true;
+        _originalJson    = '';
+        _serverData      = null;
+
+        $id('editor-card-title').textContent = 'New Token';
+
+        switchTab('cards', false);
+        $id('cards-tab-main').style.display = 'none';
+        $id('card-editor-panel').style.display = '';
+
+        _enterTokenMode();
+        switchEditorMode('form', true);
+        history.replaceState(null, '', '#new-token');
+
+        populateTokenForm({ name: '', cardtype: 'Token Creature', subtype: '', power: '', toughness: '', rules: '', colors: [], source_cards: [] });
+        setArtworkStatus('', '');
+        updatePreview(null);
+        updateButtonStates();
+    }
+
+    function closeTokenEditor() {
+        _exitTokenMode();
+        _editorIsDirty   = false;
+        _editorOpenedAt  = 0;
+        _serverData      = null;
+
+        $id('card-editor-panel').style.display = 'none';
+        $id('cards-tab-main').style.display = '';
+
+        setArtworkStatus('', '');
+        updatePreview(null);
+        $id('editor-card-title').textContent = '';
+
+        // Return to the tokens tab
+        switchTab('tokens', false);
+        history.replaceState(null, '', '#tokens');
+        window.scrollTo({ top: _savedScrollY, behavior: 'instant' });
+    }
+
+    // ── Token Forge ───────────────────────────────────────────────────────────
+    function onForgeTokenClick() {
+        var tokenData = (_editorMode === 'json')
+            ? (function() {
+                var raw = _cmEditor ? _cmEditor.getValue() : (($id('editor-json-textarea') || {}).value || '{}');
+                try { return JSON.parse(raw); } catch(e) { setArtworkStatus('missing', 'Invalid JSON: ' + e.message); return null; }
+              })()
+            : serializeTokenForm();
+        if (!tokenData) return;
+
+        var keyParam = _currentTokenKey ? '&key=' + encodeURIComponent(_currentTokenKey) : '';
+        var url = '/deck/' + encodeURIComponent(_deckName) + '/forge-token?name=' + encodeURIComponent(tokenData.name || '') + keyParam;
+
+        var forgeBtn = $id('forge-btn');
+        if (forgeBtn) forgeBtn.disabled = true;
+        setArtworkStatus('found', 'Forging\u2026');
+
+        fetch(url, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(tokenData),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) {
+                setArtworkStatus('missing', 'Forge failed: ' + data.error);
+                if (forgeBtn) forgeBtn.disabled = false;
+                updateButtonStates();
+                return;
+            }
+            _updatePublishBar(data.staged_count || 0);
+            if (data.image_base64) updatePreview(data.image_base64);
+            if (_isNewToken && data.token_key) {
+                _currentTokenKey = data.token_key;
+                _isNewToken = false;
+                history.replaceState(null, '', '#edit-token/' + encodeURIComponent(data.token_key));
+            }
+            _editorIsDirty = false;
+            _originalJson  = JSON.stringify(serializeTokenForm());
+            setArtworkStatus('found', 'Forged \u2713');
+            if (forgeBtn) forgeBtn.disabled = false;
+            updateButtonStates();
+            // Mark the token gallery item as staged
+            _markTokenStaged(_currentTokenKey);
+        })
+        .catch(function (err) {
+            console.error('Token forge error:', err);
+            setArtworkStatus('missing', 'Forge error — check server log');
+            if (forgeBtn) forgeBtn.disabled = false;
+        });
+    }
+
+    function _markTokenStaged(tokenKey) {
+        if (!tokenKey) return;
+        var galItem = document.querySelector('.token-gallery-item[data-token-key="' + CSS.escape(tokenKey) + '"]');
+        if (!galItem) return;
+        var con = galItem.querySelector('.card-image-container') || galItem.querySelector('.card-image-placeholder');
+        if (con && !con.querySelector('.staged-overlay')) {
+            var ov = document.createElement('div');
+            ov.className = 'staged-overlay';
+            ov.innerHTML = 'AWAITING<br>ASSEMBLY LINE';
+            con.appendChild(ov);
+        }
+    }
+
+    // ── Token Discard (assembly line) ─────────────────────────────────────────
+    function onDiscardToken(tokenKey, rowEl) {
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/discard-card?name=' + encodeURIComponent(tokenKey), {
+            method: 'POST',
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) return;
+            if (rowEl) rowEl.remove();
+            _updatePublishBar(data.staged_count || 0);
+            var galItem = document.querySelector('.token-gallery-item[data-token-key="' + CSS.escape(tokenKey) + '"]');
+            if (galItem) {
+                if (data.is_new) {
+                    galItem.remove();
+                } else {
+                    var ov = galItem.querySelector('.staged-overlay');
+                    if (ov) ov.remove();
+                }
+            }
+            var list = $id('assembly-line-list');
+            if (list && !list.querySelector('.assembly-card-row')) {
+                var empty = document.createElement('div');
+                empty.className = 'tab-empty-state';
+                empty.innerHTML = '<p>No staged changes. Forge a card in the Cards tab to add it to the Assembly Line.</p>';
+                list.appendChild(empty);
+            }
+        })
+        .catch(function () {});
+    }
+
+    // ── Token delete staging ──────────────────────────────────────────────────
+    function _wireTokenDeleteBtn() {
+        var dialog = $id('token-delete-confirm-dialog');
+        var nameEl = $id('token-delete-name');
+        var confirmBtn = $id('token-delete-confirm-btn');
+        var cancelBtn  = $id('token-delete-cancel-btn');
+        if (!dialog) return;
+
+        var deleteCardBtn = $id('delete-card-btn');
+        if (deleteCardBtn) {
+            deleteCardBtn.addEventListener('click', function () {
+                if (!_isTokenMode || !_currentTokenKey) return;
+                var name = _currentTokenKey.replace(/^_TOKEN_/, '');
+                if (nameEl) nameEl.textContent = name;
+                dialog.showModal();
+            });
+        }
+
+        if (confirmBtn) confirmBtn.addEventListener('click', function () {
+            dialog.close();
+            if (!_currentTokenKey) return;
+            fetch('/deck/' + encodeURIComponent(_deckName) + '/stage-delete-token?key=' + encodeURIComponent(_currentTokenKey), {
+                method: 'POST'
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) { alert('Error: ' + data.error); return; }
+                _updatePublishBar(data.staged_count);
+                closeTokenEditor();
+                switchTab('assembly', true);
+            })
+            .catch(function (err) { alert('Failed to stage token deletion: ' + err); });
+        });
+
+        if (cancelBtn) cancelBtn.addEventListener('click', function () { dialog.close(); });
+    }
+
+    // ── Wire token tab buttons ─────────────────────────────────────────────────
+    function _initTokenTab() {
+        // Create Token button
+        var createTokenBtn = $id('create-token-btn');
+        if (createTokenBtn) createTokenBtn.addEventListener('click', function () {
+            switchTab('tokens', false);
+            openNewTokenEditor();
+        });
+
+        // Token gallery item clicks — delegate on the tokens tab
+        var tokensTabEl = $id('tab-tokens');
+        if (tokensTabEl) tokensTabEl.addEventListener('click', function (e) {
+            var item = e.target.closest('.token-gallery-item');
+            if (!item) return;
+            e.preventDefault();
+            var tokenKey = item.dataset.tokenKey;
+            if (tokenKey) openTokenEditor(tokenKey);
+        });
+
+        _wireTokenDeleteBtn();
+    }
+
+    // Override the editor back button to also handle token mode
+    (function _patchEditorBackBtn() {
+        var btn = $id('editor-back-btn');
+        if (!btn) return;
+        // Remove existing listener by cloning
+        var clone = btn.cloneNode(true);
+        btn.parentNode.replaceChild(clone, btn);
+        clone.addEventListener('click', function () {
+            if (_isTokenMode) {
+                closeTokenEditor();
+            } else {
+                closeCardEditor(true);
+            }
+        });
+    }());
+
+    _initTokenTab();
 
 }());

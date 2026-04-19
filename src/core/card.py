@@ -1072,8 +1072,9 @@ class Card:
         """
         Extract token definitions from this card's rules text.
 
-        Parses all rules text fields (rules, rules1-6) to identify tokens created
-        by this card.
+        Parses all rules text fields (rules, rules1-6) on the front face, the back
+        face (for DFCs), and the subspell face (for Adventures/Omens) to identify
+        tokens created by this card.
 
         Returns:
             Tuple of (specialized_tokens, common_tokens) where:
@@ -1082,11 +1083,32 @@ class Card:
             - common_tokens: List of common token names (Treasure, Clue, Food, etc.)
         """
         from src.token_generation.token_parser import parse_tokens_from_rules_text
-        st0, ct0 = parse_tokens_from_rules_text(self.rules, card_name=self.name, complete=self.complete, Card=Card)
-        st1, ct1 = parse_tokens_from_rules_text(self.rules1, card_name=self.name, complete=self.complete, Card=Card)
-        st2, ct2 = parse_tokens_from_rules_text(self.rules2, card_name=self.name, complete=self.complete, Card=Card)
-        st3, ct3 = parse_tokens_from_rules_text(self.rules3, card_name=self.name, complete=self.complete, Card=Card)
-        st4, ct4 = parse_tokens_from_rules_text(self.rules4, card_name=self.name, complete=self.complete, Card=Card)
-        st5, ct5 = parse_tokens_from_rules_text(self.rules5, card_name=self.name, complete=self.complete, Card=Card)
-        st6, ct6 = parse_tokens_from_rules_text(self.rules6, card_name=self.name, complete=self.complete, Card=Card)
-        return (st0+st1+st2+st3+st4+st5+st6), (ct0+ct1+ct2+ct3+ct4+ct5+ct6)
+
+        def _parse_face(face, name):
+            """Parse all rules fields on a CardFace (or Card, which shares the fields)."""
+            results = []
+            for rules_text in (
+                face.rules, face.rules1, face.rules2, face.rules3,
+                face.rules4, face.rules5, face.rules6,
+            ):
+                results.append(
+                    parse_tokens_from_rules_text(rules_text, card_name=name, complete=self.complete, Card=Card)
+                )
+            return results
+
+        all_pairs = _parse_face(self, self.name)
+
+        # Back face (DFC)
+        if self.back is not None:
+            all_pairs.extend(_parse_face(self.back, self.name))
+
+        # Subspell face (Adventure / Omen)
+        if self.subspell is not None:
+            all_pairs.extend(_parse_face(self.subspell, self.name))
+
+        specialized = []
+        common = []
+        for st, ct in all_pairs:
+            specialized.extend(st)
+            common.extend(ct)
+        return specialized, common

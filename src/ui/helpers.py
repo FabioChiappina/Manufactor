@@ -862,6 +862,9 @@ def card_from_editor_dict(card_dict, setname='UNK'):
         return [front_card, back_card]
     else:
         # Single-faced card
+        # token flag and colors can live at top-level (for tokens) or inside front (for cards)
+        token_flag = front_data.get('token') or card_dict.get('token') or None
+        colors = card_dict.get('colors') or None
         card = Card(
             name=front_name, setname=setname,
             mana=front_data.get('mana'), cardtype=front_data.get('cardtype'),
@@ -876,7 +879,8 @@ def card_from_editor_dict(card_dict, setname='UNK'):
             legendary=front_data.get('legendary'),
             basic=front_data.get('basic'),
             snow=front_data.get('snow'),
-            token=front_data.get('token'),
+            token=token_flag,
+            colors=colors,
         )
         # Attach subspell if present (Adventure/Omen)
         subspell_data = card_dict.get('subspell') or {}
