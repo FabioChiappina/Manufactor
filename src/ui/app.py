@@ -1621,53 +1621,57 @@ def scryfall_search():
 
 @app.route('/api/scryfall/printings')
 def scryfall_printings():
-    """Get all printings of a card by exact name."""
+    """Get all printings of a card by exact name, newest first."""
     name = request.args.get('name', '').strip()
     if not name:
         return jsonify({'printings': []})
 
-    params = urlencode({'q': f'!"{name}"', 'unique': 'prints', 'order': 'released', 'dir': 'asc'})
+    params = urlencode({'q': f'!"{name}"', 'unique': 'prints', 'order': 'released', 'dir': 'desc'})
     url = f'https://api.scryfall.com/cards/search?{params}'
 
     _scryfall_headers = {'User-Agent': 'MagicManufactor/1.0', 'Accept': 'application/json'}
     try:
-        req = _url_req.Request(url, headers=_scryfall_headers)
-        with _url_req.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-
         printings = []
-        for card in data.get('data', []):
-            images = card.get('image_uris', {})
-            # Double-faced cards store images per face
-            if not images and card.get('card_faces'):
-                images = (card['card_faces'][0] or {}).get('image_uris', {})
-            mana_cost = card.get('mana_cost', '')
-            oracle_text = card.get('oracle_text', '')
-            if not mana_cost and card.get('card_faces'):
-                mana_cost = (card['card_faces'][0] or {}).get('mana_cost', '')
-            if not oracle_text and card.get('card_faces'):
-                oracle_text = (card['card_faces'][0] or {}).get('oracle_text', '')
-            printings.append({
-                'id': card.get('id', ''),
-                'oracle_id': card.get('oracle_id', ''),
-                'name': card.get('name', ''),
-                'set': card.get('set', '').upper(),
-                'set_name': card.get('set_name', ''),
-                'collector_number': card.get('collector_number', ''),
-                'released_at': card.get('released_at', ''),
-                'image_uri': images.get('normal') or images.get('large', ''),
-                'image_uri_small': images.get('small') or images.get('normal', ''),
-                'mana_cost': mana_cost,
-                'type_line': card.get('type_line', ''),
-                'oracle_text': oracle_text,
-                'power': card.get('power', ''),
-                'toughness': card.get('toughness', ''),
-                'colors': card.get('colors', []),
-                'color_identity': card.get('color_identity', []),
-                'rarity': card.get('rarity', 'common'),
-                'artist': card.get('artist', ''),
-                'layout': card.get('layout', ''),
-            })
+        while url:
+            req = _url_req.Request(url, headers=_scryfall_headers)
+            with _url_req.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+
+            for card in data.get('data', []):
+                images = card.get('image_uris', {})
+                # Double-faced cards store images per face
+                if not images and card.get('card_faces'):
+                    images = (card['card_faces'][0] or {}).get('image_uris', {})
+                mana_cost = card.get('mana_cost', '')
+                oracle_text = card.get('oracle_text', '')
+                if not mana_cost and card.get('card_faces'):
+                    mana_cost = (card['card_faces'][0] or {}).get('mana_cost', '')
+                if not oracle_text and card.get('card_faces'):
+                    oracle_text = (card['card_faces'][0] or {}).get('oracle_text', '')
+                printings.append({
+                    'id': card.get('id', ''),
+                    'oracle_id': card.get('oracle_id', ''),
+                    'name': card.get('name', ''),
+                    'set': card.get('set', '').upper(),
+                    'set_name': card.get('set_name', ''),
+                    'collector_number': card.get('collector_number', ''),
+                    'released_at': card.get('released_at', ''),
+                    'image_uri': images.get('normal') or images.get('large', ''),
+                    'image_uri_small': images.get('small') or images.get('normal', ''),
+                    'mana_cost': mana_cost,
+                    'type_line': card.get('type_line', ''),
+                    'oracle_text': oracle_text,
+                    'power': card.get('power', ''),
+                    'toughness': card.get('toughness', ''),
+                    'colors': card.get('colors', []),
+                    'color_identity': card.get('color_identity', []),
+                    'rarity': card.get('rarity', 'common'),
+                    'artist': card.get('artist', ''),
+                    'layout': card.get('layout', ''),
+                })
+
+            url = data.get('next_page') if data.get('has_more') else None
+
         return jsonify({'printings': printings})
 
     except Exception as e:

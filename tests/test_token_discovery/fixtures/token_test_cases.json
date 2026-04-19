@@ -84,6 +84,123 @@
         "expected_common": []
     },
     {
+        "id": "basic_creature_token_with_keyword_ability",
+        "description": "Simple creature token with P/T and a keyword ability",
+        "card_name": "Count Dooku, The Tyrannical",
+        "rules": "First Strike, Force 3\nAt the beginning of combat on your turn, create a colorless 2/2 Super-Battle Droid artifact creature token with flying. Sacrifice it at the beginning of the next end step.\nOther creatures you control have force 1.\nOther force-sensitive creatures you control have haste and get +1/+1.",
+        "expected_specialized": [
+            {
+                "name": "Super-Battle Droid",
+                "cardtype": "Token Artifact Creature",
+                "subtype": "Super-Battle Droid",
+                "power": "2",
+                "toughness": "2",
+                "rules": "Flying",
+                "frame": "c_token_artifact-creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "basic_creature_token_tapped",
+        "description": "Simple creature token with P/T and enters tapped. Token discovery shouldn't include the word 'tapped'.",
+        "card_name": "Plo Koon, The Compassionate",
+        "rules": "Whenever Plo Koon or another force-sensitive permanent enters the battlefield, create two tapped 2/2 white Clone creature tokens. Then, if you control ten or more Clones, sacrifice Plo Koon and draw a card.\nForce-sensitive creatures you control with base power 2 or less get +1/+1.\nForce 2",
+        "expected_specialized": [
+            {
+                "name": "Clone",
+                "cardtype": "Token Creature",
+                "subtype": "Clone",
+                "power": "2",
+                "toughness": "2",
+                "rules": "",
+                "frame": "w_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "basic_creature_token_tapped_that_many",
+        "description": "Simple creature token with P/T, but you create 'that many' of those tokens, and they enters tapped. Token discovery shouldn't include the word 'tapped'.",
+        "card_name": "The Bad Batch",
+        "rules": "The Bad Batch enters the battlefield tapped. When it does, it deals 2 damage to target creature.\nWhen The Bad Batch dies, if it dealt combat damage to a player this turn, create that many tapped 2/2 white Clone creature tokens.\nTrample",
+        "expected_specialized": [
+            {
+                "name": "Clone",
+                "cardtype": "Token Creature",
+                "subtype": "Clone",
+                "power": "2",
+                "toughness": "2",
+                "rules": "",
+                "frame": "w_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "basic_creature_token_x",
+        "description": "Simple creature token with P/T, but you create X of those tokens. Token discovery shouldn't include the X.",
+        "card_name": "Order 66",
+        "rules": "For each non-Sith creature, you lose 1 life, draw a card, and create X 2/2 white Clone creature tokens, then each of those tokens fights that creature.",
+        "expected_specialized": [
+            {
+                "name": "Clone",
+                "cardtype": "Token Creature",
+                "subtype": "Clone",
+                "power": "2",
+                "toughness": "2",
+                "rules": "",
+                "frame": "w_token_creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
+        "id": "basic_creature_token_plus_common_token",
+        "description": "Simple creature token with P/T plus a Treasure token (common).",
+        "card_name": "General Grievous, The Collector",
+        "rules": "Trample\nWhenever General Grievous attacks, create a 1/1 colorless Droid artifact creature token.\nWhenever a creature token you control dies, choose one that hasn't been chosen this turn:\n\u2022 Gain control of target artifact with mana value 3 or less until General Grievous leaves the battlefield.\n\u2022 Create a Treasure token.",
+        "expected_specialized": [
+            {
+                "name": "Droid",
+                "cardtype": "Token Artifact Creature",
+                "subtype": "Droid",
+                "power": "1",
+                "toughness": "1",
+                "rules": "",
+                "frame": "c_token_artifact-creature.jpg"
+            }
+        ],
+        "expected_common": ["Treasure"]
+    },
+    {
+        "id": "basic_creature_token_plus_token_with_multiple_keyword_abilities",
+        "description": "Simple creature token with P/T plus a second creature token with P/T and multiple keyword abilities.",
+        "card_name": "Geonosian Droid Factory",
+        "rules": "At the beginning of your upkeep, you lose 1 life and create a tapped 1/1 colorless Droid artifact creature token.\nSacrifice a creature: Add {c}.\n{2}, Sacrifice two creatures: Create a 4/4 colorless Droideka artifact creature token with reach, trample, and haste.",
+        "expected_specialized": [
+            {
+                "name": "Droid",
+                "cardtype": "Token Artifact Creature",
+                "subtype": "Droid",
+                "power": "1",
+                "toughness": "1",
+                "rules": "",
+                "frame": "c_token_artifact-creature.jpg"
+            },
+            {
+                "name": "Droideka",
+                "cardtype": "Token Artifact Creature",
+                "subtype": "Droideka",
+                "power": "4",
+                "toughness": "4",
+                "rules": "Reach, trample, haste",
+                "frame": "c_token_artifact-creature.jpg"
+            }
+        ],
+        "expected_common": []
+    },
+    {
         "id": "token_two_keyword_abilities_in_subspell_permanent",
         "description": "Creature token with P/T and two keyword abilities. In a card that has a subspell, but the token is defined in the main spell's rules text (the permanent side).",
         "card_name": "Varang, Flame Of The Mangkwam / Nightwraith's Fury",
@@ -108,7 +225,7 @@
         "rules": "Create a 2/1 green Elf Warrior creature token with \"{t}: Add {G}.\".",
         "expected_specialized": [
             {
-                "name": "",
+                "name": "Elf Warrior",
                 "cardtype": "Token Creature",
                 "subtype": "Elf Warrior",
                 "power": "2",
@@ -126,7 +243,7 @@
         "rules": "Create a 2/1 green Elf Warrior creature token with \"{t}: Add {G}.\" and \"When this creature dies, draw a card.\"",
         "expected_specialized": [
             {
-                "name": "",
+                "name": "Elf Warrior",
                 "cardtype": "Token Creature",
                 "subtype": "Elf Warrior",
                 "power": "2",
@@ -144,7 +261,7 @@
         "rules": "Create a 2/1 green Elf Warrior creature token with reach, \"{t}: Add {G}.\", and \"When this creature dies, draw a card.\"",
         "expected_specialized": [
             {
-                "name": "",
+                "name": "Elf Warrior",
                 "cardtype": "Token Creature",
                 "subtype": "Elf Warrior",
                 "power": "2",
@@ -162,7 +279,7 @@
         "rules": "<i>The Fire Rises</i> \u2014 Whenever you draw a card except the first one you draw in each of your draw steps, put a +1/+1 counter on Bane and create a 1/1 red Human Anarchist creature token with anarky. (A creature with anarky attacks a randomly selected opponent each combat if able.)\n<i>You Merely Adopted The Dark</i> \u2014 Creatures your opponents control have anarky.\n<i>I Was Born In It</i> \u2014 Whenever an opponent attacks you, draw a card.",
         "expected_specialized": [
             {
-                "name": "",
+                "name": "Human Anarchist",
                 "cardtype": "Token Creature",
                 "subtype": "Human Anarchist",
                 "power": "1",
@@ -237,6 +354,22 @@
                 "frame": "c_token_artifact-creature.jpg"
             }
         ],
+        "expected_common": []
+    },
+    {
+        "id": "token_thats_a_copy_creates_no_tokens",
+        "description": "Card that creates a token that's a copy of another creature, but doesn't actually create any tokens with its own unique text. Token discovery should not create a token here.",
+        "card_name": "Darth Plagueis, The Wise",
+        "rules": "Force 3\nPay 2 life, Sacrifice a creature: Surveil 2.\nWhenever a creature you control dies, proliferate. Then, if X is the number of Midichlorian counters that were on that creature, create a token that's a copy of target creature on the battlefield or creature card in a graveyard with mana value less than or equal to X, except the token isn't legendary.",
+        "expected_specialized": [],
+        "expected_common": []
+    },
+    {
+        "id": "copies_become_tokens_creates_no_tokens",
+        "description": "Card that just mentions tokens ('copies becomes tokens') but creates no tokens of its own. Token discovery should not create a token here.",
+        "card_name": "Zakru",
+        "rules": "Replicate {3}{G} (When you cast this spell, copy it for each time you paid its replicate cost. Copies of permanent spells become tokens.)\n<i>Channel</i> \u2014 {G}{G}, Discard Zakru: Until end of turn, primal creatures you control have base power and toughness 8/10 as long as they aren\u2019t attacking. (A permanent is primal if it has no activated or triggered abilities except mana abilities.)\n",
+        "expected_specialized": [],
         "expected_common": []
     }
 ]
