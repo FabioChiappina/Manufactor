@@ -1055,5 +1055,37 @@
         "rules": "Tokens have hexproof.",
         "expected_specialized": [],
         "expected_common": []
+    },
+    {
+        "id": "mentions_token_creates_no_tokens_2",
+        "description": "Another card that mentions the word 'tokens', but doesn't actually create any tokens with its own unique text. Token discovery should not create a token here.",
+        "card_name": "Mirkwood Bats",
+        "rules": "Flying\nWhenever you create or sacrifice a token, each opponent loses 1 life.",
+        "expected_specialized": [],
+        "expected_common": []
+    },
+    {
+        "id": "mentions_token_creates_no_tokens_3",
+        "description": "A third card that mentions the word 'tokens' (this time replacement effect wording), but doesn't actually create any tokens with its own unique text. Token discovery should not create a token here.",
+        "card_name": "Test Token Replacer",
+        "rules": "If you would create one or more creature tokens, instead create that many plus two of those tokens and draw a card.",
+        "expected_specialized": [],
+        "expected_common": []
+    },
+    {
+        "id": "mentions_token_creates_no_tokens_4",
+        "description": "A fourth card that mentions the word 'tokens' (this time more replacement effect wording), but doesn't actually create any tokens with its own unique text. Token discovery should not create a token here.",
+        "card_name": "Moonlit Meditation",
+        "rules": "Enchant artifact or creature you control\nThe first time you would create one or more tokens each turn, you may instead create that many tokens that are copies of enchanted permanent.",
+        "expected_specialized": [],
+        "expected_common": []
+    },
+    {
+        "id": "no_token_mention_creates_no_tokens",
+        "description": "The absolute baseline test case where the word token doesn't even show up in the rules text. Token discovery should not create a token here.",
+        "card_name": "Tokenless Test Card",
+        "rules": "Enchantments you control have hexproof.\nAt the beginning of your upkeep, creatures you control get +1/+1 until end of turn.",
+        "expected_specialized": [],
+        "expected_common": []
     }
 ]
