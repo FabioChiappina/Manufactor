@@ -3681,7 +3681,8 @@ function _doBasicAction(color, action, btn) {
 
     function _buildDeckPool() {
         var pool  = [];
-        var items = document.querySelectorAll('#cards-tab-main .card-gallery .card-gallery-item[data-card-name]');
+        // Use canonical items so we always see the full deck regardless of filters
+        var items = getCanonicalItems();
         items.forEach(function (item) {
             var name = item.dataset.cardName;
             if (_commanderNames.indexOf(name) !== -1) return;
