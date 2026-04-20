@@ -4046,6 +4046,9 @@ function _doBasicAction(color, action, btn) {
             });
         }());
 
+        // ── Token Artwork Dialog wiring ───────────────────────────────────────
+        if (window._tadInit) window._tadInit();
+
         // ── Real Card Dialog wiring ───────────────────────────────────────────
         (function () {
             var rcdDialog = $id('real-card-dialog');
@@ -4859,6 +4862,7 @@ function _doBasicAction(color, action, btn) {
     ];
     var _TOKEN_FIELDS_TO_SHOW = [
         'editor-token-color-section', 'editor-token-source-section',
+        'editor-token-official-art-section',
     ];
 
     function _enterTokenMode() {
@@ -5075,6 +5079,136 @@ function _doBasicAction(color, action, btn) {
         });
         section.style.display = '';
     }
+
+    // ── Token Official Artwork Dialog ─────────────────────────────────────────
+    (function () {
+        var _tadDialog         = null;
+        var _tadSelectedPrinting = null;
+
+        function _tadInit() {
+            _tadDialog = $id('token-artwork-dialog');
+            if (!_tadDialog) return;
+
+            $id('tad-close-btn').addEventListener('click', function () { _tadDialog.close(); });
+            $id('tad-set-btn').addEventListener('click', _tadSubmit);
+            _tadDialog.addEventListener('click', function (e) {
+                if (e.target === _tadDialog) _tadDialog.close();
+            });
+
+            var pickBtn = $id('pick-official-token-art-btn');
+            if (pickBtn) pickBtn.addEventListener('click', _tadOpen);
+        }
+
+        function _tadOpen() {
+            if (!_tadDialog) return;
+            var tokenName = (($id('ef-name') || {}).value || '').trim();
+            if (!tokenName) return;
+
+            $id('tad-title').textContent = 'Pick Artwork — ' + tokenName;
+            $id('tad-printing-section').style.display = 'none';
+            $id('tad-no-results').style.display = 'none';
+            $id('tad-printings-loading').style.display = '';
+            $id('tad-printing-list').innerHTML = '';
+            $id('tad-preview-img').style.display = 'none';
+            $id('tad-preview-placeholder').style.display = '';
+            $id('tad-set-btn').disabled = true;
+            $id('tad-status').style.display = 'none';
+            _tadSelectedPrinting = null;
+
+            _tadDialog.showModal();
+
+            fetch('/api/scryfall/token-printings?name=' + encodeURIComponent(tokenName))
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    $id('tad-printings-loading').style.display = 'none';
+                    var printings = data.printings || [];
+                    if (printings.length === 0) {
+                        $id('tad-no-results').style.display = '';
+                        return;
+                    }
+                    $id('tad-printing-section').style.display = '';
+                    var list = $id('tad-printing-list');
+                    printings.forEach(function (p) {
+                        var item = document.createElement('div');
+                        item.className = 'rcd-printing-item';
+                        var setCode = document.createElement('span');
+                        setCode.className = 'rcd-printing-set';
+                        setCode.textContent = p.set;
+                        var setName = document.createElement('span');
+                        setName.className = 'rcd-printing-name';
+                        setName.textContent = p.set_name || p.set;
+                        var year = document.createElement('span');
+                        year.className = 'rcd-printing-year';
+                        year.textContent = p.released_at ? p.released_at.slice(0, 4) : '';
+                        var artist = document.createElement('span');
+                        artist.className = 'rcd-printing-artist';
+                        artist.textContent = p.artist ? '\u2014 ' + p.artist : '';
+                        item.appendChild(setCode);
+                        item.appendChild(setName);
+                        item.appendChild(year);
+                        item.appendChild(artist);
+                        item.addEventListener('click', function () {
+                            list.querySelectorAll('.rcd-printing-item').forEach(function (r) {
+                                r.classList.remove('rcd-printing-item--selected');
+                            });
+                            item.classList.add('rcd-printing-item--selected');
+                            _tadSelectedPrinting = p;
+                            var previewImg = $id('tad-preview-img');
+                            previewImg.src = p.image_uri || p.image_uri_small || '';
+                            previewImg.style.display = '';
+                            $id('tad-preview-placeholder').style.display = 'none';
+                            $id('tad-set-btn').disabled = false;
+                        });
+                        list.appendChild(item);
+                    });
+                })
+                .catch(function () {
+                    $id('tad-printings-loading').style.display = 'none';
+                    $id('tad-no-results').style.display = '';
+                    $id('tad-no-results').textContent = 'Failed to load printings.';
+                });
+        }
+
+        function _tadSubmit() {
+            if (!_tadSelectedPrinting || !_currentTokenKey) return;
+            var setBtn = $id('tad-set-btn');
+            setBtn.disabled = true;
+            var statusEl = $id('tad-status');
+            statusEl.textContent = 'Downloading…';
+            statusEl.style.display = '';
+
+            fetch('/deck/' + encodeURIComponent(_deckName) + '/stage-token-artwork', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token_key: _currentTokenKey,
+                    image_uri: _tadSelectedPrinting.image_uri,
+                }),
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data.error) {
+                        statusEl.textContent = 'Error: ' + data.error;
+                        setBtn.disabled = false;
+                        return;
+                    }
+                    statusEl.textContent = 'Artwork staged ✓';
+                    if (data.image_base64) updatePreview(data.image_base64);
+                    if (data.staged_count !== undefined) _updatePublishBar(data.staged_count);
+                    _markTokenStaged(_currentTokenKey);
+                    setTimeout(function () {
+                        if (_tadDialog.open) _tadDialog.close();
+                    }, 1000);
+                })
+                .catch(function () {
+                    statusEl.textContent = 'Network error.';
+                    setBtn.disabled = false;
+                });
+        }
+
+        // Initialise after DOM ready (runs inside the DOMContentLoaded block)
+        window._tadInit = _tadInit;
+    })();
 
     function openNewTokenEditor() {
         _savedScrollY    = window.scrollY;

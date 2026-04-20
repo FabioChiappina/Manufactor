@@ -410,6 +410,11 @@
                         <span class="editor-tags-label">Alternate Artworks</span>
                         <div id="editor-token-alt-art-strip" class="editor-token-alt-art-strip"></div>
                     </div>
+
+                    <!-- Official artwork picker (token mode only) -->
+                    <div id="editor-token-official-art-section" style="display:none; margin-top:8px;">
+                        <button id="pick-official-token-art-btn" class="btn btn-secondary btn-sm" type="button" style="width:100%;">Pick Official Token Artwork</button>
+                    </div>
                 </div>
 
                 <!-- Right: editor controls -->
@@ -818,6 +823,36 @@
                 </div>
             </div>
             <div id="rcd-status" class="rcd-status" style="display:none;"></div>
+        </div>
+    </dialog>
+
+    <!-- ── Token Official Artwork Dialog ───────────────────────────────── -->
+    <dialog id="token-artwork-dialog" class="real-card-dialog">
+        <div class="real-card-dialog-body">
+            <div class="real-card-dialog-header">
+                <h3 id="tad-title">Pick Official Token Artwork</h3>
+                <button id="tad-close-btn" class="btn-dialog-close" type="button" aria-label="Close">✕</button>
+            </div>
+            <div class="rcd-printing-section" id="tad-printing-section" style="display:none;">
+                <div class="rcd-printing-body">
+                    <div class="rcd-preview-pane">
+                        <img id="tad-preview-img" src="" alt="" class="rcd-preview-img" style="display:none;">
+                        <div id="tad-preview-placeholder" class="rcd-preview-placeholder">Select a printing</div>
+                    </div>
+                    <div class="rcd-printing-list-pane">
+                        <div class="rcd-printing-list-header">Official Printings</div>
+                        <div id="tad-printing-list" class="rcd-printing-list"></div>
+                        <div id="tad-printings-loading" class="rcd-printings-loading" style="display:none;">Loading printings…</div>
+                    </div>
+                </div>
+            </div>
+            <div id="tad-no-results" style="display:none; padding:12px; color:var(--text-muted);">No official printings found for this token.</div>
+            <div class="rcd-footer">
+                <div class="rcd-footer-actions">
+                    <button id="tad-set-btn" class="btn btn-primary" disabled>Set Artwork</button>
+                </div>
+            </div>
+            <div id="tad-status" class="rcd-status" style="display:none;"></div>
         </div>
     </dialog>
 

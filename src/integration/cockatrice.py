@@ -105,8 +105,9 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                     break
             if not found_this_token:
                 print(f"\nWARNING: Could not find any tokens with the name {card.name} in the tokens path:", os.path.join(DECK_PATH, deck.folder_name, "Tokens"), "  This token's artwork was not added to Cockatrice.")
-                # Still register in tdict and .cod even without a local image (e.g. common tokens)
-                duplicate_token_names.append(this_card_name.replace('"', '').replace(".", " "))
+                # Register without the setname prefix so Cockatrice can resolve
+                # common tokens (Clue, Treasure, Food, etc.) from its built-in database.
+                duplicate_token_names.append(card.name.replace('"', '').replace(".", " "))
             for saved_token_path, target_cockatrice_token_path in zip(tokens_with_this_name_paths, tokens_cockatrice_target_paths):
                 try:
                     shutil.copy(saved_token_path, target_cockatrice_token_path)

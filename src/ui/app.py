@@ -2200,6 +2200,105 @@ def scryfall_printings():
         return jsonify({'printings': [], 'error': str(e)})
 
 
+@app.route('/api/scryfall/token-printings')
+def scryfall_token_printings():
+    """Get all official printings of a token card by exact name."""
+    name = request.args.get('name', '').strip()
+    if not name:
+        return jsonify({'printings': []})
+
+    params = urlencode({'q': f'!"{name}" is:token', 'unique': 'prints', 'order': 'released', 'dir': 'desc'})
+    url = f'https://api.scryfall.com/cards/search?{params}'
+
+    _scryfall_headers = {'User-Agent': 'MagicManufactor/1.0', 'Accept': 'application/json'}
+    try:
+        printings = []
+        while url:
+            req = _url_req.Request(url, headers=_scryfall_headers)
+            with _url_req.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+            for card in data.get('data', []):
+                images = card.get('image_uris', {})
+                if not images and card.get('card_faces'):
+                    images = (card['card_faces'][0] or {}).get('image_uris', {})
+                printings.append({
+                    'id': card.get('id', ''),
+                    'name': card.get('name', ''),
+                    'set': card.get('set', '').upper(),
+                    'set_name': card.get('set_name', ''),
+                    'collector_number': card.get('collector_number', ''),
+                    'released_at': card.get('released_at', ''),
+                    'image_uri': images.get('normal') or images.get('large', ''),
+                    'image_uri_small': images.get('small') or images.get('normal', ''),
+                    'artist': card.get('artist', ''),
+                })
+            url = data.get('next_page') if data.get('has_more') else None
+        return jsonify({'printings': printings})
+    except Exception as e:
+        return jsonify({'printings': [], 'error': str(e)})
+
+
+@app.route('/deck/<deck_name>/stage-token-artwork', methods=['POST'])
+def stage_token_artwork(deck_name):
+    """Download a Scryfall token image and stage it for the given token."""
+    deck_name = unquote(deck_name)
+    data = request.get_json() or {}
+    token_key = data.get('token_key', '').strip()
+    image_uri  = data.get('image_uri', '').strip()
+
+    if not token_key or not image_uri:
+        return jsonify({'error': 'token_key and image_uri required'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    staging_dir = get_staging_path(folder_path)
+    os.makedirs(staging_dir, exist_ok=True)
+
+    token_name = token_key.replace('_TOKEN_', '', 1)
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    original = raw_deck.get('tokens', {}).get(token_key, {})
+    is_new = token_key not in raw_deck.get('tokens', {})
+
+    # Download the Scryfall image
+    staged_img_path = os.path.join(staging_dir, f"{token_name}.jpg")
+    try:
+        req = _url_req.Request(image_uri, headers={'User-Agent': 'MagicManufactor/1.0', 'Accept': 'image/*,*/*'})
+        with _url_req.urlopen(req, timeout=20) as resp:
+            img_bytes = resp.read()
+        with open(staged_img_path, 'wb') as f:
+            f.write(img_bytes)
+    except Exception as e:
+        return jsonify({'error': f'Failed to download token image: {e}'}), 500
+
+    # Preserve source_cards from the existing token entry
+    updated = dict(original)
+    updated['token'] = 1
+
+    staging = load_staging(folder_path)
+    staging[token_key] = {
+        'original': original,
+        'updated': updated,
+        'staged_image_path': f"Staging/{token_name}.jpg",
+        'front_name': token_name,
+        'is_token': True,
+        'is_new': is_new,
+    }
+    save_staging(folder_path, staging)
+
+    image_b64 = None
+    if os.path.isfile(staged_img_path):
+        with open(staged_img_path, 'rb') as f:
+            image_b64 = 'data:image/jpeg;base64,' + base64.b64encode(f.read()).decode()
+
+    return jsonify({'image_base64': image_b64, 'staged_count': len(staging)})
+
+
 @app.route('/deck/<deck_name>/add-real-card', methods=['POST'])
 def add_real_card(deck_name):
     """Add or update a real MTG card in the deck via the staging pipeline."""
