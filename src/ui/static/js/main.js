@@ -3104,9 +3104,41 @@ function _doBasicAction(color, action, btn) {
                 var cards = listData.cards || [];
                 var total = cards.length;
 
+                function forgeTokensAndFinish(cardsForged) {
+                    if (progressLabel) progressLabel.textContent = 'Forging tokens\u2026';
+                    fetch(
+                        '/deck/' + encodeURIComponent(_deckName) + '/forge-all-tokens',
+                        { method: 'POST' }
+                    )
+                        .then(function (r) { return r.json(); })
+                        .then(function (result) {
+                            if (progressBar) progressBar.style.width = '100%';
+                            var tokensForged = result.tokens_forged || 0;
+                            var summary = cardsForged + ' card' + (cardsForged !== 1 ? 's' : '') +
+                                          ', ' + tokensForged + ' token' + (tokensForged !== 1 ? 's' : '') +
+                                          ' \u2014 Done';
+                            if (progressLabel) progressLabel.textContent = summary;
+                            if (result.errors && result.errors.length) {
+                                result.errors.forEach(function (err) {
+                                    var parts = err.split(':');
+                                    _appendForgeLog(logEl, parts[0] || 'Token', 'error', parts.slice(1).join(':').trim() || err);
+                                });
+                            }
+                            if (result.staged_count !== undefined) {
+                                _updatePublishBar(result.staged_count);
+                            }
+                            if (btn) btn.disabled = false;
+                        })
+                        .catch(function () {
+                            _appendForgeLog(logEl, 'Tokens', 'error', 'Network error forging tokens');
+                            if (progressBar) progressBar.style.width = '100%';
+                            if (progressLabel) progressLabel.textContent = cardsForged + ' card' + (cardsForged !== 1 ? 's' : '') + ' \u2014 Done (token forging failed)';
+                            if (btn) btn.disabled = false;
+                        });
+                }
+
                 if (total === 0) {
-                    if (progressLabel) progressLabel.textContent = 'No custom cards to forge.';
-                    if (btn) btn.disabled = false;
+                    forgeTokensAndFinish(0);
                     return;
                 }
 
@@ -3116,9 +3148,7 @@ function _doBasicAction(color, action, btn) {
 
                 function forgeNext() {
                     if (idx >= total) {
-                        if (progressBar) progressBar.style.width = '100%';
-                        if (progressLabel) progressLabel.textContent = total + ' / ' + total + ' \u2014 Done';
-                        if (btn) btn.disabled = false;
+                        forgeTokensAndFinish(total);
                         return;
                     }
 
@@ -3446,10 +3476,14 @@ function _doBasicAction(color, action, btn) {
             var card = _prCards[i];
             var key  = _prKey(card);
             var sel  = _prSelected.has(key);
+            var displayName = card.is_token
+                ? card.card_name.replace(/^_TOKEN_/, '')
+                : card.card_name;
             html += '<div class="pr-card-row' + (sel ? ' pr-card-selected' : '') + '" data-idx="' + i + '">';
             html += '<div class="pr-card-info">';
             html += '<span class="pr-card-deck">' + _prEsc(card.deck_name) + '</span>';
-            html += '<span class="pr-card-name">' + _prEsc(card.card_name) + '</span>';
+            html += '<span class="pr-card-name">' + _prEsc(displayName) +
+                    (card.is_token ? ' <span class="pr-token-badge">token</span>' : '') + '</span>';
             html += '</div>';
             html += '<span class="pr-card-time">' + _prEsc(card.modified_relative) + '</span>';
             html += '<div class="pr-card-btns">';

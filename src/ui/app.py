@@ -1789,6 +1789,84 @@ def forge_one(deck_name):
     })
 
 
+@app.route('/deck/<deck_name>/forge-all-tokens', methods=['POST'])
+def forge_all_tokens(deck_name):
+    """Forge images for every token in the deck and stage them."""
+    deck_name = unquote(deck_name)
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    setname = deck_data['metadata'].get('setname', 'UNK')
+    staging_dir = get_staging_path(folder_path)
+    os.makedirs(staging_dir, exist_ok=True)
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    staging = load_staging(folder_path)
+    gen = ImageGenerator()
+    forged = 0
+    errors = []
+
+    def _anorm(s):
+        return s.replace('\u2019', "'").replace('\u2018', "'").replace('\u02bc', "'").lower()
+
+    for token_key, token_dict in raw_deck.get('tokens', {}).items():
+        if not isinstance(token_dict, dict):
+            continue
+        # Skip tokens staged for deletion
+        stage_entry = staging.get(token_key, {})
+        if stage_entry.get('pending_delete'):
+            continue
+
+        token_name = (token_dict.get('name') or '').strip()
+        if not token_name:
+            continue
+
+        # Wrap flat token dict in 'front' structure for card_from_editor_dict
+        wrapped = {
+            'front': {k: v for k, v in token_dict.items() if k not in ('token', 'colors', 'source_cards', 'complete')},
+            'token': 1,
+            'colors': token_dict.get('colors'),
+        }
+
+        try:
+            token_cards = card_from_editor_dict(wrapped, setname=setname)
+        except Exception as e:
+            errors.append(f"{token_name}: {e}")
+            continue
+
+        token_card = token_cards[0]
+        success = gen.generate_single_card_image(token_card, save_path=staging_dir, include_printing=False)
+        if not success:
+            errors.append(f"{token_name}: image generation failed")
+            continue
+
+        # Normalize token image filename (apostrophe variants)
+        img_path = os.path.join(staging_dir, f"{token_name}.jpg")
+        if not os.path.isfile(img_path):
+            canon = _anorm(token_name)
+            for fname in sorted(os.listdir(staging_dir)):
+                if fname.endswith('.jpg') and _anorm(fname[:-4]) == canon:
+                    os.rename(os.path.join(staging_dir, fname), img_path)
+                    break
+
+        staging[token_key] = {
+            'original': stage_entry.get('original') or token_dict,
+            'updated': {**token_dict, 'token': 1},
+            'staged_image_path': f"Staging/{token_name}.jpg",
+            'front_name': token_name,
+            'is_token': True,
+            'is_new': stage_entry.get('is_new', False),
+        }
+        forged += 1
+
+    save_staging(folder_path, staging)
+    return jsonify({'tokens_forged': forged, 'staged_count': len(staging), 'errors': errors})
+
+
 @app.route('/deck/<deck_name>/forge-all', methods=['POST'])
 def forge_all(deck_name):
     """Forge every non-real card in the deck into the staging area."""
@@ -2456,30 +2534,65 @@ def print_run_cards():
     cards = []
     for deck_name in deck_names:
         printing_dir = os.path.join(deck_path, deck_name, 'Printing')
-        if not os.path.isdir(printing_dir):
-            continue
+        tokens_dir   = os.path.join(deck_path, deck_name, 'Tokens')
         json_path = os.path.join(deck_path, deck_name, f"{deck_name}.json")
         try:
             with open(json_path, 'r') as f:
                 raw_deck = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
-        for card_key in raw_deck.get('cards', {}):
-            # For DFC/subspell cards the key is "FrontName / BackName"; use the
-            # front name to find the Printing/ image and get its mtime.
-            front_name = card_key.partition(' / ')[0].strip() if ' / ' in card_key else card_key
-            fpath = os.path.join(printing_dir, f"{front_name}.jpg")
-            try:
-                mtime = os.path.getmtime(fpath)
-            except OSError:
-                continue
-            if mtime < cutoff:
-                continue
-            cards.append({
-                'deck_name': deck_name,
-                'card_name': card_key,
-                'modified_timestamp': mtime,
-            })
+
+        # ── Regular cards (Printing/ folder) ────────────────────────────────
+        if os.path.isdir(printing_dir):
+            for card_key in raw_deck.get('cards', {}):
+                # For DFC/subspell cards the key is "FrontName / BackName"; use the
+                # front name to find the Printing/ image and get its mtime.
+                front_name = card_key.partition(' / ')[0].strip() if ' / ' in card_key else card_key
+                fpath = os.path.join(printing_dir, f"{front_name}.jpg")
+                try:
+                    mtime = os.path.getmtime(fpath)
+                except OSError:
+                    continue
+                if mtime < cutoff:
+                    continue
+                cards.append({
+                    'deck_name': deck_name,
+                    'card_name': card_key,
+                    'modified_timestamp': mtime,
+                    'is_token': False,
+                })
+
+        # ── Tokens (Tokens/ folder, primary + alt-art variants) ─────────────
+        if os.path.isdir(tokens_dir):
+            import re as _re
+            # Build a set of known token names from deck JSON for validation
+            known_token_names = set()
+            for tok_key, tok_dict in raw_deck.get('tokens', {}).items():
+                if isinstance(tok_dict, dict):
+                    name = (tok_dict.get('name') or tok_key.replace('_TOKEN_', '')).strip()
+                    if name:
+                        known_token_names.add(name.lower())
+            for fname in os.listdir(tokens_dir):
+                if not fname.endswith('.jpg'):
+                    continue
+                base = fname[:-4]  # strip .jpg
+                # Validate: base name (stripping trailing _N) must match a known token
+                root = _re.sub(r'_\d+$', '', base)
+                if root.lower() not in known_token_names:
+                    continue
+                fpath = os.path.join(tokens_dir, fname)
+                try:
+                    mtime = os.path.getmtime(fpath)
+                except OSError:
+                    continue
+                if mtime < cutoff:
+                    continue
+                cards.append({
+                    'deck_name': deck_name,
+                    'card_name': f"_TOKEN_{base}",
+                    'modified_timestamp': mtime,
+                    'is_token': True,
+                })
 
     cards.sort(key=lambda x: x['modified_timestamp'], reverse=True)
 
@@ -2540,31 +2653,44 @@ def print_run_prepare():
 
     for deck_name, card_names in cards_by_deck.items():
         printing_path = os.path.join(deck_path, deck_name, 'Printing')
+        tokens_path   = os.path.join(deck_path, deck_name, 'Tokens')
         for card_name in card_names:
             card_counter += 1
-            front, _, back = card_name.partition(' / ')
-            if back:
-                for prefix, name in [('Front', front), ('Back', back)]:
-                    src = os.path.join(printing_path, f'{name}.jpg')
-                    if not os.path.isfile(src):
-                        # Subspell back faces share the front image — skip silently
-                        continue
-                    dst_name = f"{prefix}_{card_counter:0{pad}}_{name}.jpg"
-                    dst = os.path.join(output_dir, dst_name)
-                    try:
-                        shutil.copyfile(src, dst)
-                        copied += 1
-                    except Exception as e:
-                        errors.append(f"{deck_name}/{name}: {e}")
-            else:
-                src = os.path.join(printing_path, f'{card_name}.jpg')
-                dst_name = f"Front_{card_counter:0{pad}}_{card_name}.jpg"
+            if card_name.startswith('_TOKEN_'):
+                # Token image — copy from Tokens/ folder
+                token_file = card_name[len('_TOKEN_'):]
+                src = os.path.join(tokens_path, f'{token_file}.jpg')
+                dst_name = f"Token_{card_counter:0{pad}}_{token_file}.jpg"
                 dst = os.path.join(output_dir, dst_name)
                 try:
                     shutil.copyfile(src, dst)
                     copied += 1
                 except Exception as e:
-                    errors.append(f"{deck_name}/{card_name}: {e}")
+                    errors.append(f"{deck_name}/{token_file}: {e}")
+            else:
+                front, _, back = card_name.partition(' / ')
+                if back:
+                    for prefix, name in [('Front', front), ('Back', back)]:
+                        src = os.path.join(printing_path, f'{name}.jpg')
+                        if not os.path.isfile(src):
+                            # Subspell back faces share the front image — skip silently
+                            continue
+                        dst_name = f"{prefix}_{card_counter:0{pad}}_{name}.jpg"
+                        dst = os.path.join(output_dir, dst_name)
+                        try:
+                            shutil.copyfile(src, dst)
+                            copied += 1
+                        except Exception as e:
+                            errors.append(f"{deck_name}/{name}: {e}")
+                else:
+                    src = os.path.join(printing_path, f'{card_name}.jpg')
+                    dst_name = f"Front_{card_counter:0{pad}}_{card_name}.jpg"
+                    dst = os.path.join(output_dir, dst_name)
+                    try:
+                        shutil.copyfile(src, dst)
+                        copied += 1
+                    except Exception as e:
+                        errors.append(f"{deck_name}/{card_name}: {e}")
 
     return jsonify({
         'success': True,

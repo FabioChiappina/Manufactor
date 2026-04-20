@@ -3743,6 +3743,20 @@ footer p {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.pr-token-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    color: #a78bfa;
+    background: rgba(167, 139, 250, 0.15);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 3px;
+    padding: 0 4px;
+    vertical-align: middle;
+    margin-left: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
 .pr-card-time {
     font-size: 12px;
     color: #666;
