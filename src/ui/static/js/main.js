@@ -5002,10 +5002,10 @@ function _doBasicAction(color, action, btn) {
         if (rulesMulti) rulesMulti.style.display = 'none';
         var flavorEl = $id('ef-flavor');
         if (flavorEl) flavorEl.value = data.flavor || '';
-        // Clear supertype checkboxes (tokens don't use legendary/basic/snow typically)
+        // Populate supertype checkboxes from token data
         ['ef-legendary', 'ef-basic', 'ef-snow'].forEach(function (id) {
             var el = $id(id);
-            if (el) el.checked = false;
+            if (el) el.checked = !!(data[id.replace('ef-', '')]);
         });
         _populateTokenExtras(data);
     }
@@ -5020,8 +5020,9 @@ function _doBasicAction(color, action, btn) {
     }
 
     function serializeTokenForm() {
-        var v = function (id) { var el = $id(id); return el ? el.value.trim() : ''; };
-        return {
+        var v  = function (id) { var el = $id(id); return el ? el.value.trim() : ''; };
+        var cb = function (id) { var el = $id(id); return !!(el && el.checked); };
+        var result = {
             name:       v('ef-name'),
             cardtype:   v('ef-cardtype'),
             subtype:    v('ef-subtype'),
@@ -5034,12 +5035,15 @@ function _doBasicAction(color, action, btn) {
             token:      1,
             colors:     _getTokenColors(),
         };
+        if (cb('ef-legendary')) result.legendary = 1;
+        return result;
     }
 
     var _TOKEN_NORM_FIELDS = ['name', 'cardtype', 'subtype', 'power', 'toughness', 'rules', 'flavor', 'frame', 'artist'];
     function normaliseTokenData(data) {
         var result = { token: 1, colors: (data.colors || []).slice().sort() };
         _TOKEN_NORM_FIELDS.forEach(function (k) { result[k] = data[k] || ''; });
+        if (data.legendary) result.legendary = 1;
         return result;
     }
 

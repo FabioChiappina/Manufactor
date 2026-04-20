@@ -62,11 +62,12 @@ A deck `.cod` file has a `<zone name="tokens">` section listing token names. Tho
 | Item | Priority | Description |
 |---|---|---|
 | **T2 — More test cases** | Ongoing | Continue expanding `token_test_cases.json`; see coverage gaps below |
-| **Manual testing — T1 (Cockatrice)** | Verify | Publish a deck with tokens → open Cockatrice → confirm "T" zone and right-click "Create token" per card |
 | **Manual testing — F2b (ability words)** | Verify | Forge a card that creates a token with "anarky" → confirm reminder text appears on the forged token image |
-| **Manual testing — F3 (alt artworks)** | Verify | Place `<TokenName>_1.jpg` in `Artwork/`, forge the token → `Staging/<TokenName>_1.jpg` appears; publish → `Tokens/<TokenName>_1.jpg` copied; reopen token editor → alt art strip shows the thumbnail |
 | **Live debounced token panel** | Low | Token discovery panel only updates after Forge, not live as the user types (intentional gap from T4) |
 | **F2 — DFC tokens** | Deferred | Tokens that transform are rare and complex; token editor only supports single-faced tokens |
+
+| **Manual testing — F3 (alt artworks)** | UPDATE: Completed ✅  | Place `<TokenName>_1.jpg` in `Artwork/`, forge the token → `Staging/<TokenName>_1.jpg` appears; publish → `Tokens/<TokenName>_1.jpg` copied; reopen token editor → alt art strip shows the thumbnail |
+| **Manual testing — T1 (Cockatrice)** | UPDATE: Completed ✅ | Publish a deck with tokens → open Cockatrice → confirm "T" zone and right-click "Create token" per card |
 
 ### T2 Test Coverage Gaps
 

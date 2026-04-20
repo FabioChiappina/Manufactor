@@ -933,12 +933,14 @@ class CardDraw:
             color = WHITE
         else:
             color = BLACK
-        maxpt = max(0 if (self.card.power is None or self.card.power in ["*","x","X"]) else int(self.card.power), 0 if (self.card.toughness is None or self.card.toughness in ["*","x","X"]) else int(self.card.toughness))
-        minpt = min(0 if (self.card.power is None or self.card.power in ["*","x","X"]) else int(self.card.power), 0 if (self.card.toughness is None or self.card.toughness in ["*","x","X"]) else int(self.card.toughness))
+        def _pt_val(v):
+            return 0 if (not v or v in ["*", "x", "X"]) else int(v)
+        maxpt = max(_pt_val(self.card.power), _pt_val(self.card.toughness))
+        minpt = min(_pt_val(self.card.power), _pt_val(self.card.toughness))
         max_height = MAX_HEIGHT_POWER_TOUGHNESS-3 if (maxpt >= 10 and minpt < 10) else MAX_HEIGHT_POWER_TOUGHNESS
-        if self.card.power is not None:
+        if self.card.power:
             self.write_text(POSITION_POWER if (self.card.power in ["*","x","X"] or int(self.card.power)<10) else (POSITION_POWER[0]-15, POSITION_POWER[1]), self.card.power, font_filename=FONT_PATHS["name"], font_size='fill', max_height=max_height, max_width=MAX_HEIGHT_POWER_TOUGHNESS, adjust_for_below_letters=0, color=color)
-        if self.card.toughness is not None:
+        if self.card.toughness:
             self.write_text(POSITION_TOUGHNESS, self.card.toughness, font_filename=FONT_PATHS["name"], font_size='fill', max_height=max_height, max_width=MAX_HEIGHT_POWER_TOUGHNESS, adjust_for_below_letters=0, color=color)
 
     def paste_in_text_symbols(self, symbols, symbol_positions, symbol_size, shadow=False):
