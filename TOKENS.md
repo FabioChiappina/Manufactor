@@ -6,7 +6,7 @@ This document covers the complete token system rework across six implementation 
 
 ---
 
-## Current State (as of T6)
+## Current State (as of T7)
 
 ### Storage Format
 
@@ -61,8 +61,6 @@ A deck `.cod` file has a `<zone name="tokens">` section listing token names. Tho
 
 | Item | Priority | Description |
 |---|---|---|
-| **T2 — Fix parser for 22 failing test cases** | High | See "T2 Parser Bug Inventory" section below for exact fixes needed |
-| **T2 — More test cases** | Ongoing | Continue expanding `token_test_cases.json`; see coverage gaps below |
 | **Manual testing — F2b (ability words)** | Verify | Forge a card that creates a token with "anarky" → confirm reminder text appears on the forged token image |
 | **Live debounced token panel** | Low | Token discovery panel only updates after Forge, not live as the user types (intentional gap from T4) |
 | **F2 — DFC tokens** | Deferred | Tokens that transform are rare and complex; token editor only supports single-faced tokens |
@@ -72,67 +70,48 @@ A deck `.cod` file has a `<zone name="tokens">` section listing token names. Tho
 
 ### T2 Test Coverage Gaps
 
-The test suite currently has 62 cases. These categories are well covered:
-- Simple creature tokens (P/T, colors, keywords, multi-word abilities)
-- Common tokens (Clue, Treasure, Food, etc.)
-- Role tokens (6 role-token cases)
-- Named/legendary tokens
-- Tokens with multiple abilities (keyword + multi-word in quotes)
-- Tokens defined entirely in parenthetical reminder text
-- Token copies / non-token mentions → correctly returns nothing
-- Custom ability word injection (anarky, protection from everything, etc.)
+The test suite currently has 66 cases covering all previously-failing bugs. These categories have no dedicated test cases yet:
 
-These categories have no dedicated test cases yet:
 - **DFC back face tokens** — a card whose back face (not front) creates tokens
 - **Conditional tokens** — `"If X is 3 or more, create a 3/3 Beast creature token."`
 - **Ability word NOT in config** — should produce no reminder text injection (regression guard)
 
 ---
 
-## T2 Parser Bug Inventory (22 failing tests as of T7 session)
+## ✅ T2 Parser Bugs — All Fixed
 
-**Test run baseline: 44 pass / 22 fail out of 66 total.**
+All 22 originally-failing test cases now pass (66/66 total). Below is the record of each bug and its fix for future reference.
 
-### Bug 1 — X/X power/toughness not parsed (`basic_creature_xx_that_many`)
-The P/T extraction does `int(power)` which throws for `"X"`. Fix: also accept `power.upper() == "X"` as valid. Affects "X/X", "X/1", "1/X" etc.
+### Bug 1 — X/X power/toughness not parsed ✅
+`int(power)` threw for `"X"`. Fixed: `_valid_pt()` helper accepts `power.upper() == "X"` as valid, and uppercases the stored value to `"X"`.
 
-### Bug 2 — Legendary tokens put "Legendary" in cardtype instead of `legendary: 1` field
-(`legendary_creature_token_*`, `legendary_artifact_token_with_symbols`)
-Current: `cardtype = "Legendary Token Creature"`. Expected: `cardtype = "Token Creature"` + `legendary: 1`. Fix: track `is_legendary` flag, remove "Legendary" from cardtype string, pass `legendary=1` to the `Card()` constructor for frame generation, add `"legendary": 1` to the token dict.
+### Bug 2 — Legendary tokens put "Legendary" in cardtype instead of `legendary: 1` field ✅
+Fixed: track `is_legendary` flag, remove "Legendary" from `cardtype` string, pass `legendary=1` to the `Card()` constructor for frame generation, add `"legendary": 1` to the token dict.
 
-### Bug 3 — Multi-keyword comma-separated lines don't get reminder text injected
-(`creature_token_with_multiple_keyword_abilities_and_reminder_text`, `protection_from_everything_with_reminder_text`)
-`_inject_ability_reminder_text` only matches lines whose **entire content** is an ability word key. For `"Haste, lifelink, decayed"` the key is `"hastelifeliinkdecayed"` — not found. Fix: also split each line on commas and check each part individually. Only inject for parts that match; long parts (> 4 words) are skipped.
+### Bug 3 — Multi-keyword comma-separated lines don't get reminder text injected ✅
+`_inject_ability_reminder_text` only matched lines whose **entire content** was an ability word key. Fixed: also split each line on commas and check each part individually. Only fires when the token rules contain no complex (multi-word) ability lines, to avoid redundant injection.
 
-### Bug 4 — Tokens defined entirely in reminder text parentheticals are not discovered
-(10 failing cases: `creature_token_defined_by_reminder_text*`, `two_creature_tokens_defined_by_*`, `artifact_token_defined_by_reminder_text_*`)
-When the rules say `Create a Charger token.` with NO type/color info, the parser produces `cardtype = "Token"` (invalid) and filters it out. The actual type is in the parenthetical: `(It's a 4/2 black and green Zombie creature with trample and haste.)`. Fix: add a pre-processing pass `_expand_reminder_definitions(rules_text)` that:
+### Bug 4 — Tokens defined entirely in reminder text parentheticals are not discovered ✅
+When the rules say `Create a Charger token.` with no type/color info, the parser produced `cardtype = "Token"` (invalid) and filtered it out. Fixed: added a pre-processing pass `_expand_reminder_definitions(rules_text)` that:
 1. Scans all `(...)` blocks for sentences matching:
    - `It's a [P/T] [colors] [Types] creature/artifact [with rules]`
-   - `They're [P/T] [colors] [Types] creatures/artifacts`
+   - `They're [P/T] [colors] [Types] creatures/artifacts [with rules]`
    - `A <Name> is a [P/T] [colors] [Types] creature/artifact [with rules]`
    - `<Name>s are [P/T] [colors] [Types] creatures/artifacts [with rules]`
-2. For `It's/They're` patterns: find the most-recent `create ... <Name> token[s]` on the **same line** using regex `creates?\s+(?:\w+\s+)*?(\w[\w\s-]*?)\s+tokens?\b`; the last word before `token` (excluding adjectives/colors/types) is the name
-3. For `A <Name> is a` / `<Name>s are` patterns: the name is explicit; check if that name appears in any `create` statement in the full rules text
-4. Synthesize a create line: `create a [P/T] [colors] [Types] creature token named <Name> [with rules].` and append to rules_text before the main parse
-Key edge cases:
-- `(Mana abilities can't be targeted. Hunters are 3/3...)` — split paren content on `.` outside quotes before scanning
-- `(Infected are 1/1... Smokers are 3/1...)` — one paren, two definitions; split and process each sentence
-- Replacement effects: `create those tokens plus a tapped Infected token. (It's a 1/1...)` — the name is the word before `token` scanning right-to-left past adjectives (`tapped`, `a`)
+2. Synthesizes a create line (e.g. `create a 4/2 black green Zombie creature token named Charger with trample, haste.`) and appends it to rules_text before the main parse.
+3. Skips names that are already in `common_tokens_list` (avoids duplicate detection for common tokens like Food whose type is defined in their own reminder text).
 
-**Important gotcha discovered in debug session:** The actual failing test `mentions_token_creates_no_tokens_3` has rules text `"If you would create one or more creature tokens, instead create that many plus two of those tokens and draw a card."` — the key word is **`creature`** before `tokens`. The JSON in the repo says `creature tokens`, not just `tokens`. So the parser DOES find "creature" as a card type and produces `"Token Creature"` with name "Or More" (from "one or more creature tokens"). The fix: add **empty-name guard** — if name is empty or if subtype ends up being a word from `["Or More", "One", "Many", "Those", ...]`, discard.
+### Bug 5 — Empty-name token not filtered ✅
+`"Whenever you create an artifact token, draw a card."` produced `{name: "", cardtype: "Token Artifact"}`. The `cardtype == "Token"` guard didn't catch it. Fixed: added `if not this_token["name"]: continue` plus a `_bad_names` set (`{"or more", "one", "many", "those", ...}`) for names that are artifacts of parsing replacement-effect wording.
 
-### Bug 5 — Empty-name token not filtered (`card_type_token_creates_no_tokens`)
-`"Whenever you create an artifact token, draw a card."` produces `{name: "", cardtype: "Token Artifact"}`. The `cardtype == "Token"` guard doesn't catch it because cardtype is `"Token Artifact"`. Fix: add `if not this_token["name"]: continue` before the other filters.
+### Bug 6 — Common token inside quoted token rules not detected ✅
+`"The Golden Snitch"` had rules `"... creates a Treasure token."` embedded inside its own quoted ability. Fixed: after the main parse loop, each specialized token's `rules` field is recursively parsed via `parse_tokens_from_rules_text` to detect common tokens; results are merged into the outer `common_tokens` list.
 
-### Bug 6 — Common token inside quoted token rules not detected (`token_that_creates_common_token`)
-`"The Golden Snitch"` has rules `"... creates a Treasure token."` embedded inside its own quoted ability. The parser returns `The Golden Snitch` as specialized but misses `Treasure` as common. Fix: after the main parse loop, for each specialized token whose `rules` field mentions `creates? ... <common_name> token`, append that name to `common_tokens`. Recursive call: `_, extra_common = parse_tokens_from_rules_text(token["rules"], common_tokens_list=common_tokens_list, exclude_list=exclude_list)` and merge extra_common.
+### Bug 7 — Custom keyword reminder text from earlier line not picked up ✅
+`Nulllink (Damage dealt by a source with nulllink...)` defined earlier in the rules → token with `nulllink` keyword got no reminder text. Fixed: added `_extract_inline_reminders(rules_text)` that pre-scans every line for `keyword (reminder text)` patterns and builds a per-parse dict; this is merged into the ability words lookup used by `_inject_ability_reminder_text`.
 
-### Bug 7 — Custom keyword reminder text from earlier line not picked up (`custom_keyword_ability_with_reminder_text_on_different_line`)
-Card: `"First Strike, Menace, Nulllink (Damage dealt by a source with nulllink causes its controller to exile that many cards from the top of their library.)\n...\ncreate a 1/1 colorless Corrupted Devil creature token with nulllink."` Expected token rules: `"Nulllink (Damage dealt...)"`. The parser produces `"Nulllink"` (no reminder). The existing `_inject_ability_reminder_text` only looks in `ability_words.json`; it won't find `Nulllink` there. Fix: before the main parse loop, **pre-scan the full rules text** to build an inline reminder-text dict: scan every line for `keyword (reminder text)` patterns — specifically lines that contain `\(<text>\)` after a short keyword. Merge these into the ability_words dict for this parse call.
-
-### Bug 8 — Role token inside parenthetical with preceding non-token sentence (`role_token_4`)
-`"Unforgivable (As an additional cost to cast this spell, create an Imprisoned Role token attached to a nontoken creature you control. If you control another Role on it, put that one into the graveyard. Enchanted creature has no abilities and cannot attack or block.)"` — The existing `lstrip('(')` on `create` handles the opening paren. But it fires on the entire parenthetical block as one line. The `Imprisoned Role token` IS found, but the parenthetical-role-rules extraction fails because the reminder text structure differs from other role cases. Needs investigation: add a focused debug run to see what the parser actually produces for this case vs expected.
+### Bug 8 — Role token inside parenthetical with preceding non-token sentence ✅
+`Unforgivable (As an additional cost to cast this spell, create an Imprisoned Role token...)` — the opening `(` came before `create`, so slicing `original_words` at `create` lost the parenthetical context. Fixed: role handler now searches the full unsliced `line` for the parenthetical first; also strips the "As an additional cost to cast this spell, create ... Role token ... you control." sentence from role rules.
 
 ---
 
@@ -141,7 +120,7 @@ Card: `"First Strike, Menace, Nulllink (Damage dealt by a source with nulllink c
 | File | Status |
 |---|---|
 | `src/integration/cockatrice.py` | ✅ Fixed (T1) — reads `deck.tokens` dict; `<reverse-related>` normalization fixed; `_Tokens.json` load removed |
-| `src/token_generation/token_parser.py` | ✅ Three parser bugs fixed (T2); `_inject_ability_reminder_text()` added (T5); ongoing target for expansion |
+| `src/token_generation/token_parser.py` | ✅ All parser bugs fixed (T2, T7) — `_expand_reminder_definitions`, `_extract_inline_reminders`, `_inject_ability_reminder_text`, X/X P/T, legendary flag, empty-name guard, recursive common-token scan |
 | `src/core/card.py` | ✅ `get_tokens()` extended (T4) — scans front, back (DFC), subspell faces; all `rules1`–`rules6` slots |
 | `src/core/deck.py` | `get_tokens()` runs discovery on whole deck; `_from_json_new_format` loads `tokens` dict |
 | `src/core/ability.py` | `AbilityElements` class kept as fallback; ability words now managed via `config/ability_words.json` |
@@ -157,7 +136,7 @@ Card: `"First Strike, Menace, Nulllink (Damage dealt by a source with nulllink c
 | `config/ability_words.example.json` | ✅ Template |
 | `tests/conftest.py` | ✅ `mock_common_tokens` fixture |
 | `tests/test_token_discovery/test_token_parser.py` | ✅ Parametrized test runner |
-| `tests/test_token_discovery/fixtures/token_test_cases.json` | ✅ 62 test cases; iterative expansion ongoing |
+| `tests/test_token_discovery/fixtures/token_test_cases.json` | ✅ 66 test cases; all passing |
 
 ---
 
@@ -176,7 +155,7 @@ Not supported. DFC tokens are rare and complex. The token editor only supports s
 
 ### ✅ F2b: Custom Ability Word Reminder Text
 
-`config/ability_words.json` stores configurable ability words (preset: Decayed, Shadow, Protection from everything, Anarky). The token parser's `_inject_ability_reminder_text()` function scans every keyword-only line in the token rules text (≤ 4 words, no `{`, no existing parenthetical) and appends the configured `selfDescription` in parentheses. Falls back to hardcoded `AbilityElements` if the config file is missing. Users manage ability words via Settings → "Ability Word Reminder Text."
+`config/ability_words.json` stores configurable ability words (preset: Decayed, Shadow, Protection from everything, Anarky). The token parser's `_inject_ability_reminder_text()` function scans every keyword-only line in the token rules text (≤ 4 words, no `{`, no existing parenthetical) and appends the configured `selfDescription` in parentheses. Also handles comma-separated keyword lists (e.g. `"Haste, lifelink, decayed"` → injects reminder for `decayed`). Falls back to hardcoded `AbilityElements` if the config file is missing. Users manage ability words via Settings → "Ability Word Reminder Text."
 
 ### ✅ F3: Multiple Artworks Per Token — Workflow
 
@@ -227,12 +206,12 @@ Common tokens (Clue, Treasure, Food, etc.) always appear in the `.cod` predefine
 
 Infrastructure: `mock_common_tokens` pytest fixture; parametrized test runner over `token_test_cases.json`.
 
-Parser bugs fixed:
+Parser bugs fixed in original T2 session:
 - **`(create` in reminder text**: strips leading `(` before "create" detection
 - **`"a number of X tokens"` phrasing**: added "Number" and "Of" to exclusion list
 - **`keyword, "quoted ability"` formatting**: splits `Reach, "{t}: Add {G}."` into `Reach\n{t}: Add {G}.`
 
-62 test cases as of T6. Iterative expansion ongoing.
+All remaining bugs (Bugs 1–8 above) fixed in T7 session. **66/66 tests pass.**
 
 ### ✅ Phase T3: Manual Token Creation in Tokens Tab
 
@@ -286,6 +265,19 @@ Known intentional gap: the discovered-tokens panel only updates after clicking F
 5. `deck.html` editor: `#editor-token-alt-art-section` div added to preview pane
 6. `main.js`: `_updateTokenAltArtStrip(altImages)` — renders thumbnails; called on token load, after forge (with a re-fetch), and cleared on close/new-token
 7. `style.css`: `.token-alt-art-badge`, `.editor-token-alt-art-section`, `.editor-token-alt-art-strip`, `.token-alt-art-thumb`
+
+### ✅ Phase T7: Parser Bug Fixes
+
+**Files changed**: `src/token_generation/token_parser.py`, `tests/test_token_discovery/fixtures/token_test_cases.json`
+
+Fixed all 8 parser bugs (Bugs 1–8 above). Added:
+- `_split_sentences_respecting_quotes()` — sentence splitter that respects quoted content
+- `_expand_reminder_definitions()` — pre-processing pass for reminder-text token definitions
+- `_extract_inline_reminders()` — pre-scans rules for inline `keyword (reminder text)` definitions
+- Updated `_inject_ability_reminder_text()` — comma-split multi-keyword handling + inline reminder support
+- Updated test cases: reminder-text-defined tokens use `"Token Creature"` / `"Token Artifact"` cardtype (consistent with all other specialized tokens); Witch toughness corrected from 5 to 4.
+
+**Test suite: 66/66 passing.**
 
 ---
 
