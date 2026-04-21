@@ -61,6 +61,7 @@ A deck `.cod` file has a `<zone name="tokens">` section listing token names. Tho
 
 | Item | Priority | Description |
 |---|---|---|
+| **T2 — Fix parser for 22 failing test cases** | High | See "T2 Parser Bug Inventory" section below for exact fixes needed |
 | **T2 — More test cases** | Ongoing | Continue expanding `token_test_cases.json`; see coverage gaps below |
 | **Manual testing — F2b (ability words)** | Verify | Forge a card that creates a token with "anarky" → confirm reminder text appears on the forged token image |
 | **Live debounced token panel** | Low | Token discovery panel only updates after Forge, not live as the user types (intentional gap from T4) |
@@ -85,6 +86,53 @@ These categories have no dedicated test cases yet:
 - **DFC back face tokens** — a card whose back face (not front) creates tokens
 - **Conditional tokens** — `"If X is 3 or more, create a 3/3 Beast creature token."`
 - **Ability word NOT in config** — should produce no reminder text injection (regression guard)
+
+---
+
+## T2 Parser Bug Inventory (22 failing tests as of T7 session)
+
+**Test run baseline: 44 pass / 22 fail out of 66 total.**
+
+### Bug 1 — X/X power/toughness not parsed (`basic_creature_xx_that_many`)
+The P/T extraction does `int(power)` which throws for `"X"`. Fix: also accept `power.upper() == "X"` as valid. Affects "X/X", "X/1", "1/X" etc.
+
+### Bug 2 — Legendary tokens put "Legendary" in cardtype instead of `legendary: 1` field
+(`legendary_creature_token_*`, `legendary_artifact_token_with_symbols`)
+Current: `cardtype = "Legendary Token Creature"`. Expected: `cardtype = "Token Creature"` + `legendary: 1`. Fix: track `is_legendary` flag, remove "Legendary" from cardtype string, pass `legendary=1` to the `Card()` constructor for frame generation, add `"legendary": 1` to the token dict.
+
+### Bug 3 — Multi-keyword comma-separated lines don't get reminder text injected
+(`creature_token_with_multiple_keyword_abilities_and_reminder_text`, `protection_from_everything_with_reminder_text`)
+`_inject_ability_reminder_text` only matches lines whose **entire content** is an ability word key. For `"Haste, lifelink, decayed"` the key is `"hastelifeliinkdecayed"` — not found. Fix: also split each line on commas and check each part individually. Only inject for parts that match; long parts (> 4 words) are skipped.
+
+### Bug 4 — Tokens defined entirely in reminder text parentheticals are not discovered
+(10 failing cases: `creature_token_defined_by_reminder_text*`, `two_creature_tokens_defined_by_*`, `artifact_token_defined_by_reminder_text_*`)
+When the rules say `Create a Charger token.` with NO type/color info, the parser produces `cardtype = "Token"` (invalid) and filters it out. The actual type is in the parenthetical: `(It's a 4/2 black and green Zombie creature with trample and haste.)`. Fix: add a pre-processing pass `_expand_reminder_definitions(rules_text)` that:
+1. Scans all `(...)` blocks for sentences matching:
+   - `It's a [P/T] [colors] [Types] creature/artifact [with rules]`
+   - `They're [P/T] [colors] [Types] creatures/artifacts`
+   - `A <Name> is a [P/T] [colors] [Types] creature/artifact [with rules]`
+   - `<Name>s are [P/T] [colors] [Types] creatures/artifacts [with rules]`
+2. For `It's/They're` patterns: find the most-recent `create ... <Name> token[s]` on the **same line** using regex `creates?\s+(?:\w+\s+)*?(\w[\w\s-]*?)\s+tokens?\b`; the last word before `token` (excluding adjectives/colors/types) is the name
+3. For `A <Name> is a` / `<Name>s are` patterns: the name is explicit; check if that name appears in any `create` statement in the full rules text
+4. Synthesize a create line: `create a [P/T] [colors] [Types] creature token named <Name> [with rules].` and append to rules_text before the main parse
+Key edge cases:
+- `(Mana abilities can't be targeted. Hunters are 3/3...)` — split paren content on `.` outside quotes before scanning
+- `(Infected are 1/1... Smokers are 3/1...)` — one paren, two definitions; split and process each sentence
+- Replacement effects: `create those tokens plus a tapped Infected token. (It's a 1/1...)` — the name is the word before `token` scanning right-to-left past adjectives (`tapped`, `a`)
+
+**Important gotcha discovered in debug session:** The actual failing test `mentions_token_creates_no_tokens_3` has rules text `"If you would create one or more creature tokens, instead create that many plus two of those tokens and draw a card."` — the key word is **`creature`** before `tokens`. The JSON in the repo says `creature tokens`, not just `tokens`. So the parser DOES find "creature" as a card type and produces `"Token Creature"` with name "Or More" (from "one or more creature tokens"). The fix: add **empty-name guard** — if name is empty or if subtype ends up being a word from `["Or More", "One", "Many", "Those", ...]`, discard.
+
+### Bug 5 — Empty-name token not filtered (`card_type_token_creates_no_tokens`)
+`"Whenever you create an artifact token, draw a card."` produces `{name: "", cardtype: "Token Artifact"}`. The `cardtype == "Token"` guard doesn't catch it because cardtype is `"Token Artifact"`. Fix: add `if not this_token["name"]: continue` before the other filters.
+
+### Bug 6 — Common token inside quoted token rules not detected (`token_that_creates_common_token`)
+`"The Golden Snitch"` has rules `"... creates a Treasure token."` embedded inside its own quoted ability. The parser returns `The Golden Snitch` as specialized but misses `Treasure` as common. Fix: after the main parse loop, for each specialized token whose `rules` field mentions `creates? ... <common_name> token`, append that name to `common_tokens`. Recursive call: `_, extra_common = parse_tokens_from_rules_text(token["rules"], common_tokens_list=common_tokens_list, exclude_list=exclude_list)` and merge extra_common.
+
+### Bug 7 — Custom keyword reminder text from earlier line not picked up (`custom_keyword_ability_with_reminder_text_on_different_line`)
+Card: `"First Strike, Menace, Nulllink (Damage dealt by a source with nulllink causes its controller to exile that many cards from the top of their library.)\n...\ncreate a 1/1 colorless Corrupted Devil creature token with nulllink."` Expected token rules: `"Nulllink (Damage dealt...)"`. The parser produces `"Nulllink"` (no reminder). The existing `_inject_ability_reminder_text` only looks in `ability_words.json`; it won't find `Nulllink` there. Fix: before the main parse loop, **pre-scan the full rules text** to build an inline reminder-text dict: scan every line for `keyword (reminder text)` patterns — specifically lines that contain `\(<text>\)` after a short keyword. Merge these into the ability_words dict for this parse call.
+
+### Bug 8 — Role token inside parenthetical with preceding non-token sentence (`role_token_4`)
+`"Unforgivable (As an additional cost to cast this spell, create an Imprisoned Role token attached to a nontoken creature you control. If you control another Role on it, put that one into the graveyard. Enchanted creature has no abilities and cannot attack or block.)"` — The existing `lstrip('(')` on `create` handles the opening paren. But it fires on the entire parenthetical block as one line. The `Imprisoned Role token` IS found, but the parenthetical-role-rules extraction fails because the reminder text structure differs from other role cases. Needs investigation: add a focused debug run to see what the parser actually produces for this case vs expected.
 
 ---
 
