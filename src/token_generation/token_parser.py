@@ -40,22 +40,289 @@ def _load_ability_words_dict():
     }
 
 
-def _inject_ability_reminder_text(rules: str) -> str:
+def _split_sentences_respecting_quotes(text: str) -> List[str]:
+    """Split text on periods that are outside double-quoted regions."""
+    sentences = []
+    current: List[str] = []
+    in_quotes = False
+    for ch in text:
+        if ch == '"':
+            in_quotes = not in_quotes
+            current.append(ch)
+        elif ch == '.' and not in_quotes:
+            current.append(ch)
+            s = "".join(current).strip()
+            if s:
+                sentences.append(s)
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        s = "".join(current).strip()
+        if s:
+            sentences.append(s)
+    return sentences
+
+
+def _expand_reminder_definitions(rules_text: str, common_tokens_list: Optional[List[str]] = None) -> str:
+    """
+    Pre-processing pass: scan parenthetical (...) blocks for token type-definition
+    sentences and synthesize create lines that the main parser can process.
+
+    Patterns handled:
+    - "It's a P/T colors Subtype creature [with rules]"   → name from preceding create statement
+    - "They're P/T colors Subtype creatures [with rules]" → name from preceding create statement
+    - "A Name is a P/T colors Subtype creature [with rules]" → explicit name
+    - "Names are P/T colors Subtype creatures [with rules]" → explicit name (singularized)
+    - Same patterns for artifacts.
+    """
+    if not rules_text:
+        return rules_text
+
+    _colors_map = {"white": "w", "blue": "u", "black": "b", "red": "r", "green": "g"}
+    _color_words = set(_colors_map.keys())
+    _stop_before_name = {
+        "a", "an", "the", "and", "or", "plus", "tapped", "those", "one", "two",
+        "three", "four", "five", "six", "seven", "eight", "nine", "ten", "x",
+        "many", "more", "of", "number", "that", "goaded", "colorless", "legendary",
+    } | _color_words
+
+    def _name_from_create_text(text: str) -> str:
+        """Return the token name (word(s) before 'token/tokens') from a create statement."""
+        text_lower = text.lower()
+        token_matches = list(re.finditer(r'\btokens?\b', text_lower))
+        if not token_matches:
+            return ""
+        last_pos = token_matches[-1].start()
+        before = text[:last_pos].strip()
+        parts = before.split()
+        name_parts: List[str] = []
+        for word in reversed(parts):
+            w = word.strip(".,").lower()
+            if w in _stop_before_name:
+                if name_parts:
+                    break
+                continue
+            name_parts.insert(0, word.strip(".,"))
+        return " ".join(name_parts)
+
+    def _parse_type_definition(sentence: str) -> Optional[tuple]:
+        """
+        Parse the 'type definition' part of a reminder sentence, e.g.:
+        '4/2 black and green Zombie creature with trample and haste'
+        'colorless artifact with {t}, Sacrifice this artifact: ...'
+        Returns (power, toughness, colors, main_type, subtype, rules) or None.
+        """
+        s = sentence.strip().rstrip(".")
+        # Extract P/T
+        power = toughness = None
+        pt_m = re.match(r'^(\d+|[xX])/(\d+|[xX])\s*', s)
+        if pt_m:
+            power = pt_m.group(1)
+            toughness = pt_m.group(2)
+            s = s[pt_m.end():].strip()
+        # Find main cardtype (handle plural: "creatures", "artifacts")
+        type_m = re.search(r'\b(creature|artifact|enchantment|land|planeswalker)s?\b', s, re.IGNORECASE)
+        if not type_m:
+            return None
+        main_type = type_m.group(1).lower()
+        before_type = s[:type_m.start()]
+        # Extract colors
+        colors: List[str] = []
+        for c_name, c_code in _colors_map.items():
+            if re.search(r'\b' + c_name + r'\b', before_type, re.IGNORECASE):
+                colors.append(c_code)
+        # Sort colors to WUBRG order
+        wubrg = "wubrg"
+        colors = sorted(colors, key=lambda c: wubrg.index(c) if c in wubrg else 99)
+        # Extract subtype (non-color, non-stop words before main type)
+        subtype_words = []
+        for word in before_type.split():
+            w = word.strip(".,").lower()
+            if w not in _color_words and w not in {"and", "or", "colorless", "a", "an"} and w:
+                if not re.match(r'^\d+/\d+$', w) and w not in {"x"}:
+                    subtype_words.append(word.strip(".,"))
+        subtype = " ".join(subtype_words)
+        # Extract rules after "with"
+        after_type = s[type_m.end():]
+        rules = ""
+        with_m = re.search(r'\bwith\s+(.+)$', after_type, re.IGNORECASE | re.DOTALL)
+        if with_m:
+            rules = with_m.group(1).strip().rstrip('"').rstrip('.').lstrip('"').strip()
+            rules = rules.replace('\\"', '"')
+        return power, toughness, colors, main_type, subtype, rules
+
+    def _build_create_line(name: str, power, toughness, colors, main_type, subtype, rules) -> str:
+        _color_names = {"w": "white", "u": "blue", "b": "black", "r": "red", "g": "green"}
+        parts = ["create a"]
+        if power and toughness:
+            parts.append(f"{power}/{toughness}")
+        for c in colors:
+            parts.append(_color_names.get(c, c))
+        if subtype:
+            parts.append(subtype)
+        parts.append(main_type)
+        parts.append(f"token named {name}")
+        line = " ".join(parts)
+        if rules:
+            line += f" with {rules}"
+        return line + "."
+
+    added: List[str] = []
+    lines = rules_text.split("\n")
+
+    for line_idx, line in enumerate(lines):
+        for paren_m in re.finditer(r'\(([^()]*)\)', line):
+            paren_content = paren_m.group(1)
+            paren_start = paren_m.start()
+            sentences = _split_sentences_respecting_quotes(paren_content)
+
+            for sentence in sentences:
+                sentence = sentence.strip()
+                if not sentence:
+                    continue
+
+                parsed = None
+                name = None
+
+                # "It's a ..." / "It's an ..."
+                m = re.match(r"it'?s\s+an?\s+(.+)$", sentence, re.IGNORECASE)
+                if m:
+                    parsed = _parse_type_definition(m.group(1))
+                    if parsed:
+                        before_paren = line[:paren_start]
+                        name = _name_from_create_text(before_paren) or \
+                               _name_from_create_text(line) or \
+                               (line_idx > 0 and _name_from_create_text(lines[line_idx - 1])) or ""
+
+                # "They're ..."
+                if parsed is None:
+                    m = re.match(r"they'?re\s+(.+)$", sentence, re.IGNORECASE)
+                    if m:
+                        parsed = _parse_type_definition(m.group(1))
+                        if parsed:
+                            before_paren = line[:paren_start]
+                            name = _name_from_create_text(before_paren) or \
+                                   _name_from_create_text(line) or \
+                                   (line_idx > 0 and _name_from_create_text(lines[line_idx - 1])) or ""
+
+                # "A <Name> is a ..."
+                if parsed is None:
+                    m = re.match(r'^A\s+([\w][\w\s-]*?)\s+is\s+an?\s+(.+)$', sentence, re.IGNORECASE)
+                    if m:
+                        name = m.group(1).strip()
+                        parsed = _parse_type_definition(m.group(2))
+
+                # "<Name>s are ..." or "<Name> are ..."
+                if parsed is None:
+                    m = re.match(r'^([\w][\w\s-]*?)\s+are\s+(.+)$', sentence, re.IGNORECASE)
+                    if m:
+                        name_plural = m.group(1).strip()
+                        parsed = _parse_type_definition(m.group(2))
+                        if parsed:
+                            # Check if plural appears verbatim in a create line; otherwise singularize
+                            found_verbatim = any(
+                                re.search(r'creates?\s+(?:\S+\s+)*' + re.escape(name_plural) + r'\s+tokens?\b', ln, re.IGNORECASE)
+                                for ln in lines
+                            )
+                            name = name_plural if found_verbatim else (
+                                name_plural[:-1] if name_plural.endswith("s") else name_plural
+                            )
+
+                if parsed is None or not name:
+                    continue
+
+                # Skip if name is already a common token (will be handled by common token detection)
+                if common_tokens_list and name.lower() in [c.lower() for c in common_tokens_list]:
+                    continue
+
+                power, toughness, colors, main_type, subtype, rules = parsed
+                create_line = _build_create_line(name, power, toughness, colors, main_type, subtype, rules)
+                if create_line not in added and create_line not in rules_text:
+                    added.append(create_line)
+
+    if added:
+        return rules_text + "\n" + "\n".join(added)
+    return rules_text
+
+
+def _extract_inline_reminders(rules_text: str) -> dict:
+    """
+    Pre-scan rules text for lines that define a keyword's reminder text inline,
+    e.g. "Keyword (Reminder text.)" or "A, B, Keyword (Reminder text.)".
+    Returns a dict mapping normalized keyword (lowercase, no spaces/dots) → reminder text.
+    """
+    result = {}
+    for line in rules_text.split("\n"):
+        # Match lines that END with a parenthetical
+        match = re.search(r'(.+?)\s*\(([^)]+)\)\s*$', line.strip())
+        if not match:
+            continue
+        before_paren = match.group(1).strip()
+        reminder = match.group(2).strip()
+        # The keyword is the last comma-separated part before the paren
+        parts = [p.strip().rstrip(".,") for p in before_paren.split(",")]
+        last_part = parts[-1].strip()
+        # Only treat short phrases (≤ 4 words) as keyword definitions
+        if last_part and len(last_part.split()) <= 4:
+            key = last_part.lower().replace(" ", "").replace(".", "")
+            if key and key not in result:
+                result[key] = reminder
+    return result
+
+
+def _inject_ability_reminder_text(rules: str, extra_ability_words: dict = None) -> str:
     """
     Scan each line of token rules text.  For any line that is a bare keyword
     (≤ 4 words, no '{', no '(') that exactly matches a configured ability word,
     append that ability's reminder text in parentheses.
+
+    Also handles comma-separated keyword lists like "Haste, lifelink, decayed" —
+    splits on commas, checks each part individually (skipping parts > 4 words),
+    and appends reminder text for any matching part at the end of the line.
+    This comma-split injection only fires when the whole rules text contains no
+    complex ability lines (i.e. every line is a short keyword-only line), because
+    if there's already detailed ability text, reminder text would be redundant.
+
+    extra_ability_words: additional keyword → reminder dict (e.g. from inline
+    reminder text found elsewhere in the card rules).
     """
     ability_words = _load_ability_words_dict()
+    if extra_ability_words:
+        ability_words = {**ability_words, **extra_ability_words}
     lines = rules.split("\n")
+
+    def _is_complex_line(ln: str) -> bool:
+        """Returns True if a line is a complex ability (not just keywords)."""
+        s = ln.strip()
+        if not s or "{" in s or "(" in s:
+            return False  # empty or mana/reminder — let other logic handle
+        parts = [p.strip().rstrip(".") for p in s.split(",")]
+        return any(len(p.split()) > 4 for p in parts)
+
+    has_complex_line = any(_is_complex_line(ln) for ln in lines)
+
     result = []
     for line in lines:
         stripped = line.strip().rstrip(".")
-        # Only consider short lines with no mana symbols or existing reminder text
-        if "{" not in line and "(" not in line and len(stripped.split()) <= 4:
+        # Only consider lines with no mana symbols or existing reminder text
+        if "{" not in line and "(" not in line:
             key = stripped.lower().replace(" ", "").replace(",", "").replace(".", "")
             if key in ability_words and ability_words[key]:
+                # Whole line matches a single ability word
                 line = stripped + " (" + ability_words[key] + ")"
+            elif not has_complex_line:
+                # Try splitting on commas and checking each part individually,
+                # but only when there are no complex ability lines elsewhere
+                parts = [p.strip().rstrip(".") for p in stripped.split(",")]
+                injected = []
+                for part in parts:
+                    if len(part.split()) <= 4:
+                        part_key = part.lower().replace(" ", "").replace(".", "")
+                        if part_key in ability_words and ability_words[part_key]:
+                            injected.append(ability_words[part_key])
+                if injected:
+                    line = stripped + " (" + "; ".join(injected) + ")"
         result.append(line)
     return "\n".join(result)
 
@@ -109,6 +376,11 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
                        "Battle", "Nonbattle"]
 
     # Main parsing logic
+        # Pre-processing: expand reminder-text token definitions into create lines
+        rules_text = _expand_reminder_definitions(rules_text, common_tokens_list=common_tokens_list)
+        # Pre-scan the full rules text for inline keyword reminder text definitions
+        # e.g. "Nulllink (Damage dealt by a source...)" → {nulllink: "Damage dealt by a source..."}
+        inline_reminders = _extract_inline_reminders(rules_text)
         # Helper function. Returns True if the input word (or pair of words) represents a numeric quantity -- e.g., "a", "an", "x", "one", "two", "three", "that many"
         # The second word is ignored except to compare the combination of word1 and word2 against "that many".
         def is_number_word(word1, word2=""):
@@ -235,8 +507,7 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
             cardtype = " ".join([cardtype for cardtype in Card.cardtypes if (cardtype in [w.lower() for w in words[number_word_index:token_word_index]])]).title()
             if "token" not in cardtype.lower():
                 cardtype = "Token "+cardtype
-            if "legendary" in [w.lower() for w in words[number_word_index:token_word_index]]:
-                cardtype = "Legendary "+cardtype
+            is_legendary = "legendary" in [w.lower() for w in words[number_word_index:token_word_index]]
             cardtype = cardtype.strip()
             subtype = " ".join([word.lower().replace(",","").replace(".","") for word in words[number_word_index+1:token_word_index] if (("/" not in word) and 
                                                                                             (word.lower().replace(',','').replace('.','') != name.lower()) and
@@ -256,15 +527,22 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
             # Extract power and toughness
             for i, word in enumerate(words):
                 if "/" in word:
-                    power, toughness = word.split("/")
-                    try:
-                        int(power)
-                        int(toughness)
-                        if "+" not in power and "+" not in toughness and "-" not in power and "-" not in toughness:
+                    parts = word.split("/")
+                    if len(parts) == 2:
+                        power, toughness = parts
+                        def _valid_pt(v):
+                            if v.upper() == "X":
+                                return True
+                            try:
+                                int(v)
+                                return "+" not in v and "-" not in v
+                            except ValueError:
+                                return False
+                        if _valid_pt(power) and _valid_pt(toughness):
+                            power = power.upper() if power.upper() == "X" else power
+                            toughness = toughness.upper() if toughness.upper() == "X" else toughness
                             found_power_toughness = True
                             break
-                    except:
-                        pass
             # Extract rules if the word "with" is present after the word "token" -- keep parsing rules until "." is found (outside of quotation marks)
             rules = ""
             if with_word_index is not None:
@@ -397,17 +675,23 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
                 postprocessed_rules += rules_line
             rules = postprocessed_rules.replace("..",".")
             # Inject reminder text for any configured ability words found on keyword-only lines
-            rules = _inject_ability_reminder_text(rules)
+            rules = _inject_ability_reminder_text(rules, extra_ability_words=inline_reminders)
             # Handle the special case of Roles
             if "Role" in subtype.split():
                 subtype = "Aura Role"
                 cardtype = "Token Enchantment"
                 name = name.replace("Role", "").strip()
                 rules = ""
-                parentheses_re_match = re.search(r'\((.*?)\)', " ".join(original_words))
+                # Search the full original line first (handles cases where the opening '('
+                # precedes the 'create' keyword, e.g. keyword reminder text)
+                parentheses_re_match = re.search(r'\(([^)]+)\)', line)
+                if not parentheses_re_match:
+                    parentheses_re_match = re.search(r'\(([^)]+)\)', " ".join(original_words))
                 if parentheses_re_match:
                     rules = parentheses_re_match.group(1)  # Extract the text within parentheses
                     rules = re.sub(re.escape("If you control another Role on it, put that one into the graveyard."), "", rules, flags=re.IGNORECASE).strip() # Remove Role rules text.
+                    # Strip the "additional cost" reminder sentence (e.g. keyword abilities)
+                    rules = re.sub(r'As an additional cost to cast this spell, create [^.]+Role token[^.]*\.', "", rules, flags=re.IGNORECASE).strip()
                     rules = re.sub(re.escape("that Role"), "this Role", rules, flags=re.IGNORECASE).strip() # Replace text referencing that Role with this Role.
                     rules = "Enchant creature\n" + rules
             # Extract colors:
@@ -420,7 +704,8 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
                               power=power if found_power_toughness else None,
                               toughness=toughness if found_power_toughness else None,
                               rules=rules,
-                              colors=colors)
+                              colors=colors,
+                              legendary=1 if is_legendary else None)
             frame_filename = dummy_card.get_frame_filename()
             # Create and return the dictionary
             this_token = {
@@ -437,6 +722,13 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
                 this_token["toughness"] = toughness
             if frame_filename is not None and len(frame_filename)>0:
                 this_token["frame"] = frame_filename
+            if is_legendary:
+                this_token["legendary"] = 1
+            # Discard tokens with no name or with names that are clearly not token names
+            # (artifacts of parsing replacement-effect or "one or more" wording)
+            _bad_names = {"or more", "one", "many", "those", "two", "three", "four", "five"}
+            if not this_token["name"] or this_token["name"].lower() in _bad_names:
+                continue
             if this_token["name"].lower() in [e.lower() for e in exclude_list]: # Explicitly excluded token
                 continue
             if this_token["name"].lower() in [e.lower() for e in common_tokens_list]:
@@ -445,4 +737,15 @@ def parse_tokens_from_rules_text(rules_text, card_name="", common_tokens_list=No
             if (this_token["cardtype"] == "Token"): # Invalid token -- no cardtype specified
                 continue
             specialized_tokens.append(this_token)
+        # Bug 6: check each specialized token's rules for common tokens created within
+        for st in specialized_tokens:
+            if st.get("rules"):
+                _, extra_common = parse_tokens_from_rules_text(
+                    st["rules"],
+                    common_tokens_list=common_tokens_list,
+                    Card=Card,
+                )
+                for ec in extra_common:
+                    if ec not in common_tokens:
+                        common_tokens.append(ec)
         return specialized_tokens, common_tokens

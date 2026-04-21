@@ -33,7 +33,7 @@
         "id": "treasure_token_and_specialized_token",
         "description": "Treasure token (common token) plus specialized token",
         "card_name": "Black Mask, Of The False Face Society",
-        "rules": "<i>Extortion</i> — Whenever a creature enters the battlefield under an opponent's control for the first time each turn, that player may have you create a Treasure token. If they don't, create and attach to that creature a colorless Equipment artifact token named Black Mask with \"At the beginning of each end step, put a -1/-1 counter on equipped creature.\"\nTreasures you control are Clues in addition to their other types.",
+        "rules": "<i>Extortion</i> \u2014 Whenever a creature enters the battlefield under an opponent's control for the first time each turn, that player may have you create a Treasure token. If they don't, create and attach to that creature a colorless Equipment artifact token named Black Mask with \"At the beginning of each end step, put a -1/-1 counter on equipped creature.\"\nTreasures you control are Clues in addition to their other types.",
         "expected_specialized": [
             {
                 "name": "Black Mask",
@@ -71,7 +71,7 @@
         "id": "multiple_diff_common_tokens",
         "description": "Clue token and food token (common tokens)",
         "card_name": "Condiment King, Brainwashed Comedian",
-        "rules": "<i>Playing \"Ketchup\"</i> — Whenever an opponent draws their second card each turn, create a Food token. (It's an artifact with \"{2}, {t}, Sacrifice this artifact: You gain 3 life.\")\n<i>Hot Sauce Packet</i> — {t}, Sacrifice a Food: Target creature gets -3/-0 until end of turn. Investigate. (Create a colorless Clue artifact token with \"{2}, Sacrifice this artifact: Draw a card.\")",
+        "rules": "<i>Playing \"Ketchup\"</i> \u2014 Whenever an opponent draws their second card each turn, create a Food token. (It's an artifact with \"{2}, {t}, Sacrifice this artifact: You gain 3 life.\")\n<i>Hot Sauce Packet</i> \u2014 {t}, Sacrifice a Food: Target creature gets -3/-0 until end of turn. Investigate. (Create a colorless Clue artifact token with \"{2}, Sacrifice this artifact: Draw a card.\")",
         "expected_specialized": [],
         "expected_common": [
             "Clue",
@@ -118,7 +118,7 @@
         "id": "basic_creature_token_phrasing_uses_creates",
         "description": "Simple creature token with P/T, but phrasing uses 'creates' instead of 'create'",
         "card_name": "Kinglor Forest",
-        "rules": "({t}: Add {G}.)\nKinglor Forest enters the battlefield tapped unless you control two or more other primal lands.\n<i>Channel</i> — {2}{G}{G}, Discard Kinglor Forest: Shuffle target creature into it’s owner’s library. Its controller creates two 0/1 green Plant creature tokens.",
+        "rules": "({t}: Add {G}.)\nKinglor Forest enters the battlefield tapped unless you control two or more other primal lands.\n<i>Channel</i> \u2014 {2}{G}{G}, Discard Kinglor Forest: Shuffle target creature into it\u2019s owner\u2019s library. Its controller creates two 0/1 green Plant creature tokens.",
         "expected_specialized": [
             {
                 "name": "Plant",
@@ -244,7 +244,7 @@
         "id": "basic_creature_token_plus_common_token",
         "description": "Simple creature token with P/T plus a Treasure token (common).",
         "card_name": "General Grievous, The Collector",
-        "rules": "Trample\nWhenever General Grievous attacks, create a 1/1 colorless Droid artifact creature token.\nWhenever a creature token you control dies, choose one that hasn't been chosen this turn:\n• Gain control of target artifact with mana value 3 or less until General Grievous leaves the battlefield.\n• Create a Treasure token.",
+        "rules": "Trample\nWhenever General Grievous attacks, create a 1/1 colorless Droid artifact creature token.\nWhenever a creature token you control dies, choose one that hasn't been chosen this turn:\n\u2022 Gain control of target artifact with mana value 3 or less until General Grievous leaves the battlefield.\n\u2022 Create a Treasure token.",
         "expected_specialized": [
             {
                 "name": "Droid",
@@ -566,7 +566,7 @@
         "expected_specialized": [
             {
                 "name": "Charger",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "Trample, haste",
                 "power": "4",
@@ -584,7 +584,7 @@
         "expected_specialized": [
             {
                 "name": "Charger",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "Trample, haste",
                 "power": "4",
@@ -602,7 +602,7 @@
         "expected_specialized": [
             {
                 "name": "Infected",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "",
                 "power": "1",
@@ -620,7 +620,7 @@
         "expected_specialized": [
             {
                 "name": "Infected",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "",
                 "power": "1",
@@ -638,7 +638,7 @@
         "expected_specialized": [
             {
                 "name": "Infected",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "",
                 "power": "1",
@@ -656,11 +656,11 @@
         "expected_specialized": [
             {
                 "name": "Witch",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "Defender\nWhenever this creature is dealt damage or targeted, it loses all abilities. Each opponent loses 5 life.",
                 "power": "5",
-                "toughness": "5",
+                "toughness": "4",
                 "frame": "bg_token_creature.jpg"
             }
         ],
@@ -674,7 +674,7 @@
         "expected_specialized": [
             {
                 "name": "Hunter",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "When this creature enters the battlefield, it fights target creature.",
                 "power": "3",
@@ -692,7 +692,7 @@
         "expected_specialized": [
             {
                 "name": "Jockey",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "Menace, haste\nWhen this creature enters the battlefield, it deals 2 damage to target creature.",
                 "power": "1",
@@ -710,7 +710,7 @@
         "expected_specialized": [
             {
                 "name": "Infected",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "",
                 "power": "1",
@@ -719,7 +719,7 @@
             },
             {
                 "name": "Tank",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "Menace, trample",
                 "power": "4",
@@ -737,7 +737,7 @@
         "expected_specialized": [
             {
                 "name": "Infected",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "",
                 "power": "1",
@@ -746,7 +746,7 @@
             },
             {
                 "name": "Smoker",
-                "cardtype": "Creature",
+                "cardtype": "Token Creature",
                 "subtype": "Zombie",
                 "rules": "Reach, deathtouch\nWhen this creature dies, each opponent loses 1 life.",
                 "power": "3",
@@ -764,7 +764,7 @@
         "expected_specialized": [
             {
                 "name": "Pain-Pills",
-                "cardtype": "Artifact",
+                "cardtype": "Token Artifact",
                 "rules": "{t}, Sacrifice this artifact: Target creature gets +1/+1 until end of turn.",
                 "frame": "c_token_artifact-noncreature.jpg"
             }
@@ -825,7 +825,7 @@
         "id": "simple_artifact_token_plus_complex_creature_token_with_multi_word_ability_in_quotes",
         "description": "Simple artifact token with no abilities, plus a complex creature token with multiple abilities, including a complex ability wrapped in quotes.",
         "card_name": "Lord Voldemort, He Who Must Not Be Named",
-        "rules": "When Lord Voldemort enters the battlefield, create seven colorless Horcrux artifact tokens.\nLord Voldemort has indestructible as long as you control a Horcrux.\n<i>Magecraft</i> — Whenever you cast or copy an instant or sorcery spell, sacrifice a Horcrux. Create a 2/2 black Dementor creature token with flying, deathtouch, and \"<i>Magecraft</i> — Whenever you cast or copy an instant or sorcery spell, each opponent loses 1 life and you gain 1 life.\"\nFlying",
+        "rules": "When Lord Voldemort enters the battlefield, create seven colorless Horcrux artifact tokens.\nLord Voldemort has indestructible as long as you control a Horcrux.\n<i>Magecraft</i> \u2014 Whenever you cast or copy an instant or sorcery spell, sacrifice a Horcrux. Create a 2/2 black Dementor creature token with flying, deathtouch, and \"<i>Magecraft</i> \u2014 Whenever you cast or copy an instant or sorcery spell, each opponent loses 1 life and you gain 1 life.\"\nFlying",
         "expected_specialized": [
             {
                 "name": "Horcrux",
@@ -838,7 +838,7 @@
                 "name": "Dementor",
                 "cardtype": "Token Creature",
                 "subtype": "Dementor",
-                "rules": "Flying, deathtouch\n<i>Magecraft</i> — Whenever you cast or copy an instant or sorcery spell, each opponent loses 1 life and you gain 1 life.",
+                "rules": "Flying, deathtouch\n<i>Magecraft</i> \u2014 Whenever you cast or copy an instant or sorcery spell, each opponent loses 1 life and you gain 1 life.",
                 "power": "2",
                 "toughness": "2",
                 "frame": "b_token_creature.jpg"
@@ -850,7 +850,7 @@
         "id": "custom_keyword_ability_with_reminder_text",
         "description": "Token with a keyword ability that is specifically defined in an external user settings/config, or in an ability registry class with predefined reminder text, or just has reminder text present on the card. Reminder text should appear on the token.",
         "card_name": "Bane, Gotham's Reckoning",
-        "rules": "<i>The Fire Rises</i> — Whenever you draw a card except the first one you draw in each of your draw steps, put a +1/+1 counter on Bane and create a 1/1 red Human Anarchist creature token with anarky. (A creature with anarky attacks a randomly selected opponent each combat if able.)\n<i>You Merely Adopted The Dark</i> — Creatures your opponents control have anarky.\n<i>I Was Born In It</i> — Whenever an opponent attacks you, draw a card.",
+        "rules": "<i>The Fire Rises</i> \u2014 Whenever you draw a card except the first one you draw in each of your draw steps, put a +1/+1 counter on Bane and create a 1/1 red Human Anarchist creature token with anarky. (A creature with anarky attacks a randomly selected opponent each combat if able.)\n<i>You Merely Adopted The Dark</i> \u2014 Creatures your opponents control have anarky.\n<i>I Was Born In It</i> \u2014 Whenever an opponent attacks you, draw a card.",
         "expected_specialized": [
             {
                 "name": "Human Anarchist",
@@ -920,7 +920,7 @@
         "id": "role_token_2",
         "description": "Different enchantment role token with extra reminder text that shouldn't end up in the token rules text.",
         "card_name": "Riddler, Enigmatic Mastermind",
-        "rules": "<i>Riddle Me This</i> — When Riddler enters the battlefield, each player investigates. For each opponent, create a Detective Role token attached to target creature that player controls. (If you control another Role on it, put that one into the graveyard. Enchanted creature has no abilities as long as its controller controls a Clue.)\nWhenever an opponent sacrifices a Clue for the first time each turn, target player investigates.",
+        "rules": "<i>Riddle Me This</i> \u2014 When Riddler enters the battlefield, each player investigates. For each opponent, create a Detective Role token attached to target creature that player controls. (If you control another Role on it, put that one into the graveyard. Enchanted creature has no abilities as long as its controller controls a Clue.)\nWhenever an opponent sacrifices a Clue for the first time each turn, target player investigates.",
         "expected_specialized": [
             {
                 "name": "Detective",
@@ -936,7 +936,7 @@
         "id": "role_token_3",
         "description": "Yet another enchantment role token with extra reminder text that shouldn't end up in the token rules text. Harder because 'that' must change to 'this' in token rules text.",
         "card_name": "Mad Hatter, Hypnotist",
-        "rules": "<i>Callooh! Callay!</i> — When Mad Hatter enters the battlefield, target creature's controller investigates. Untap that creature. It gains haste until end of turn. Create a Hypnotized Role token attached to it. (If you control another Role on it, put that one into the graveyard. You control enchanted creature. Sacrifice that Role if enchanted creature's owner controls no Clues.)",
+        "rules": "<i>Callooh! Callay!</i> \u2014 When Mad Hatter enters the battlefield, target creature's controller investigates. Untap that creature. It gains haste until end of turn. Create a Hypnotized Role token attached to it. (If you control another Role on it, put that one into the graveyard. You control enchanted creature. Sacrifice that Role if enchanted creature's owner controls no Clues.)",
         "expected_specialized": [
             {
                 "name": "Hypnotized",
@@ -1000,7 +1000,7 @@
         "id": "custom_token_common_types",
         "description": "Token with a subtype that is among common/predefined tokens, but with a unique combination of types that should prevent it from being misidentified as a common token.",
         "card_name": "Penguin, King Of Gotham",
-        "rules": "<i>Penguin Commandos</i> — Whenever you discard one or more cards for the first time each turn, create a 1/1 colorless Clue Bird artifact creature token with \"{2}, Sacrifice this permanent: Draw a card.\".\nWhenever you sacrifice a Bird, that creature deals 1 damage to each opponent and you create a tapped Treasure token.",
+        "rules": "<i>Penguin Commandos</i> \u2014 Whenever you discard one or more cards for the first time each turn, create a 1/1 colorless Clue Bird artifact creature token with \"{2}, Sacrifice this permanent: Draw a card.\".\nWhenever you sacrifice a Bird, that creature deals 1 damage to each opponent and you create a tapped Treasure token.",
         "expected_specialized": [
             {
                 "name": "Clue Bird",
@@ -1044,7 +1044,7 @@
         "id": "copies_become_tokens_creates_no_tokens",
         "description": "Card that just mentions tokens ('copies becomes tokens') but creates no tokens of its own. Token discovery should not create a token here.",
         "card_name": "Zakru",
-        "rules": "Replicate {3}{G} (When you cast this spell, copy it for each time you paid its replicate cost. Copies of permanent spells become tokens.)\n<i>Channel</i> — {G}{G}, Discard Zakru: Until end of turn, primal creatures you control have base power and toughness 8/10 as long as they aren’t attacking. (A permanent is primal if it has no activated or triggered abilities except mana abilities.)\n",
+        "rules": "Replicate {3}{G} (When you cast this spell, copy it for each time you paid its replicate cost. Copies of permanent spells become tokens.)\n<i>Channel</i> \u2014 {G}{G}, Discard Zakru: Until end of turn, primal creatures you control have base power and toughness 8/10 as long as they aren\u2019t attacking. (A permanent is primal if it has no activated or triggered abilities except mana abilities.)\n",
         "expected_specialized": [],
         "expected_common": []
     },
