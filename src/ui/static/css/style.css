@@ -1596,8 +1596,8 @@ footer p {
 /* Orphaned token outline (no source cards) */
 .token-gallery-item--orphan .card-image-container,
 .token-gallery-item--orphan .card-image-placeholder {
-    outline: 2px solid #f0b429;
-    outline-offset: -2px;
+    outline: 4px solid #f0b429;
+    outline-offset: -4px;
 }
 
 /* ── Token editor extras ─────────────────────────────────────────────────── */
@@ -1855,6 +1855,44 @@ footer p {
 .btn-publish-large:hover {
     filter: brightness(1.08);
     transform: translateY(-1px);
+}
+
+.btn-discard-assembly {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    background: #4a1a1a;
+    color: #d48888;
+    border: 1px solid #6a2a2a;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.btn-discard-assembly:hover:not(:disabled) {
+    background: #6a2020;
+    color: #f0a0a0;
+    border-color: #cc4444;
+}
+
+.btn-discard-assembly:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.confirm-dialog-actions--column {
+    flex-direction: column !important;
+    gap: 8px !important;
+}
+
+.confirm-dialog-actions--column .btn {
+    width: 100%;
+    justify-content: center;
+}
+
+.btn-delete-card--dim {
+    opacity: 0.8;
 }
 
 /* ── Forge Entire Deck Tab ───────────────────────────────────────────────── */

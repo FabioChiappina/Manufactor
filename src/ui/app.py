@@ -1626,6 +1626,82 @@ def discard_card(deck_name):
     return jsonify({'staged_count': len(staging), 'is_new': is_new_card})
 
 
+@app.route('/deck/<deck_name>/discard-all', methods=['POST'])
+def discard_all(deck_name):
+    """Discard all (or a filtered set of) staged changes."""
+    deck_name = unquote(deck_name)
+    body = request.get_json(silent=True) or {}
+    discard_type = body.get('type', 'all')  # 'all' | 'cards' | 'tokens'
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    staging = load_staging(folder_path)
+    staging_dir = get_staging_path(folder_path)
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    deck_modified = False
+    discarded_names = []
+    removed_new_names = []
+
+    for card_name in list(staging.keys()):
+        entry = staging[card_name]
+        is_token = entry.get('is_token', False) or card_name.startswith('_TOKEN_')
+
+        if discard_type == 'cards' and is_token:
+            continue
+        if discard_type == 'tokens' and not is_token:
+            continue
+
+        is_new = entry.get('is_new', False)
+        original_key = entry.get('original_key')
+
+        if is_new or original_key:
+            if is_token:
+                raw_deck.get('tokens', {}).pop(card_name, None)
+            else:
+                cards_dict = raw_deck.get('cards', {})
+                if is_new:
+                    cards_dict.pop(card_name, None)
+                if original_key:
+                    cards_dict.pop(card_name, None)
+                    orig_data = entry.get('original')
+                    if orig_data is not None:
+                        cards_dict[original_key] = orig_data
+            deck_modified = True
+            if is_new:
+                removed_new_names.append(card_name)
+
+        front_name = entry.get('front_name') or card_name
+        staged_img = os.path.join(staging_dir, f"{front_name}.jpg")
+        if os.path.isfile(staged_img):
+            os.remove(staged_img)
+        back_face_name = ((entry.get('updated') or {}).get('back') or {}).get('name')
+        if back_face_name:
+            staged_back = os.path.join(staging_dir, f"{back_face_name}.jpg")
+            if os.path.isfile(staged_back):
+                os.remove(staged_back)
+
+        discarded_names.append(card_name)
+        del staging[card_name]
+
+    if deck_modified:
+        _touch_last_modified(raw_deck)
+        with open(deck_data['json_path'], 'w') as f:
+            json.dump(raw_deck, f, indent=2)
+
+    save_staging(folder_path, staging)
+    return jsonify({
+        'staged_count': len(staging),
+        'discarded_card_names': discarded_names,
+        'removed_new_names': removed_new_names,
+    })
+
+
 @app.route('/deck/<deck_name>/stage-delete', methods=['POST'])
 def stage_delete(deck_name):
     """Stage a card for deletion; the removal is applied when the assembly line is published."""
@@ -2219,6 +2295,38 @@ def scryfall_search():
         return jsonify({'cards': [], 'error': str(e)})
 
 
+@app.route('/api/scryfall/search-tokens')
+def scryfall_search_tokens():
+    """Proxy Scryfall token search by name (includes extras)."""
+    q = request.args.get('q', '').strip()
+    if not q or len(q) < 2:
+        return jsonify({'cards': []})
+
+    # Append t:token to restrict to token cards; include_extras=true to surface them
+    params = urlencode({'q': f'{q} t:token', 'include_extras': 'true', 'unique': 'cards', 'order': 'name'})
+    url = f'https://api.scryfall.com/cards/search?{params}'
+
+    _scryfall_headers = {'User-Agent': 'MagicManufactor/1.0', 'Accept': 'application/json'}
+    try:
+        req = _url_req.Request(url, headers=_scryfall_headers)
+        with _url_req.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+
+        cards = []
+        for card in data.get('data', []):
+            cards.append({
+                'name': card.get('name', ''),
+                'oracle_id': card.get('oracle_id', ''),
+                'mana_cost': card.get('mana_cost', ''),
+                'type_line': card.get('type_line', ''),
+                'color_identity': card.get('color_identity', []),
+            })
+        return jsonify({'cards': cards[:20]})
+
+    except Exception as e:
+        return jsonify({'cards': [], 'error': str(e)})
+
+
 @app.route('/api/scryfall/printings')
 def scryfall_printings():
     """Get all printings of a card by exact name, newest first."""
@@ -2497,6 +2605,117 @@ def add_real_card(deck_name):
     return jsonify({
         'success': True,
         'is_new':  is_new,
+        'staged_count': len(staging),
+        'image_base64': image_b64,
+    })
+
+
+@app.route('/deck/<deck_name>/add-real-token', methods=['POST'])
+def add_real_token(deck_name):
+    """Add a real MTG token to the deck's token list via the staging pipeline."""
+    deck_name = unquote(deck_name)
+    data = request.get_json() or {}
+
+    token_name  = data.get('name', '').strip()
+    image_uri   = data.get('image_uri', '').strip()
+    scryfall_id = data.get('scryfall_id', '').strip()
+    oracle_id   = data.get('oracle_id', '').strip()
+    type_line   = data.get('type_line', '') or ''
+    oracle_text = data.get('oracle_text', '') or ''
+    power       = data.get('power', '') or ''
+    toughness   = data.get('toughness', '') or ''
+    colors      = data.get('colors', [])
+    color_id    = data.get('color_identity', [])
+    artist      = data.get('artist', '') or ''
+
+    if not token_name or not image_uri:
+        return jsonify({'error': 'token name and image_uri required'}), 400
+
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+
+    folder_path = deck_data['folder_path']
+    staging_dir = get_staging_path(folder_path)
+    os.makedirs(staging_dir, exist_ok=True)
+
+    # Parse type_line → cardtype + subtype
+    cardtype = type_line
+    subtype  = ''
+    if '\u2014' in type_line:
+        parts    = type_line.split('\u2014', 1)
+        cardtype = parts[0].strip()
+        subtype  = parts[1].strip()
+
+    # Strip "Token" from cardtype for cleaner display (it's implied)
+    cardtype_words = [w for w in cardtype.split() if w != 'Token']
+    cardtype_clean = ' '.join(cardtype_words) if cardtype_words else cardtype
+
+    token_key  = f'_TOKEN_{token_name}'
+    safe_name  = token_name.replace(' // ', ' -- ').replace('/', '-')
+    staged_img_path = os.path.join(staging_dir, f"{safe_name}.jpg")
+
+    try:
+        req = _url_req.Request(image_uri, headers={'User-Agent': 'MagicManufactor/1.0', 'Accept': 'image/*,*/*'})
+        with _url_req.urlopen(req, timeout=20) as resp:
+            img_bytes = resp.read()
+        with open(staged_img_path, 'wb') as f:
+            f.write(img_bytes)
+    except Exception as e:
+        return jsonify({'error': f'Failed to download token image: {e}'}), 500
+
+    token_entry = {
+        'name': token_name,
+        'cardtype': cardtype_clean,
+        'subtype': subtype,
+        'rules': oracle_text,
+        'power': power,
+        'toughness': toughness,
+        'real': 1,
+        'token': 1,
+        'complete': 0,
+        'quantity': 1,
+        'source_cards': [],
+        'colors': colors,
+        'color_identity': color_id,
+        'scryfall_id': scryfall_id,
+        'oracle_id': oracle_id,
+        'artist': artist,
+        'image_uri': image_uri,
+    }
+
+    with open(deck_data['json_path'], 'r') as f:
+        raw_deck = json.load(f)
+
+    is_new   = token_key not in raw_deck.get('tokens', {})
+    original = raw_deck.get('tokens', {}).get(token_key, {})
+
+    raw_deck.setdefault('tokens', {})[token_key] = token_entry
+    _touch_last_modified(raw_deck)
+    with open(deck_data['json_path'], 'w') as f:
+        json.dump(raw_deck, f, indent=2)
+
+    staging = load_staging(folder_path)
+    staging[token_key] = {
+        'original': original,
+        'updated':  token_entry,
+        'staged_image_path': f"Staging/{safe_name}.jpg",
+        'front_name': safe_name,
+        'is_new':    is_new,
+        'is_real':   True,
+        'is_token':  True,
+    }
+    save_staging(folder_path, staging)
+
+    image_b64 = None
+    if os.path.isfile(staged_img_path):
+        with open(staged_img_path, 'rb') as f:
+            image_b64 = 'data:image/jpeg;base64,' + base64.b64encode(f.read()).decode()
+
+    return jsonify({
+        'success': True,
+        'is_new':  is_new,
+        'token_key': token_key,
         'staged_count': len(staging),
         'image_base64': image_b64,
     })

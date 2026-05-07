@@ -1185,6 +1185,7 @@ function _doBasicAction(color, action, btn) {
 
     // ── Real Card Dialog state ─────────────────────────────────────────────────
     var _rcdMode           = 'add';  // 'add' | 'edit'
+    var _rcdIsTokenMode    = false;  // true when adding a real token (from Tokens tab)
     var _rcdSelectedCard   = null;   // card object from Scryfall search
     var _rcdSelectedPrinting = null; // printing object from Scryfall
     var _rcdSearchTimer    = null;
@@ -1663,6 +1664,7 @@ function _doBasicAction(color, action, btn) {
 
     function openRealCardDialogAdd() {
         _rcdMode            = 'add';
+        _rcdIsTokenMode     = false;
         _rcdSelectedCard    = null;
         _rcdSelectedPrinting = null;
         _rcdCardBeingEdited = null;
@@ -1678,7 +1680,40 @@ function _doBasicAction(color, action, btn) {
         if (addBtn) { addBtn.textContent = 'Add to Deck'; addBtn.disabled = true; }
         var delBtn = $id('rcd-delete-btn');
         if (delBtn) delBtn.style.display = 'none';
+        var qtyLabel = $id('rcd-quantity');
+        if (qtyLabel) qtyLabel.closest('label').style.display = '';
         $id('rcd-quantity').value = '1';
+        $id('rcd-search-input').value = '';
+        $id('rcd-search-results').innerHTML = '';
+        $id('rcd-search-results').style.display = 'none';
+        $id('rcd-search-status').style.display = 'none';
+        _rcdClearStatus();
+
+        dialog.showModal();
+        setTimeout(function () { var inp = $id('rcd-search-input'); if (inp) inp.focus(); }, 50);
+    }
+
+    function openRealCardDialogAddToken() {
+        _rcdMode             = 'add';
+        _rcdIsTokenMode      = true;
+        _rcdSelectedCard     = null;
+        _rcdSelectedPrinting = null;
+        _rcdCardBeingEdited  = null;
+
+        var dialog = $id('real-card-dialog');
+        if (!dialog) return;
+
+        $id('rcd-title').textContent              = 'Add Real Token';
+        $id('rcd-search-section').style.display   = '';
+        $id('rcd-card-name-row').style.display    = 'none';
+        $id('rcd-printing-section').style.display = 'none';
+        var addBtn = $id('rcd-add-btn');
+        if (addBtn) { addBtn.textContent = 'Add Token'; addBtn.disabled = true; }
+        var delBtn = $id('rcd-delete-btn');
+        if (delBtn) delBtn.style.display = 'none';
+        // Tokens always have quantity 1 — hide the qty input
+        var qtyEl = $id('rcd-quantity');
+        if (qtyEl) qtyEl.closest('label').style.display = 'none';
         $id('rcd-search-input').value = '';
         $id('rcd-search-results').innerHTML = '';
         $id('rcd-search-results').style.display = 'none';
@@ -1691,6 +1726,7 @@ function _doBasicAction(color, action, btn) {
 
     function openRealCardEditorForCard(cardName) {
         _rcdMode            = 'edit';
+        _rcdIsTokenMode     = false;
         _rcdSelectedCard    = null;
         _rcdSelectedPrinting = null;
         _rcdCardBeingEdited = cardName;
@@ -1759,7 +1795,10 @@ function _doBasicAction(color, action, btn) {
         statusEl.textContent = 'Searching\u2026'; statusEl.style.display = '';
         resultsEl.style.display = 'none';
 
-        fetch('/api/scryfall/search?q=' + encodeURIComponent(q) + '&colors=' + encodeURIComponent(_rcdGetColors()))
+        var searchUrl = _rcdIsTokenMode
+            ? '/api/scryfall/search-tokens?q=' + encodeURIComponent(q)
+            : '/api/scryfall/search?q=' + encodeURIComponent(q) + '&colors=' + encodeURIComponent(_rcdGetColors());
+        fetch(searchUrl)
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 statusEl.style.display = 'none';
@@ -1801,7 +1840,10 @@ function _doBasicAction(color, action, btn) {
     }
 
     function _rcdLoadPrintings(cardName, currentScryfallId) {
-        fetch('/api/scryfall/printings?name=' + encodeURIComponent(cardName))
+        var printingsUrl = _rcdIsTokenMode
+            ? '/api/scryfall/token-printings?name=' + encodeURIComponent(cardName)
+            : '/api/scryfall/printings?name=' + encodeURIComponent(cardName);
+        fetch(printingsUrl)
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 var loadingEl = $id('rcd-printings-loading');
@@ -1875,10 +1917,47 @@ function _doBasicAction(color, action, btn) {
         var addBtn = $id('rcd-add-btn'); if (addBtn) addBtn.disabled = true;
         _rcdClearStatus();
 
+        var p = _rcdSelectedPrinting;
+
+        // ── Token add mode ────────────────────────────────────────────────────
+        if (_rcdIsTokenMode) {
+            var tokenName = _rcdSelectedCard ? _rcdSelectedCard.name : '';
+            if (!tokenName) { _rcdShowStatus('error', 'No token selected.'); if (addBtn) addBtn.disabled = false; return; }
+            fetch('/deck/' + encodeURIComponent(_deckName) + '/add-real-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: tokenName, image_uri: p.image_uri,
+                    scryfall_id: p.id, oracle_id: p.oracle_id,
+                    type_line: p.type_line, oracle_text: p.oracle_text,
+                    power: p.power, toughness: p.toughness,
+                    colors: p.colors, color_identity: p.color_identity,
+                    artist: p.artist,
+                }),
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (addBtn) addBtn.disabled = false;
+                if (data.error) { _rcdShowStatus('error', 'Error: ' + data.error); return; }
+                _updatePublishBar(data.staged_count || 0);
+                _rcdAddTokenGalleryItem(tokenName, data.token_key, p, data);
+                _rcdShowStatus('ok', '\u2713 \u201c' + tokenName + '\u201d added! Publish the Assembly Line to finalize.');
+                setTimeout(function () {
+                    var dialog = $id('real-card-dialog');
+                    if (dialog && dialog.open) dialog.close();
+                }, 1800);
+            })
+            .catch(function () {
+                if (addBtn) addBtn.disabled = false;
+                _rcdShowStatus('error', 'Request failed. Please try again.');
+            });
+            return;
+        }
+
+        // ── Card add / edit mode ──────────────────────────────────────────────
         var cardName = _rcdMode === 'edit' ? _rcdCardBeingEdited : (_rcdSelectedCard ? _rcdSelectedCard.name : '');
         if (!cardName) { _rcdShowStatus('error', 'No card selected.'); if (addBtn) addBtn.disabled = false; return; }
         var qty = parseInt(($id('rcd-quantity') || {}).value, 10) || 1;
-        var p   = _rcdSelectedPrinting;
 
         fetch('/deck/' + encodeURIComponent(_deckName) + '/add-real-card', {
             method: 'POST',
@@ -1913,6 +1992,62 @@ function _doBasicAction(color, action, btn) {
             if (addBtn) addBtn.disabled = false;
             _rcdShowStatus('error', 'Request failed. Please try again.');
         });
+    }
+
+    function _rcdAddTokenGalleryItem(tokenName, tokenKey, printing, serverData) {
+        var typeLine  = printing.type_line || '';
+        var cardtype  = typeLine.includes('\u2014') ? typeLine.split('\u2014')[0].trim() : typeLine;
+        cardtype      = cardtype.replace(/\bToken\b/g, '').trim();
+        var subtype   = typeLine.includes('\u2014') ? typeLine.split('\u2014')[1].trim() : '';
+
+        var container = $id('token-gallery-container');
+        if (!container) return;
+
+        var a = document.createElement('a');
+        a.href = '#edit-token/' + encodeURIComponent(tokenKey);
+        a.className = 'card-gallery-item token-gallery-item';
+        a.dataset.tokenKey = tokenKey;
+        a.dataset.name     = tokenName;
+        a.dataset.cardtype = cardtype;
+        a.dataset.subtype  = subtype;
+        a.dataset.rules    = printing.oracle_text || '';
+        a.dataset.quantity = '1';
+
+        var imgContainer;
+        if (serverData && serverData.image_base64) {
+            imgContainer = document.createElement('div');
+            imgContainer.className = 'card-image-container';
+            var img = document.createElement('img');
+            img.src = serverData.image_base64;
+            img.dataset.frontSrc = serverData.image_base64;
+            img.alt = tokenName;
+            img.className = 'card-image';
+            imgContainer.appendChild(img);
+            var badge = document.createElement('div');
+            badge.className = 'token-label-badge';
+            badge.textContent = 'TOKEN';
+            imgContainer.appendChild(badge);
+        } else {
+            imgContainer = document.createElement('div');
+            imgContainer.className = 'card-image-placeholder';
+            var pname = document.createElement('div');
+            pname.className = 'placeholder-text';
+            pname.textContent = tokenName;
+            var plabel = document.createElement('div');
+            plabel.className = 'placeholder-text token-placeholder-label';
+            plabel.textContent = 'Token';
+            imgContainer.appendChild(pname);
+            imgContainer.appendChild(plabel);
+        }
+        a.appendChild(imgContainer);
+        container.appendChild(a);
+
+        // Update the count header
+        var countHeader = $id('token-count-header');
+        if (countHeader) {
+            var current = parseInt(countHeader.textContent.replace(/[^0-9]/g, ''), 10) || 0;
+            countHeader.textContent = 'Tokens (' + (current + 1) + ')';
+        }
     }
 
     function _rcdAddGalleryItem(cardName, qty, printing, serverData) {
@@ -2751,10 +2886,12 @@ function _doBasicAction(color, action, btn) {
         }
         var publishBtn    = $id('publish-assembly-btn');
         var publishEdBtn  = $id('publish-btn');
+        var discardBtn    = $id('discard-assembly-btn');
         var countSpan     = $id('publish-count');
         if (countSpan)   countSpan.textContent = count;
         if (publishBtn)  publishBtn.disabled   = (count === 0);
         if (publishEdBtn) publishEdBtn.disabled = (count === 0);
+        if (discardBtn)  discardBtn.disabled   = (count === 0);
     }
 
     function loadAssemblyLineData() {
@@ -3000,27 +3137,8 @@ function _doBasicAction(color, action, btn) {
             var orphanBar = document.createElement('div');
             orphanBar.className = 'assembly-orphan-warning';
             var orphanText = document.createElement('span');
-            orphanText.textContent = 'Warning: No cards create this token. ';
-            var deleteBtn = document.createElement('button');
-            deleteBtn.className = 'btn assembly-orphan-delete-btn';
-            deleteBtn.textContent = 'Delete Token';
-            deleteBtn.addEventListener('click', function () {
-                if (confirm('Delete orphaned token "' + item.card_name.replace(/^_TOKEN_/, '') + '"? This cannot be undone after publishing.')) {
-                    fetch('/deck/' + encodeURIComponent(_deckName) + '/stage-delete-token', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token_key: item.card_name }),
-                    })
-                    .then(function (r) { return r.json(); })
-                    .then(function (data) {
-                        if (data.error) { alert(data.error); return; }
-                        if (row) row.remove();
-                        _updatePublishBar(data.staged_count || 0);
-                    });
-                }
-            });
+            orphanText.textContent = 'Warning: No cards create this token.';
             orphanBar.appendChild(orphanText);
-            orphanBar.appendChild(deleteBtn);
             row.appendChild(orphanBar);
         }
 
@@ -4235,6 +4353,82 @@ function _doBasicAction(color, action, btn) {
             if (dialog) dialog.close();
         });
 
+        // Discard Assembly Line button + dialog
+        (function () {
+            var discardBtn    = $id('discard-assembly-btn');
+            var discardDialog = $id('discard-assembly-dialog');
+            var discardAllBtn    = $id('discard-all-btn');
+            var discardCardsBtn  = $id('discard-cards-btn');
+            var discardTokensBtn = $id('discard-tokens-btn');
+            var discardCancelBtn = $id('discard-cancel-btn');
+
+            if (discardBtn && discardDialog) {
+                discardBtn.addEventListener('click', function () {
+                    // Count cards vs tokens from currently loaded assembly rows
+                    var rows = document.querySelectorAll('#assembly-line-list .assembly-card-row');
+                    var totalCount = rows.length;
+                    var tokenCount = 0;
+                    rows.forEach(function (row) {
+                        var name = row.dataset.cardName || '';
+                        if (name.startsWith('_TOKEN_')) tokenCount++;
+                    });
+                    var cardCount = totalCount - tokenCount;
+
+                    var allSpan    = $id('discard-count-all');
+                    var cardsSpan  = $id('discard-count-cards');
+                    var tokensSpan = $id('discard-count-tokens');
+                    if (allSpan)    allSpan.textContent    = totalCount;
+                    if (cardsSpan)  cardsSpan.textContent  = cardCount;
+                    if (tokensSpan) tokensSpan.textContent = tokenCount;
+
+                    if (discardAllBtn)    discardAllBtn.disabled    = (totalCount === 0);
+                    if (discardCardsBtn)  discardCardsBtn.disabled  = (cardCount === 0);
+                    if (discardTokensBtn) discardTokensBtn.disabled = (tokenCount === 0);
+
+                    discardDialog.showModal();
+                });
+            }
+
+            function _doDiscardAll(type) {
+                fetch('/deck/' + encodeURIComponent(_deckName) + '/discard-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: type }),
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (discardDialog) discardDialog.close();
+                    if (data.error) { alert(data.error); return; }
+                    _updatePublishBar(data.staged_count || 0);
+                    loadAssemblyLineData();
+                    // Update gallery items to clear staged state
+                    var discarded = data.discarded_card_names || [];
+                    var removedNew = data.removed_new_names || [];
+                    discarded.forEach(function (name) {
+                        var galItem = document.querySelector('.card-gallery-item[data-card-name="' + name.replace(/"/g, '\\"') + '"]');
+                        if (galItem) {
+                            if (removedNew.indexOf(name) !== -1) {
+                                galItem.remove();
+                            } else {
+                                galItem.dataset.staged = 'false';
+                                var ov = galItem.querySelector('.staged-overlay');
+                                if (ov) ov.remove();
+                            }
+                        }
+                    });
+                    applyCardControls();
+                })
+                .catch(function () {
+                    if (discardDialog) discardDialog.close();
+                });
+            }
+
+            if (discardAllBtn)    discardAllBtn.addEventListener('click',    function () { _doDiscardAll('all'); });
+            if (discardCardsBtn)  discardCardsBtn.addEventListener('click',  function () { _doDiscardAll('cards'); });
+            if (discardTokensBtn) discardTokensBtn.addEventListener('click', function () { _doDiscardAll('tokens'); });
+            if (discardCancelBtn) discardCancelBtn.addEventListener('click', function () { if (discardDialog) discardDialog.close(); });
+        }());
+
         // Initial hash routing
         handleHash(window.location.hash);
         window.addEventListener('hashchange', function () { handleHash(window.location.hash); });
@@ -5433,8 +5627,56 @@ function _doBasicAction(color, action, btn) {
         if (cancelBtn) cancelBtn.addEventListener('click', function () { dialog.close(); });
     }
 
+    // ── Token tab filters ─────────────────────────────────────────────────────
+    function applyTokenControls() {
+        var typeEl    = $id('token-type-filter-select');
+        var subtypeEl = $id('token-subtype-filter-input');
+        var textEl    = $id('token-text-filter-input');
+
+        var typeVal    = typeEl    ? typeEl.value           : 'any';
+        var subtypeVal = subtypeEl ? subtypeEl.value.trim() : '';
+        var textVal    = textEl    ? textEl.value.trim()    : '';
+
+        var tokenItems = document.querySelectorAll('#token-gallery-container .token-gallery-item');
+        var visibleCount = 0;
+
+        tokenItems.forEach(function (item) {
+            var visible = true;
+            if (!matchesTypeFilter(item, typeVal))        visible = false;
+            if (!matchesSubtypeFilter(item, subtypeVal))  visible = false;
+            if (!matchesTextFilter(item, textVal))        visible = false;
+            item.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+
+        var countHeader = $id('token-count-header');
+        if (countHeader) countHeader.textContent = 'Tokens (' + visibleCount + ')';
+    }
+
     // ── Wire token tab buttons ─────────────────────────────────────────────────
     function _initTokenTab() {
+        // Token filters
+        var tokenTypeFilter    = $id('token-type-filter-select');
+        var tokenSubtypeFilter = $id('token-subtype-filter-input');
+        var tokenTextFilter    = $id('token-text-filter-input');
+        var tokenResetBtn      = $id('token-reset-controls-btn');
+
+        if (tokenTypeFilter)    tokenTypeFilter.addEventListener('change', applyTokenControls);
+        if (tokenSubtypeFilter) tokenSubtypeFilter.addEventListener('input',  applyTokenControls);
+        if (tokenTextFilter)    tokenTextFilter.addEventListener('input',     applyTokenControls);
+        if (tokenResetBtn) {
+            tokenResetBtn.addEventListener('click', function () {
+                if (tokenTypeFilter)    tokenTypeFilter.value    = 'any';
+                if (tokenSubtypeFilter) tokenSubtypeFilter.value = '';
+                if (tokenTextFilter)    tokenTextFilter.value    = '';
+                applyTokenControls();
+            });
+        }
+
+        // Add Real Token button
+        var addRealTokenBtn = $id('add-real-token-btn');
+        if (addRealTokenBtn) addRealTokenBtn.addEventListener('click', openRealCardDialogAddToken);
+
         // Create Token button
         var createTokenBtn = $id('create-token-btn');
         if (createTokenBtn) createTokenBtn.addEventListener('click', function () {

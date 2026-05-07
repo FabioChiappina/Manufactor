@@ -582,18 +582,54 @@
     <!-- ── Tokens Tab ────────────────────────────────────────────────── -->
     <div id="tab-tokens" class="tab-pane" style="display:none;">
         <div class="tab-toolbar">
-            <h3 class="tab-card-count">Tokens ({{ deck.tokens | length }})</h3>
+            <div class="card-controls-stack">
+                <div class="card-controls">
+                    <button id="token-reset-controls-btn" class="btn btn-reset-controls" title="Reset all filters">&#x2715;</button>
+                    <div class="control-group">
+                        <label for="token-type-filter-select">Type</label>
+                        <select id="token-type-filter-select">
+                            <option value="any">Any</option>
+                            <option value="creature">Creature</option>
+                            <option value="artifact">Artifact</option>
+                            <option value="enchantment">Enchantment</option>
+                            <option value="land">Land</option>
+                            <option value="instant">Instant</option>
+                            <option value="sorcery">Sorcery</option>
+                            <option value="instant-sorcery">Instant/Sorcery</option>
+                            <option value="planeswalker">Planeswalker</option>
+                            <option value="nonland">Nonland</option>
+                            <option value="noncreature">Noncreature</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="token-subtype-filter-input">Subtype</label>
+                        <input type="text" id="token-subtype-filter-input" placeholder="e.g. Goblin" class="filter-text-medium">
+                    </div>
+                    <div class="control-group">
+                        <label for="token-text-filter-input">Text</label>
+                        <input type="text" id="token-text-filter-input" placeholder="rules text…" class="filter-text-medium">
+                    </div>
+                </div>
+            </div>
             <div class="tab-toolbar-actions">
-                <button id="create-token-btn" class="btn btn-primary btn-sm">+ Create Token</button>
+                <div class="tab-toolbar-actions-row">
+                    <h3 id="token-count-header" class="tab-card-count">Tokens ({{ deck.tokens | length }})</h3>
+                    <button id="add-real-token-btn" class="btn btn-secondary btn-sm">+ Add Real</button>
+                    <button id="create-token-btn" class="btn btn-primary btn-sm">+ Create</button>
+                </div>
             </div>
         </div>
         {% if deck.tokens %}
-        <div class="card-gallery">
-            {% for token_key, token_data in deck.tokens.items() %}
+        <div id="token-gallery-container" class="card-gallery">
+            {% for token_key, token_data in deck.tokens.items() | sort(attribute='1.name') %}
             <a href="#edit-token/{{ token_key | urlencode }}"
                class="card-gallery-item token-gallery-item{% if not token_data.source_cards %} token-gallery-item--orphan{% endif %}"
                data-token-key="{{ token_key }}"
                data-name="{{ token_data.name or token_key }}"
+               data-cardtype="{{ token_data.cardtype or token_data.front.cardtype or '' if token_data.front is defined else token_data.cardtype or '' }}"
+               data-subtype="{{ token_data.subtype or token_data.front.subtype or '' if token_data.front is defined else token_data.subtype or '' }}"
+               data-rules="{{ token_data._rules_text or '' }}"
                data-quantity="1">
                 {% if token_data.image_base64 %}
                 <div class="card-image-container">
@@ -631,6 +667,9 @@
         <div class="assembly-publish-bar">
             <button id="publish-assembly-btn" class="btn btn-publish-large"{% if staged_count == 0 %} disabled{% endif %}>
                 Publish Assembly Line (<span id="publish-count">{{ staged_count }}</span>)
+            </button>
+            <button id="discard-assembly-btn" class="btn btn-discard-assembly"{% if staged_count == 0 %} disabled{% endif %}>
+                Discard Assembly Line
             </button>
             <div id="assembly-publish-log" class="assembly-publish-log" style="display:none;"></div>
         </div>
@@ -748,6 +787,20 @@
             <div class="confirm-dialog-actions">
                 <button id="confirm-publish-btn" class="btn btn-publish-large" style="flex:1">Publish</button>
                 <button id="confirm-review-btn" class="btn btn-secondary">Review Changes</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- ── Discard Assembly Line Dialog ─────────────────────────────────── -->
+    <dialog id="discard-assembly-dialog" class="confirm-dialog">
+        <div class="confirm-dialog-body">
+            <p class="confirm-dialog-message">Discard staged changes?</p>
+            <p class="confirm-dialog-sub">Staged images will be removed and changes reverted. New unpublished cards will be deleted.</p>
+            <div class="confirm-dialog-actions confirm-dialog-actions--column">
+                <button id="discard-all-btn" class="btn btn-delete-card">Discard All <span id="discard-count-all">0</span> Changes</button>
+                <button id="discard-cards-btn" class="btn btn-delete-card btn-delete-card--dim">Discard All <span id="discard-count-cards">0</span> Card Changes</button>
+                <button id="discard-tokens-btn" class="btn btn-delete-card btn-delete-card--dim">Discard All <span id="discard-count-tokens">0</span> Token Changes</button>
+                <button id="discard-cancel-btn" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     </dialog>

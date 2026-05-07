@@ -626,6 +626,7 @@ def load_deck_by_name(deck_name):
                     'back_image_base64': token_back_image,
                     'quantity': token_data.get('quantity', 1),
                     'alt_art_count': alt_art_count,
+                    '_rules_text': _card_rules_text(token_data),
                 }
 
             return {
