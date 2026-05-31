@@ -2254,6 +2254,22 @@ def save_card(deck_name, card_name):
 
 # ── Scryfall API proxy endpoints ──────────────────────────────────────────────
 
+def _scryfall_colors(card):
+    """Return the colors list for a Scryfall card object.
+
+    MDFCs have an empty top-level 'colors' field; fall back to aggregating
+    colors from each face so the stored colors are never unexpectedly empty.
+    """
+    colors = card.get('colors', [])
+    if not colors and card.get('card_faces'):
+        seen = []
+        for face in card['card_faces']:
+            for c in face.get('colors', []):
+                if c not in seen:
+                    seen.append(c)
+        colors = seen
+    return colors
+
 @app.route('/api/scryfall/search')
 def scryfall_search():
     """Proxy Scryfall card search by name with optional color filter."""
@@ -2371,7 +2387,7 @@ def scryfall_printings():
                     'oracle_text': oracle_text,
                     'power': card.get('power', ''),
                     'toughness': card.get('toughness', ''),
-                    'colors': card.get('colors', []),
+                    'colors': _scryfall_colors(card),
                     'color_identity': card.get('color_identity', []),
                     'rarity': card.get('rarity', 'common'),
                     'artist': card.get('artist', ''),

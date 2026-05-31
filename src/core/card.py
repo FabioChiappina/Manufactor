@@ -992,7 +992,7 @@ class Card:
             elif self.is_gruul():
                 filename = "rg"
         elif self.is_monocolored():
-            filename = self.colors[0]
+            filename = Mana.get_colors(self.mana)[0]
         elif self.is_colorless():
             filename = "c"
         filename += "_"
