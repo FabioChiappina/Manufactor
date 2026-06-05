@@ -1190,6 +1190,8 @@ function _doBasicAction(color, action, btn) {
     var _rcdSelectedPrinting = null; // printing object from Scryfall
     var _rcdSearchTimer    = null;
     var _rcdCardBeingEdited = null;  // card name when mode === 'edit'
+    var _rcdCurrentTags    = [];     // tags on the card currently open in the dialog
+    var _rcdDeckTags       = [];     // all tags used in this deck (for picker)
     var _ohPool        = [];        // shuffled deck pool for Opening Hand
     var _ohPosition    = 0;         // index of next card to deal from pool
     var _ohDrawnCount  = 0;         // how many extra draws have been made
@@ -1673,8 +1675,10 @@ function _doBasicAction(color, action, btn) {
         if (!dialog) return;
 
         $id('rcd-title').textContent              = 'Add Real Card';
+        var _tn1 = $id('rcd-title-card-name'); if (_tn1) _tn1.style.display = 'none';
         $id('rcd-search-section').style.display   = '';
         $id('rcd-card-name-row').style.display    = 'none';
+        $id('rcd-tags-section').style.display     = 'none';
         $id('rcd-printing-section').style.display = 'none';
         var addBtn = $id('rcd-add-btn');
         if (addBtn) { addBtn.textContent = 'Add to Deck'; addBtn.disabled = true; }
@@ -1704,8 +1708,10 @@ function _doBasicAction(color, action, btn) {
         if (!dialog) return;
 
         $id('rcd-title').textContent              = 'Add Real Token';
+        var _tn2 = $id('rcd-title-card-name'); if (_tn2) _tn2.style.display = 'none';
         $id('rcd-search-section').style.display   = '';
         $id('rcd-card-name-row').style.display    = 'none';
+        $id('rcd-tags-section').style.display     = 'none';
         $id('rcd-printing-section').style.display = 'none';
         var addBtn = $id('rcd-add-btn');
         if (addBtn) { addBtn.textContent = 'Add Token'; addBtn.disabled = true; }
@@ -1735,9 +1741,16 @@ function _doBasicAction(color, action, btn) {
         if (!dialog) return;
 
         $id('rcd-title').textContent              = 'Edit Real Card';
+        var _titleName = $id('rcd-title-card-name');
+        if (_titleName) { _titleName.textContent = '— ' + cardName; _titleName.style.display = ''; }
         $id('rcd-search-section').style.display   = 'none';
-        $id('rcd-card-name-row').style.display    = '';
-        $id('rcd-card-name-display').textContent  = cardName;
+        $id('rcd-card-name-row').style.display    = 'none';
+        $id('rcd-tags-section').style.display     = '';
+        _rcdCurrentTags = [];
+        _rcdDeckTags    = [];
+        _rcdRenderTags();
+        var rcdTagPicker = $id('rcd-tag-picker');
+        if (rcdTagPicker) rcdTagPicker.style.display = 'none';
         $id('rcd-printing-section').style.display = '';
         $id('rcd-printing-list').innerHTML        = '';
         $id('rcd-printings-loading').style.display = '';
@@ -1760,6 +1773,9 @@ function _doBasicAction(color, action, btn) {
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 _rcdSelectedCard = { name: cardName };
+                _rcdCurrentTags  = Array.isArray(data.tags) ? data.tags.slice() : [];
+                _rcdDeckTags     = Array.isArray(data._deck_tags) ? data._deck_tags.slice() : [];
+                _rcdRenderTags();
                 _rcdLoadPrintings(cardName, data.scryfall_id || null);
             })
             .catch(function () { _rcdShowStatus('error', 'Failed to load card data.'); });
@@ -1775,6 +1791,94 @@ function _doBasicAction(color, action, btn) {
         var el = $id('rcd-status');
         if (!el) return;
         el.textContent = msg; el.className = 'rcd-status rcd-status--' + type; el.style.display = '';
+    }
+
+    function _rcdRenderTags() {
+        var list = $id('rcd-tag-list');
+        if (!list) return;
+        list.innerHTML = '';
+        _rcdCurrentTags.forEach(function (tag) {
+            var chip = document.createElement('span');
+            chip.className = 'editor-tag-chip';
+            chip.textContent = tag;
+            var x = document.createElement('button');
+            x.className = 'editor-tag-remove';
+            x.textContent = '×';
+            x.title = 'Remove tag';
+            x.addEventListener('click', function () { _rcdDoRemoveTag(tag); });
+            chip.appendChild(x);
+            list.appendChild(chip);
+        });
+    }
+
+    function _rcdShowTagPicker() {
+        var picker = $id('rcd-tag-picker');
+        var input  = $id('rcd-tag-picker-input');
+        if (!picker) return;
+        picker.style.display = '';
+        if (input) { input.value = ''; input.focus(); }
+        _rcdRenderTagPickerOptions('');
+    }
+
+    function _rcdRenderTagPickerOptions(filter) {
+        var opts = $id('rcd-tag-picker-options');
+        if (!opts) return;
+        opts.innerHTML = '';
+        var needle = filter.toLowerCase();
+        var candidates = _rcdDeckTags.filter(function (t) {
+            return t.toLowerCase().includes(needle) && !_rcdCurrentTags.includes(t);
+        });
+        candidates.forEach(function (tag) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'tag-picker-option';
+            btn.textContent = tag;
+            btn.addEventListener('click', function () { _rcdDoAddTag(tag); });
+            opts.appendChild(btn);
+        });
+        var trimmed = filter.trim();
+        if (trimmed && !_rcdDeckTags.includes(trimmed)) {
+            var newBtn = document.createElement('button');
+            newBtn.type = 'button';
+            newBtn.className = 'tag-picker-option tag-picker-option--new';
+            newBtn.textContent = 'Create new tag: "' + trimmed + '"';
+            newBtn.addEventListener('click', function () { _rcdDoAddTag(trimmed); });
+            opts.appendChild(newBtn);
+        }
+    }
+
+    function _rcdDoAddTag(tag) {
+        if (!tag || !_rcdCardBeingEdited) return;
+        var picker = $id('rcd-tag-picker');
+        if (picker) picker.style.display = 'none';
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/add-card-tag?name=' + encodeURIComponent(_rcdCardBeingEdited), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tag: tag })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (data.error) return;
+            _rcdCurrentTags = data.card_tags;
+            _rcdDeckTags    = data.deck_tags;
+            _rcdRenderTags();
+            _updateGalleryItemTags(_rcdCardBeingEdited, _rcdCurrentTags);
+            applyCardControls();
+        });
+    }
+
+    function _rcdDoRemoveTag(tag) {
+        if (!tag || !_rcdCardBeingEdited) return;
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/remove-card-tag?name=' + encodeURIComponent(_rcdCardBeingEdited), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tag: tag })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (data.error) return;
+            _rcdCurrentTags = data.card_tags;
+            _rcdDeckTags    = data.deck_tags;
+            _rcdRenderTags();
+            _updateGalleryItemTags(_rcdCardBeingEdited, _rcdCurrentTags);
+            applyCardControls();
+        });
     }
 
     function _rcdGetColors() {
@@ -2438,8 +2542,10 @@ function _doBasicAction(color, action, btn) {
     }
 
     function _updateGalleryItemTags(cardName, tags) {
-        var item = document.querySelector('.card-gallery-item[data-card-name="' + CSS.escape(cardName) + '"]');
-        if (item) item.dataset.tags = tags.join(',');
+        // Must update the CANONICAL item, not a clone — querySelector may return a clone
+        // first when group-by mode has duplicated the element in the DOM.
+        var canonical = getCanonicalItems().find(function(ci) { return ci.dataset.cardName === cardName; });
+        if (canonical) canonical.dataset.tags = tags.join(',');
     }
 
     function doAddTag(tag) {
@@ -4238,6 +4344,14 @@ function _doBasicAction(color, action, btn) {
                     clearTimeout(_rcdSearchTimer);
                     _rcdSearchTimer = setTimeout(_rcdDoSearch, 150);
                 });
+            });
+
+            // Tag add button + tag picker input
+            var rcdTagAddBtn = $id('rcd-tag-add-btn');
+            if (rcdTagAddBtn) rcdTagAddBtn.addEventListener('click', _rcdShowTagPicker);
+            var rcdTagInput = $id('rcd-tag-picker-input');
+            if (rcdTagInput) rcdTagInput.addEventListener('input', function () {
+                _rcdRenderTagPickerOptions(this.value);
             });
 
             // Add / Update button

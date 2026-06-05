@@ -771,11 +771,13 @@ def add_card_tag(deck_name):
     with open(deck_data['json_path'], 'w') as f:
         json.dump(raw_deck, f, indent=2)
 
-    # Keep staging entry in sync so staged cards also see the updated tags
-    staging = load_staging(folder_path)
-    if card_name in staging and isinstance(staging[card_name].get('updated'), dict):
-        staging[card_name]['updated']['tags'] = card_tags
-        save_staging(folder_path, staging)
+    # For custom cards: keep staging entry in sync so staged versions also carry the tag.
+    # For real cards: tags are saved directly to JSON and are always immediate — skip staging.
+    if not card.get('real'):
+        staging = load_staging(folder_path)
+        if card_name in staging and isinstance(staging[card_name].get('updated'), dict):
+            staging[card_name]['updated']['tags'] = card_tags
+            save_staging(folder_path, staging)
 
     return jsonify({'card_tags': card_tags, 'deck_tags': meta_tags})
 
@@ -821,11 +823,13 @@ def remove_card_tag(deck_name):
     with open(deck_data['json_path'], 'w') as f:
         json.dump(raw_deck, f, indent=2)
 
-    # Keep staging entry in sync so staged cards also see the updated tags
-    staging = load_staging(folder_path)
-    if card_name in staging and isinstance(staging[card_name].get('updated'), dict):
-        staging[card_name]['updated']['tags'] = card_tags
-        save_staging(folder_path, staging)
+    # For custom cards: keep staging entry in sync so staged versions also carry the tag.
+    # For real cards: tags are saved directly to JSON and are always immediate — skip staging.
+    if not card.get('real'):
+        staging = load_staging(folder_path)
+        if card_name in staging and isinstance(staging[card_name].get('updated'), dict):
+            staging[card_name]['updated']['tags'] = card_tags
+            save_staging(folder_path, staging)
 
     return jsonify({'card_tags': card_tags, 'deck_tags': meta_tags})
 
