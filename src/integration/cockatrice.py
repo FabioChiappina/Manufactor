@@ -76,9 +76,20 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
     cdict = {} # Cards
     tdict = {} # Tokens
     all_token_names_this_deck = []
+    custom_prefixed_basics = set()  # basic land card names being registered under a setname prefix
     for ci, card in enumerate(deck.cards + tokens_cards):
+        _is_custom_basic = False
         if getattr(card, 'real', 0):
-            continue  # Real MTG cards are in Cockatrice's built-in database; skip custom export
+            # Basic lands with a locally downloaded image: register as a prefixed custom card
+            # (e.g. ANK_Plains) so each deck can have its own artwork in pics/CUSTOM/.
+            if card.name.lower() in Card.basic_lands:
+                _src = os.path.join(DECK_PATH, deck.folder_name, "Cards", card.name + ".jpg")
+                if os.path.isfile(_src):
+                    _is_custom_basic = True  # fall through to custom-card processing below
+                else:
+                    continue  # no chosen art — let Cockatrice use its default
+            else:
+                continue  # non-basic real card: Cockatrice already knows it
         duplicate_token_names = []
         if card.is_token():
             found_this_token = False
@@ -116,7 +127,11 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             if len(duplicate_token_names)>0:
                 all_token_names_this_deck += duplicate_token_names
         else:
-            this_card_name = card.name
+            if _is_custom_basic:
+                this_card_name = setname + "_" + card.name
+                custom_prefixed_basics.add(card.name)
+            else:
+                this_card_name = card.name
             # Use folder_name for filesystem paths
             # Match app.py's safe_card_filename: replace ' // ' with ' -- ' and '/' with '-'
             safe_cards_filename = card.name.replace(' // ', ' -- ').replace('/', '-')
@@ -189,32 +204,32 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 tdict[duplicate_token_name] += '            <tablerow>2</tablerow>\n'
                 tdict[duplicate_token_name] += '        </card>\n'
         else:
-            cdict[card.name] =  '' 
-            cdict[card.name] += '        <card>\n'
-            cdict[card.name] += '            <name>' +name+ '</name>\n'
-            cdict[card.name] += '            <text>' +text+ '</text>\n'
-            cdict[card.name] += '            <prop>\n'
-            cdict[card.name] += '                <format-penny>legal</format-penny>\n'
-            cdict[card.name] += '                <coloridentity>' +coloridentity+ '</coloridentity>\n'
-            cdict[card.name] += '                <format-pioneer>legal</format-pioneer>\n'
-            cdict[card.name] += '                <side>' +side+ '</side>\n'
-            cdict[card.name] += '                <type>' +fulltype+ '</type>\n'
-            cdict[card.name] += '                <format-duel>legal</format-duel>\n'
-            cdict[card.name] += '                <maintype>' +maintype+ '</maintype>\n'
-            cdict[card.name] += '                <cmc>' +cmc+ '</cmc>\n'
-            cdict[card.name] += '                <format-vintage>legal</format-vintage>\n'
-            cdict[card.name] += '                <format-modern>legal</format-modern>\n'
-            cdict[card.name] += '                <manacost>' +manacost+ '</manacost>\n'
-            cdict[card.name] += '                <colors>' +colors+ '</colors>\n'
-            cdict[card.name] += '                <format-legacy>legal</format-legacy>\n'
-            cdict[card.name] += '                <layout>' +layout+ '</layout>\n'
-            cdict[card.name] += '                <format-commander>legal</format-commander>\n'
-            cdict[card.name] += '            </prop>\n'
-            cdict[card.name] += '            <set muid="' +muid+ '" uuid="' +uuid+ '" num="' +str(ci+1)+ '" rarity="' +rarity+ '">' +setname+ '</set>\n'
+            cdict[this_card_name] =  '' 
+            cdict[this_card_name] += '        <card>\n'
+            cdict[this_card_name] += '            <name>' +name+ '</name>\n'
+            cdict[this_card_name] += '            <text>' +text+ '</text>\n'
+            cdict[this_card_name] += '            <prop>\n'
+            cdict[this_card_name] += '                <format-penny>legal</format-penny>\n'
+            cdict[this_card_name] += '                <coloridentity>' +coloridentity+ '</coloridentity>\n'
+            cdict[this_card_name] += '                <format-pioneer>legal</format-pioneer>\n'
+            cdict[this_card_name] += '                <side>' +side+ '</side>\n'
+            cdict[this_card_name] += '                <type>' +fulltype+ '</type>\n'
+            cdict[this_card_name] += '                <format-duel>legal</format-duel>\n'
+            cdict[this_card_name] += '                <maintype>' +maintype+ '</maintype>\n'
+            cdict[this_card_name] += '                <cmc>' +cmc+ '</cmc>\n'
+            cdict[this_card_name] += '                <format-vintage>legal</format-vintage>\n'
+            cdict[this_card_name] += '                <format-modern>legal</format-modern>\n'
+            cdict[this_card_name] += '                <manacost>' +manacost+ '</manacost>\n'
+            cdict[this_card_name] += '                <colors>' +colors+ '</colors>\n'
+            cdict[this_card_name] += '                <format-legacy>legal</format-legacy>\n'
+            cdict[this_card_name] += '                <layout>' +layout+ '</layout>\n'
+            cdict[this_card_name] += '                <format-commander>legal</format-commander>\n'
+            cdict[this_card_name] += '            </prop>\n'
+            cdict[this_card_name] += '            <set muid="' +muid+ '" uuid="' +uuid+ '" num="' +str(ci+1)+ '" rarity="' +rarity+ '">' +setname+ '</set>\n'
             if (card.related is not None) and (card.related != ""):
-                cdict[card.name] += '            <related attach="attach">' +card.related+ '</related>\n'
-            cdict[card.name] += '            <tablerow>1</tablerow>\n'
-            cdict[card.name] += '        </card>\n'
+                cdict[this_card_name] += '            <related attach="attach">' +card.related+ '</related>\n'
+            cdict[this_card_name] += '            <tablerow>1</tablerow>\n'
+            cdict[this_card_name] += '        </card>\n'
     # Update the custom.json and custom_tokens.json to contain all of the new (if any) card data in this deck:
     try:
         customjson = open(json_filepath)
@@ -299,7 +314,10 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             cdeck.write('    <comments></comments>\n')
             cdeck.write('    <zone name="main">\n')
             for card in sorted([c for c in deck.cards if not ((c.special is not None) and ("back" in c.special.lower()))], key=lambda c: c.name):
-                cdeck_cardname = card.name.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
+                if card.name in custom_prefixed_basics:
+                    cdeck_cardname = setname + "_" + card.name
+                else:
+                    cdeck_cardname = card.name.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
                 qty = int(card.quantity) if (card.quantity and int(card.quantity) > 0) else 1
                 cdeck.write('        <card number="'+str(qty)+'" name="'+cdeck_cardname+'"/>\n')
             for basic_name, basic_count in deck.basics_dict.items():

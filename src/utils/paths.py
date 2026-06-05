@@ -37,5 +37,6 @@ COCKATRICE_PATH = _config.get_cockatrice_path()
 # Derived Cockatrice paths
 COCKATRICE_MANUFACTOR_PATH = os.path.join(COCKATRICE_PATH, "manufactor")
 COCKATRICE_IMAGE_PATH = os.path.join(COCKATRICE_PATH, "pics", "CUSTOM")
+COCKATRICE_DOWNLOADED_PICS_PATH = os.path.join(COCKATRICE_PATH, "pics", "downloadedPics")
 COCKATRICE_CUSTOMSETS_PATH = os.path.join(COCKATRICE_PATH, "customsets")
 COCKATRICE_DECKS_PATH = os.path.join(COCKATRICE_PATH, "decks")

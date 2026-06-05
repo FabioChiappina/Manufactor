@@ -227,6 +227,7 @@ class Deck:
         # Extract cards
         card_dict = data.get("cards", {})
         tags = []
+        real_card_sets = {}  # card_name → Scryfall set code for real cards with a chosen printing
 
         # Process each card
         for keyname, card in card_dict.items():
@@ -331,6 +332,8 @@ class Deck:
                 quantity = card.get("quantity", 1)
                 complete = card.get("complete", 0)
                 real = card.get("real", 0)
+                if real and card.get('set'):
+                    real_card_sets[card.get('front', {}).get('name') or keyname] = card['set']
                 rarity = card.get("rarity")
                 colors = card.get("colors")
                 card_tags = card.get("tags")
@@ -437,6 +440,8 @@ class Deck:
                 quantity = card.get("quantity", 1)
                 complete = card.get("complete", 0)
                 real = card.get("real", 0)
+                if real and card.get('set'):
+                    real_card_sets[card.get('front', {}).get('name') or keyname] = card['set']
                 rarity = card.get("rarity")
                 colors = card.get("colors")
                 card_tags = card.get("tags")
@@ -592,7 +597,8 @@ class Deck:
             commander=commander,
             tokens=tokens_dict,
             setname=default_setname,
-            complete=deck_complete
+            complete=deck_complete,
+            real_card_sets=real_card_sets,
         )
 
     @staticmethod
@@ -635,7 +641,8 @@ class Deck:
         commander: Optional[Any] = None,
         tokens: Optional[Dict[str, Any]] = None,
         setname: Optional[str] = None,
-        complete: int = 0
+        complete: int = 0,
+        real_card_sets: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Initialize a Deck.
@@ -692,6 +699,7 @@ class Deck:
 
         self.tokens = tokens or {}
         self.setname = setname or "UNK"
+        self.real_card_sets = real_card_sets or {}
 
     def to_json(
         self,
