@@ -773,31 +773,31 @@ class Card:
 
     def is_creature(self) -> bool:
         """Check if this card is a creature."""
-        return "creature" in self.cardtype.lower()
+        return bool(self.cardtype) and "creature" in self.cardtype.lower()
 
     def is_artifact(self) -> bool:
         """Check if this card is an artifact."""
-        return "artifact" in self.cardtype.lower()
+        return bool(self.cardtype) and "artifact" in self.cardtype.lower()
 
     def is_enchantment(self) -> bool:
         """Check if this card is an enchantment."""
-        return "enchantment" in self.cardtype.lower()
+        return bool(self.cardtype) and "enchantment" in self.cardtype.lower()
 
     def is_planeswalker(self) -> bool:
         """Check if this card is a planeswalker."""
-        return "planeswalker" in self.cardtype.lower()
+        return bool(self.cardtype) and "planeswalker" in self.cardtype.lower()
 
     def is_instant(self) -> bool:
         """Check if this card is an instant."""
-        return "instant" in self.cardtype.lower()
+        return bool(self.cardtype) and "instant" in self.cardtype.lower()
 
     def is_sorcery(self) -> bool:
         """Check if this card is a sorcery."""
-        return "sorcery" in self.cardtype.lower()
+        return bool(self.cardtype) and "sorcery" in self.cardtype.lower()
 
     def is_battle(self) -> bool:
         """Check if this card is a battle."""
-        return "battle" in self.cardtype.lower()
+        return bool(self.cardtype) and "battle" in self.cardtype.lower()
 
     def is_saga(self) -> bool:
         """Check if this card is a Saga."""

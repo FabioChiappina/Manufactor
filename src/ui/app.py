@@ -2162,6 +2162,31 @@ def publish_assembly_line(deck_name):
                 new_token['source_cards'] = old_token['source_cards']
             new_token['complete'] = 1
             raw_deck.setdefault('tokens', {})[card_name] = new_token
+
+            # Regenerate printing image for token (skip for real tokens).
+            # Token staged data is flat (name/cardtype/rules at top level, no 'front' key),
+            # so wrap it before passing to card_from_editor_dict.
+            if not updated_data.get('real'):
+                try:
+                    wrapped_token = {
+                        'front': {k: v for k, v in updated_data.items()
+                                  if k not in ('token', 'colors', 'source_cards', 'complete', 'real')},
+                        'token': updated_data.get('token', 1),
+                        'colors': updated_data.get('colors'),
+                    }
+                    token_card_list = card_from_editor_dict(wrapped_token, setname=setname)
+                    if token_card_list:
+                        from src.rendering.card_renderer import create_printing_image_from_Card
+                        create_printing_image_from_Card(
+                            token_card_list[0],
+                            saved_image_path=tokens_dir,
+                            save_path=printing_dir,
+                        )
+                except Exception as e:
+                    print(f"Printing regen failed for token {card_name}: {e}")
+                    printing_ok = False
+                    printing_errors.append(f"{card_name}: {str(e)[:120]}")
+
             cards_updated += 1
             continue
 
@@ -2978,16 +3003,19 @@ def print_run_prepare():
         for card_name in card_names:
             card_counter += 1
             if card_name.startswith('_TOKEN_'):
-                # Token image — copy from Tokens/ folder, same Front_ prefix as regular cards
+                # Token image — prefer the printing-processed image from Printing/;
+                # fall back to the raw Tokens/ image for tokens not yet re-published.
                 token_file = card_name[len('_TOKEN_'):]
-                src = os.path.join(tokens_path, f'{token_file}.jpg')
-                dst_name = f"Front_{card_counter:0{pad}}_{token_file}.jpg"
+                src = os.path.join(printing_path, f'_TOKEN_{token_file}.jpg')
+                if not os.path.isfile(src):
+                    src = os.path.join(tokens_path, f'{token_file}.jpg')
+                dst_name = f"Front_{card_counter:0{pad}}__TOKEN_{token_file}.jpg"
                 dst = os.path.join(output_dir, dst_name)
                 try:
                     shutil.copyfile(src, dst)
                     copied += 1
                 except Exception as e:
-                    errors.append(f"{deck_name}/{token_file}: {e}")
+                    errors.append(f"{deck_name}/_TOKEN_{token_file}: {e}")
             else:
                 # front_name: for subspell cards ("FrontName / SubspellName") strip the
                 # subspell part; for all other cards the full name is the front name.
