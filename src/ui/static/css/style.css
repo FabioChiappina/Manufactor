@@ -3751,7 +3751,10 @@ footer p {
     align-items: baseline;
 }
 .print-run-list-title  { font-size: 13px; font-weight: 600; color: #bbb; text-transform: uppercase; letter-spacing: 0.05em; }
+.print-run-selected-count-group { display: flex; align-items: center; gap: 5px; }
 .print-run-selected-count { font-size: 13px; color: #667eea; font-weight: 600; }
+.pr-deselect-btn { background: none; border: none; color: #667eea; font-size: 15px; line-height: 1; padding: 0 2px; cursor: pointer; opacity: 0.7; }
+.pr-deselect-btn:hover { opacity: 1; }
 .print-run-card-list {
     flex: 1;
     overflow-y: auto;

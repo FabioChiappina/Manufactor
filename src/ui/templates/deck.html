@@ -949,13 +949,24 @@
                 <span class="print-run-scope-label">Scope:</span>
                 <div class="print-run-scope-btns">
                     <button id="pr-scope-all-btn" class="btn btn-sm print-run-scope-btn active">All Decks</button>
+                    <button id="pr-scope-complete-btn" class="btn btn-sm print-run-scope-btn">Complete Decks</button>
                     <button id="pr-scope-this-btn" class="btn btn-sm print-run-scope-btn">Only This Deck</button>
+                </div>
+            </div>
+
+            <div class="print-run-scope-row">
+                <span class="print-run-scope-label">Tokens:</span>
+                <div class="print-run-scope-btns">
+                    <button id="pr-common-tokens-btn" class="btn btn-sm print-run-scope-btn active">Include Common</button>
                 </div>
             </div>
 
             <div class="print-run-list-header">
                 <span class="print-run-list-title">Recently Published Cards</span>
-                <span id="pr-selected-count" class="print-run-selected-count">0 selected</span>
+                <span class="print-run-selected-count-group">
+                    <span id="pr-selected-count" class="print-run-selected-count">0 selected</span>
+                    <button id="pr-deselect-all-btn" class="pr-deselect-btn" title="Deselect all" style="display:none;">×</button>
+                </span>
             </div>
 
             <div id="print-run-card-list" class="print-run-card-list">

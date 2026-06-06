@@ -3638,9 +3638,10 @@ function _doBasicAction(color, action, btn) {
 
     // ── Print Run Dialog ──────────────────────────────────────────────────────
 
-    var _prScope    = 'all';   // 'all' or deck folder name
-    var _prCards    = [];      // [{deck_name, card_name, modified_timestamp, modified_relative}]
-    var _prSelected = new Set(); // keys of form "deck_name\x1fcard_name"
+    var _prScope         = 'all';   // 'all' | 'complete' | deck folder name
+    var _prIncludeCommon = true;    // whether to show common tokens
+    var _prCards         = [];      // [{deck_name, card_name, modified_timestamp, modified_relative, is_token, is_common}]
+    var _prSelected      = new Set(); // keys of form "deck_name\x1fcard_name"
 
     function _prKey(card) { return card.deck_name + '\x1f' + card.card_name; }
 
@@ -3656,11 +3657,16 @@ function _doBasicAction(color, action, btn) {
 
         _prSelected.clear();
         _prScope = 'all';
+        _prIncludeCommon = true;
 
-        var scopeAllBtn  = $id('pr-scope-all-btn');
-        var scopeThisBtn = $id('pr-scope-this-btn');
-        if (scopeAllBtn)  scopeAllBtn.classList.add('active');
-        if (scopeThisBtn) scopeThisBtn.classList.remove('active');
+        var scopeAllBtn      = $id('pr-scope-all-btn');
+        var scopeCompleteBtn = $id('pr-scope-complete-btn');
+        var scopeThisBtn     = $id('pr-scope-this-btn');
+        var commonTokensBtn  = $id('pr-common-tokens-btn');
+        if (scopeAllBtn)      scopeAllBtn.classList.add('active');
+        if (scopeCompleteBtn) scopeCompleteBtn.classList.remove('active');
+        if (scopeThisBtn)     scopeThisBtn.classList.remove('active');
+        if (commonTokensBtn)  commonTokensBtn.classList.add('active');
 
         var resultEl = $id('pr-result');
         if (resultEl) { resultEl.style.display = 'none'; resultEl.innerHTML = ''; }
@@ -3674,7 +3680,9 @@ function _doBasicAction(color, action, btn) {
         var listEl = $id('print-run-card-list');
         if (listEl) listEl.innerHTML = '<div class="print-run-loading">Loading\u2026</div>';
 
-        var scopeParam = (_prScope === 'all') ? 'all' : encodeURIComponent(_deckName);
+        var scopeParam = (_prScope === 'all') ? 'all'
+                       : (_prScope === 'complete') ? 'complete'
+                       : encodeURIComponent(_deckName);
         fetch('/api/print-run/cards?scope=' + scopeParam)
             .then(function (r) { return r.json(); })
             .then(function (data) {
@@ -3690,14 +3698,18 @@ function _doBasicAction(color, action, btn) {
         var listEl = $id('print-run-card-list');
         if (!listEl) return;
 
-        if (_prCards.length === 0) {
-            listEl.innerHTML = '<div class="print-run-empty">No cards published in the last 6 months.</div>';
+        var visibleCards = _prCards.filter(function (c) {
+            return _prIncludeCommon || !c.is_common;
+        });
+
+        if (visibleCards.length === 0) {
+            listEl.innerHTML = '<div class="print-run-empty">No cards published in the last year.</div>';
             return;
         }
 
         var html = '';
-        for (var i = 0; i < _prCards.length; i++) {
-            var card = _prCards[i];
+        for (var i = 0; i < visibleCards.length; i++) {
+            var card = visibleCards[i];
             var key  = _prKey(card);
             var sel  = _prSelected.has(key);
             var displayName = card.is_token
@@ -3722,7 +3734,7 @@ function _doBasicAction(color, action, btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var idx = parseInt(this.dataset.idx, 10);
-                var key = _prKey(_prCards[idx]);
+                var key = _prKey(visibleCards[idx]);
                 if (_prSelected.has(key)) _prSelected.delete(key);
                 else _prSelected.add(key);
                 _prRenderCardList();
@@ -3736,7 +3748,7 @@ function _doBasicAction(color, action, btn) {
                 var idx = parseInt(this.dataset.idx, 10);
                 // Select this card plus everything above it (more recent)
                 for (var j = 0; j <= idx; j++) {
-                    _prSelected.add(_prKey(_prCards[j]));
+                    _prSelected.add(_prKey(visibleCards[j]));
                 }
                 _prRenderCardList();
                 _prUpdateSelectedCount();
@@ -3747,6 +3759,8 @@ function _doBasicAction(color, action, btn) {
     function _prUpdateSelectedCount() {
         var el = $id('pr-selected-count');
         if (el) el.textContent = _prSelected.size + ' selected';
+        var deselectBtn = $id('pr-deselect-all-btn');
+        if (deselectBtn) deselectBtn.style.display = _prSelected.size > 0 ? '' : 'none';
         var confirmBtn = $id('pr-confirm-btn');
         if (confirmBtn) confirmBtn.disabled = (_prSelected.size === 0);
     }
@@ -4402,27 +4416,46 @@ function _doBasicAction(color, action, btn) {
         });
 
         // Print Run dialog wiring
-        var prScopeAllBtn  = $id('pr-scope-all-btn');
-        var prScopeThisBtn = $id('pr-scope-this-btn');
-        var prConfirmBtn   = $id('pr-confirm-btn');
-        var prCancelBtn    = $id('pr-cancel-btn');
+        var prScopeAllBtn      = $id('pr-scope-all-btn');
+        var prScopeCompleteBtn = $id('pr-scope-complete-btn');
+        var prScopeThisBtn     = $id('pr-scope-this-btn');
+        var prConfirmBtn       = $id('pr-confirm-btn');
+        var prCancelBtn        = $id('pr-cancel-btn');
 
-        if (prScopeAllBtn) prScopeAllBtn.addEventListener('click', function () {
-            _prScope = 'all';
-            prScopeAllBtn.classList.add('active');
-            if (prScopeThisBtn) prScopeThisBtn.classList.remove('active');
+        function _prSetScope(scope) {
+            _prScope = scope;
+            if (prScopeAllBtn)      prScopeAllBtn.classList.toggle('active',      scope === 'all');
+            if (prScopeCompleteBtn) prScopeCompleteBtn.classList.toggle('active', scope === 'complete');
+            if (prScopeThisBtn)     prScopeThisBtn.classList.toggle('active',     scope === 'this');
             _prSelected.clear();
             _prUpdateSelectedCount();
             _prLoadCards();
-        });
-        if (prScopeThisBtn) prScopeThisBtn.addEventListener('click', function () {
-            _prScope = 'this';
-            prScopeThisBtn.classList.add('active');
-            if (prScopeAllBtn) prScopeAllBtn.classList.remove('active');
+        }
+
+        if (prScopeAllBtn)      prScopeAllBtn.addEventListener('click',      function () { _prSetScope('all'); });
+        if (prScopeCompleteBtn) prScopeCompleteBtn.addEventListener('click', function () { _prSetScope('complete'); });
+        if (prScopeThisBtn)     prScopeThisBtn.addEventListener('click',     function () { _prSetScope('this'); });
+        var prDeselectAllBtn = $id('pr-deselect-all-btn');
+        if (prDeselectAllBtn) prDeselectAllBtn.addEventListener('click', function () {
             _prSelected.clear();
+            _prRenderCardList();
             _prUpdateSelectedCount();
-            _prLoadCards();
         });
+
+        var prCommonTokensBtn = $id('pr-common-tokens-btn');
+        if (prCommonTokensBtn) prCommonTokensBtn.addEventListener('click', function () {
+            _prIncludeCommon = !_prIncludeCommon;
+            prCommonTokensBtn.classList.toggle('active', _prIncludeCommon);
+            // Drop any selected common tokens that are now hidden
+            if (!_prIncludeCommon) {
+                _prCards.forEach(function (c) {
+                    if (c.is_common) _prSelected.delete(_prKey(c));
+                });
+            }
+            _prRenderCardList();
+            _prUpdateSelectedCount();
+        });
+
         if (prConfirmBtn) prConfirmBtn.addEventListener('click', onPreparePrintRunConfirm);
         if (prCancelBtn)  prCancelBtn.addEventListener('click', function () {
             var dialog = $id('print-run-dialog');

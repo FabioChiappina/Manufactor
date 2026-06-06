@@ -2191,17 +2191,20 @@ def publish_assembly_line(deck_name):
         new_entry['complete'] = 1
         raw_deck.setdefault('cards', {})[card_name] = new_entry
 
-        # Regenerate printing image from the staged image (skip for real cards)
+        # Regenerate printing image from the staged image (skip for real cards).
+        # For DFCs card_from_editor_dict returns [front_card, back_card]; iterate
+        # both so Printing/BackName.jpg is created alongside Printing/FrontName.jpg.
         if not updated_data.get('real'):
             try:
                 card_list = card_from_editor_dict(updated_data, setname=setname)
                 if card_list:
                     from src.rendering.card_renderer import create_printing_image_from_Card
-                    create_printing_image_from_Card(
-                        card_list[0],
-                        saved_image_path=cards_dir,
-                        save_path=printing_dir,
-                    )
+                    for face_card in card_list:
+                        create_printing_image_from_Card(
+                            face_card,
+                            saved_image_path=cards_dir,
+                            save_path=printing_dir,
+                        )
             except Exception as e:
                 print(f"Printing regen failed for {card_name}: {e}")
                 printing_ok = False
@@ -2794,27 +2797,41 @@ def add_real_token(deck_name):
 
 @app.route('/api/print-run/cards')
 def print_run_cards():
-    """Return cards from Printing/ folders sorted by most recently modified, up to 6 months back."""
+    """Return cards from Printing/ folders sorted by most recently modified, up to 1 year back."""
     from datetime import datetime
     scope = request.args.get('scope', 'all').strip()
+
+    common_token_names = {k.lower() for k in load_common_tokens().keys()}
 
     settings_mgr = SettingsManager()
     deck_path = settings_mgr.get_deck_path()
     if not deck_path or not os.path.isdir(deck_path):
         return jsonify({'error': 'Deck path not configured'}), 400
 
-    cutoff = datetime.now().timestamp() - (180 * 24 * 3600)  # 6 months ago
+    cutoff = datetime.now().timestamp() - (365 * 24 * 3600)  # 1 year ago
 
     # Identify deck folders (must have a matching <FolderName>.json)
-    if scope == 'all':
+    if scope in ('all', 'complete'):
         try:
-            deck_names = [
+            all_folders = [
                 d for d in os.listdir(deck_path)
                 if os.path.isdir(os.path.join(deck_path, d))
                 and os.path.isfile(os.path.join(deck_path, d, f"{d}.json"))
             ]
         except OSError:
+            all_folders = []
+        if scope == 'complete':
             deck_names = []
+            for d in all_folders:
+                try:
+                    with open(os.path.join(deck_path, d, f"{d}.json"), 'r') as _f:
+                        _meta = json.load(_f).get('metadata', {})
+                    if _meta.get('complete'):
+                        deck_names.append(d)
+                except (OSError, json.JSONDecodeError):
+                    pass
+        else:
+            deck_names = all_folders
     else:
         deck_names = [scope] if (
             os.path.isdir(os.path.join(deck_path, scope))
@@ -2835,9 +2852,9 @@ def print_run_cards():
         # ── Regular cards (Printing/ folder) ────────────────────────────────
         if os.path.isdir(printing_dir):
             for card_key in raw_deck.get('cards', {}):
-                # For DFC/subspell cards the key is "FrontName / BackName"; use the
-                # front name to find the Printing/ image and get its mtime.
-                front_name = card_key.partition(' / ')[0].strip() if ' / ' in card_key else card_key
+                # Subspell deck keys are "FrontName / SubspellName"; DFC keys are
+                # just "FrontName".  Either way the Printing/ image is FrontName.jpg.
+                front_name = card_key.partition(' / ')[0].strip()
                 fpath = os.path.join(printing_dir, f"{front_name}.jpg")
                 try:
                     mtime = os.path.getmtime(fpath)
@@ -2882,6 +2899,7 @@ def print_run_cards():
                     'card_name': f"_TOKEN_{base}",
                     'modified_timestamp': mtime,
                     'is_token': True,
+                    'is_common': root.lower() in common_token_names,
                 })
 
     cards.sort(key=lambda x: x['modified_timestamp'], reverse=True)
@@ -2944,13 +2962,26 @@ def print_run_prepare():
     for deck_name, card_names in cards_by_deck.items():
         printing_path = os.path.join(deck_path, deck_name, 'Printing')
         tokens_path   = os.path.join(deck_path, deck_name, 'Tokens')
+
+        # Load deck JSON once per deck to look up back-face names for DFC cards.
+        # DFC deck keys are just "FrontName" (no slash); the back face name lives in
+        # card["back"]["name"].  Subspell deck keys use "FrontName / SubspellName" but
+        # have no "back" key, so they're always treated as single-image cards.
+        deck_json_path = os.path.join(deck_path, deck_name, f"{deck_name}.json")
+        try:
+            with open(deck_json_path, 'r') as _f:
+                _raw = json.load(_f)
+            deck_cards_json = _raw.get('cards', {})
+        except (OSError, json.JSONDecodeError):
+            deck_cards_json = {}
+
         for card_name in card_names:
             card_counter += 1
             if card_name.startswith('_TOKEN_'):
-                # Token image — copy from Tokens/ folder
+                # Token image — copy from Tokens/ folder, same Front_ prefix as regular cards
                 token_file = card_name[len('_TOKEN_'):]
                 src = os.path.join(tokens_path, f'{token_file}.jpg')
-                dst_name = f"Token_{card_counter:0{pad}}_{token_file}.jpg"
+                dst_name = f"Front_{card_counter:0{pad}}_{token_file}.jpg"
                 dst = os.path.join(output_dir, dst_name)
                 try:
                     shutil.copyfile(src, dst)
@@ -2958,12 +2989,17 @@ def print_run_prepare():
                 except Exception as e:
                     errors.append(f"{deck_name}/{token_file}: {e}")
             else:
-                front, _, back = card_name.partition(' / ')
-                if back:
-                    for prefix, name in [('Front', front), ('Back', back)]:
+                # front_name: for subspell cards ("FrontName / SubspellName") strip the
+                # subspell part; for all other cards the full name is the front name.
+                front_name = card_name.partition(' / ')[0].strip()
+                card_json = deck_cards_json.get(card_name, {})
+                dfc_back_name = (card_json.get('back') or {}).get('name')
+
+                if dfc_back_name:
+                    # True DFC: copy front printing image then back printing image.
+                    for prefix, name in [('Front', front_name), ('Back', dfc_back_name)]:
                         src = os.path.join(printing_path, f'{name}.jpg')
                         if not os.path.isfile(src):
-                            # Subspell back faces share the front image — skip silently
                             continue
                         dst_name = f"{prefix}_{card_counter:0{pad}}_{name}.jpg"
                         dst = os.path.join(output_dir, dst_name)
@@ -2973,14 +3009,15 @@ def print_run_prepare():
                         except Exception as e:
                             errors.append(f"{deck_name}/{name}: {e}")
                 else:
-                    src = os.path.join(printing_path, f'{card_name}.jpg')
-                    dst_name = f"Front_{card_counter:0{pad}}_{card_name}.jpg"
+                    # Single-face card or subspell: one image filed under the front name.
+                    src = os.path.join(printing_path, f'{front_name}.jpg')
+                    dst_name = f"Front_{card_counter:0{pad}}_{front_name}.jpg"
                     dst = os.path.join(output_dir, dst_name)
                     try:
                         shutil.copyfile(src, dst)
                         copied += 1
                     except Exception as e:
-                        errors.append(f"{deck_name}/{card_name}: {e}")
+                        errors.append(f"{deck_name}/{src_name}: {e}")
 
     return jsonify({
         'success': True,
