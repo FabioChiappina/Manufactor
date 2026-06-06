@@ -155,6 +155,7 @@ def api_compute_setname():
 @app.route('/deck/<deck_name>/update-metadata', methods=['POST'])
 def update_deck_metadata(deck_name):
     """Update top-level deck metadata (name, description, format, setname)."""
+    import re
     from datetime import datetime
     deck_name = unquote(deck_name)
 
@@ -165,13 +166,60 @@ def update_deck_metadata(deck_name):
     data = request.get_json() or {}
 
     json_path = deck_data['json_path']
+    deck_folder_path = deck_data['folder_path']
     with open(json_path, 'r') as f:
         raw_deck = json.load(f)
 
     metadata = raw_deck.setdefault('metadata', {})
+    new_url = None
 
     if 'deck_name' in data and data['deck_name'].strip():
-        metadata['deck_name'] = data['deck_name'].strip()
+        new_deck_name = data['deck_name'].strip()
+        old_deck_name = deck_name  # the URL-decoded name passed into this route
+
+        metadata['deck_name'] = new_deck_name
+
+        # Rename folder and files if the deck name changed
+        old_folder_name = metadata.get('folder_name', os.path.basename(deck_folder_path))
+        new_folder_name = re.sub(r'[^\w\s-]', '', new_deck_name).strip().replace(' ', '_') or old_folder_name
+
+        if new_folder_name != old_folder_name:
+            settings = SettingsManager()
+            deck_path = settings.get_deck_path()
+            old_folder_path = os.path.join(deck_path, old_folder_name)
+            new_folder_path = os.path.join(deck_path, new_folder_name)
+
+            if os.path.exists(new_folder_path):
+                return jsonify({'error': f'A deck folder named "{new_folder_name}" already exists.'}), 409
+
+            os.rename(old_folder_path, new_folder_path)
+
+            # Rename JSON file inside the folder
+            old_json = os.path.join(new_folder_path, f'{old_folder_name}.json')
+            new_json = os.path.join(new_folder_path, f'{new_folder_name}.json')
+            if os.path.exists(old_json):
+                os.rename(old_json, new_json)
+
+            # Rename staging sidecar if present
+            old_staging = os.path.join(new_folder_path, f'{old_folder_name}_staging.json')
+            new_staging = os.path.join(new_folder_path, f'{new_folder_name}_staging.json')
+            if os.path.exists(old_staging):
+                os.rename(old_staging, new_staging)
+
+            metadata['folder_name'] = new_folder_name
+            json_path = new_json
+            new_url = '/deck/' + quote(new_deck_name, safe='')
+
+        # Rename Cockatrice .cod file if the display name changed
+        if new_deck_name != old_deck_name:
+            from src.utils.paths import COCKATRICE_DECKS_PATH
+            old_cod = os.path.join(COCKATRICE_DECKS_PATH, old_deck_name + '.cod')
+            new_cod = os.path.join(COCKATRICE_DECKS_PATH, new_deck_name + '.cod')
+            if os.path.exists(old_cod):
+                os.rename(old_cod, new_cod)
+            if new_url is None:
+                new_url = '/deck/' + quote(new_deck_name, safe='')
+
     if 'description' in data:
         metadata['description'] = data['description'].strip()
     if 'format' in data and data['format'].strip():
@@ -184,7 +232,10 @@ def update_deck_metadata(deck_name):
     with open(json_path, 'w') as f:
         json.dump(raw_deck, f, indent=2)
 
-    return jsonify({'success': True, 'metadata': metadata})
+    response = {'success': True, 'metadata': metadata}
+    if new_url:
+        response['new_url'] = new_url
+    return jsonify(response)
 
 
 @app.route('/deck/<deck_name>/toggle-commander', methods=['POST'])

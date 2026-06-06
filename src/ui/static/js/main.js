@@ -4683,6 +4683,10 @@ function _doBasicAction(color, action, btn) {
                     }
                     // Update displayed values in-page
                     if (_currentField === 'deck_name') {
+                        if (data.new_url) {
+                            window.location.href = data.new_url;
+                            return;
+                        }
                         var el = $id('deck-display-name');
                         if (el) el.textContent = val;
                         document.title = val + ' - Manufactor';

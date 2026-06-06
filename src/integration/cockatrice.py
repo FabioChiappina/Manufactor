@@ -89,7 +89,18 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 else:
                     continue  # no chosen art — let Cockatrice use its default
             else:
-                continue  # non-basic real card: Cockatrice already knows it
+                # Non-basic real card: if a locally downloaded image exists, copy it to
+                # CUSTOM so Cockatrice displays the chosen printing art. Don't add to XML —
+                # Cockatrice's own DB already has the card metadata.
+                safe_src_name = card.name.replace(' // ', ' -- ').replace('/', '-')
+                _src = os.path.join(DECK_PATH, deck.folder_name, "Cards", safe_src_name + ".jpg")
+                if os.path.isfile(_src):
+                    _dst_name = card.name.replace('’', "'").replace('‘', "'").replace('"', '').replace('.', ' ').replace("'", '').replace(' // ', ' -- ').replace('/', '')
+                    try:
+                        shutil.copy(_src, os.path.join(COCKATRICE_IMAGE_PATH, _dst_name + ".full.jpeg"))
+                    except Exception:
+                        print(f"\nWARNING: Could not copy image for real card {card.name} to Cockatrice.")
+                continue
         duplicate_token_names = []
         if card.is_token():
             found_this_token = False
@@ -307,13 +318,17 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
     # Create deck files:
     if replace_deck_files:
         cockatrice_deck_filename = os.path.join(COCKATRICE_DECKS_PATH, deck.name+".cod")
+        commander_names = set(deck.commander) if deck.commander else set()
+        non_back_cards = sorted([c for c in deck.cards if not ((c.special is not None) and ("back" in c.special.lower()))], key=lambda c: c.name)
         with open(cockatrice_deck_filename, 'w') as cdeck:
             cdeck.write('<?xml version="1.0" encoding="UTF-8"?>\n')
             cdeck.write('<cockatrice_deck version="1">\n')
             cdeck.write('    <deckname></deckname>\n')
             cdeck.write('    <comments></comments>\n')
             cdeck.write('    <zone name="main">\n')
-            for card in sorted([c for c in deck.cards if not ((c.special is not None) and ("back" in c.special.lower()))], key=lambda c: c.name):
+            for card in non_back_cards:
+                if card.name in commander_names:
+                    continue
                 if card.name in custom_prefixed_basics:
                     cdeck_cardname = setname + "_" + card.name
                 else:
@@ -329,6 +344,16 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             for cdeck_tokenname in sorted(set(all_token_names_this_deck)):
                 cdeck.write('        <card number="1" name="'+cdeck_tokenname+'"/>\n')
             cdeck.write('    </zone>\n')
+            if commander_names:
+                cdeck.write('    <zone name="side">\n')
+                for card in [c for c in non_back_cards if c.name in commander_names]:
+                    if card.name in custom_prefixed_basics:
+                        cdeck_cardname = setname + "_" + card.name
+                    else:
+                        cdeck_cardname = card.name.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
+                    qty = int(card.quantity) if (card.quantity and int(card.quantity) > 0) else 1
+                    cdeck.write('        <card number="'+str(qty)+'" name="'+cdeck_cardname+'"/>\n')
+                cdeck.write('    </zone>\n')
             cdeck.write('</cockatrice_deck>\n')
         cdeck.close()
 
