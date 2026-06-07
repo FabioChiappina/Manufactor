@@ -474,6 +474,35 @@ class Deck:
                     snow=front_data.get("snow")
                 )
 
+                # Detect real double-faced cards (modal_dfc or transform).
+                # Primary: use the Scryfall layout field stored in the card JSON.
+                #   layout='modal_dfc'  → mdfc-front  (flip from hand)
+                #   layout='transform'  → transform-front  (flips in play)
+                #   any other layout (split, aftermath, adventure, …) → single-faced
+                # Fallback (for cards added before layout was stored): cardtype heuristic —
+                # both name and cardtype contain ' // ', which identifies MDFC spell/land
+                # and pathway cards while excluding adventure/omen/subspell cards (whose
+                # cardtype is a single type like "Creature"). Split/aftermath cards also
+                # match the heuristic, but re-adding them stores the layout and fixes it.
+                _stored_layout = card.get('layout', '')
+                if _stored_layout:
+                    # Layout known: only modal_dfc and transform are genuinely double-faced
+                    _is_real_dfc = bool(
+                        real
+                        and _stored_layout in ('modal_dfc', 'transform')
+                        and ' // ' in (front_face.name or '')
+                    )
+                    _dfc_special = f"{_stored_layout.replace('modal_dfc', 'mdfc')}-front" if _is_real_dfc else None
+                else:
+                    # Layout not stored: cardtype heuristic fallback
+                    _is_real_dfc = bool(
+                        real
+                        and ' // ' in (front_face.name or '')
+                        and ' // ' in (front_face.cardtype or '')
+                    )
+                    _dfc_special = "mdfc-front" if _is_real_dfc else None
+                _real_dfc_back_name = front_face.name.split(' // ')[1] if _is_real_dfc else None
+
                 # Create Card using front face data
                 new_card = Card(
                     name=front_face.name,
@@ -494,6 +523,8 @@ class Deck:
                     rules5=front_face.rules5,
                     rules6=front_face.rules6,
                     flavor=front_face.flavor,
+                    special=_dfc_special if _is_real_dfc else None,
+                    related=_real_dfc_back_name,
                     colors=colors,
                     tags=card_tags,
                     quantity=quantity,

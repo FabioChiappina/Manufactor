@@ -2073,6 +2073,7 @@ function _doBasicAction(color, action, btn) {
                 power: p.power, toughness: p.toughness,
                 colors: p.colors, color_identity: p.color_identity,
                 rarity: p.rarity, set: p.set, set_name: p.set_name, artist: p.artist,
+                layout: p.layout || '',
             }),
         })
         .then(function (r) { return r.json(); })
@@ -3427,6 +3428,30 @@ function _doBasicAction(color, action, btn) {
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    function onReexportCockatriceClick() {
+        var btn = $id('reexport-cockatrice-btn');
+        var result = $id('reexport-cockatrice-result');
+        if (btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
+        if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+        fetch('/deck/' + encodeURIComponent(_deckName) + '/export-cockatrice', { method: 'POST' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Re-export to Cockatrice'; }
+                if (result) {
+                    result.style.display = '';
+                    if (data.success) {
+                        result.innerHTML = '<span style="color:var(--color-ok,#4caf50)">&#10003; Cockatrice export complete.</span>';
+                    } else {
+                        result.innerHTML = '<span style="color:var(--color-err,#e53935)">&#10007; ' + (data.error || 'Export failed') + '</span>';
+                    }
+                }
+            })
+            .catch(function (e) {
+                if (btn) { btn.disabled = false; btn.textContent = 'Re-export to Cockatrice'; }
+                if (result) { result.style.display = ''; result.innerHTML = '<span style="color:var(--color-err,#e53935)">&#10007; Network error</span>'; }
+            });
+    }
+
     function onCockatriceCleanupClick() {
         var dialog = $id('cc-dialog');
         if (!dialog) return;
@@ -4399,6 +4424,9 @@ function _doBasicAction(color, action, btn) {
         // Actions tab buttons
         var forgeDeckBtn = $id('forge-deck-btn');
         if (forgeDeckBtn) forgeDeckBtn.addEventListener('click', onForgeDeckClick);
+
+        var reexportCockatriceBtn = $id('reexport-cockatrice-btn');
+        if (reexportCockatriceBtn) reexportCockatriceBtn.addEventListener('click', onReexportCockatriceClick);
 
         var cockatriceCleanupBtn = $id('cockatrice-cleanup-btn');
         if (cockatriceCleanupBtn) cockatriceCleanupBtn.addEventListener('click', onCockatriceCleanupClick);

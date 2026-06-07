@@ -89,9 +89,8 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 else:
                     continue  # no chosen art — let Cockatrice use its default
             else:
-                # Non-basic real card: if a locally downloaded image exists, copy it to
-                # CUSTOM so Cockatrice displays the chosen printing art. Don't add to XML —
-                # Cockatrice's own DB already has the card metadata.
+                # Non-basic real card: copy locally downloaded image to CUSTOM so
+                # Cockatrice displays the chosen printing art.
                 safe_src_name = card.name.replace(' // ', ' -- ').replace('/', '-')
                 _src = os.path.join(DECK_PATH, deck.folder_name, "Cards", safe_src_name + ".jpg")
                 if os.path.isfile(_src):
@@ -100,7 +99,25 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                         shutil.copy(_src, os.path.join(COCKATRICE_IMAGE_PATH, _dst_name + ".full.jpeg"))
                     except Exception:
                         print(f"\nWARNING: Could not copy image for real card {card.name} to Cockatrice.")
-                continue
+
+                # For real MDFC/transform cards, also copy the back face image (if
+                # downloaded) and fall through to add a custom XML entry with the
+                # <related attach="attach"> element — without it Cockatrice can't
+                # offer the flip option even though the card is in its built-in DB.
+                if getattr(card, 'special', None) in ('mdfc-front', 'transform-front'):
+                    _back_name = getattr(card, 'related', None)
+                    if _back_name:
+                        _back_safe = _back_name.replace('/', '-')
+                        _back_src = os.path.join(DECK_PATH, deck.folder_name, "Cards", _back_safe + ".jpg")
+                        if os.path.isfile(_back_src):
+                            _back_dst = _back_name.replace('’', "'").replace('‘', "'").replace('"', '').replace('.', ' ').replace("'", '').replace(' // ', ' -- ').replace('/', '')
+                            try:
+                                shutil.copy(_back_src, os.path.join(COCKATRICE_IMAGE_PATH, _back_dst + ".full.jpeg"))
+                            except Exception:
+                                print(f"\nWARNING: Could not copy back face image for {_back_name} to Cockatrice.")
+                    # Fall through to XML generation below (do NOT continue).
+                else:
+                    continue
         duplicate_token_names = []
         if card.is_token():
             found_this_token = False
@@ -238,9 +255,73 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             cdict[this_card_name] += '            </prop>\n'
             cdict[this_card_name] += '            <set muid="' +muid+ '" uuid="' +uuid+ '" num="' +str(ci+1)+ '" rarity="' +rarity+ '">' +setname+ '</set>\n'
             if (card.related is not None) and (card.related != ""):
-                cdict[this_card_name] += '            <related attach="attach">' +card.related+ '</related>\n'
+                # For real DFC cards the back face will be a custom XML stub entry
+                # (see below), so normalize the name to match that stub's <name>.
+                # For all other cards use the raw related name as before.
+                _is_real_dfc_front = (getattr(card, 'real', 0) and
+                                      getattr(card, 'special', None) in ('mdfc-front', 'transform-front'))
+                if _is_real_dfc_front:
+                    _norm_back = (card.related
+                                  .replace('’', "'").replace('‘', "'")
+                                  .replace('"', '').replace('.', ' ')
+                                  .replace("'", '').replace(' // ', ' -- ').replace('/', ''))
+                    cdict[this_card_name] += '            <related attach="attach">' + _norm_back + '</related>\n'
+                else:
+                    cdict[this_card_name] += '            <related attach="attach">' +card.related+ '</related>\n'
             cdict[this_card_name] += '            <tablerow>1</tablerow>\n'
             cdict[this_card_name] += '        </card>\n'
+
+            # For real MDFC/transform cards add a minimal back-face stub so that
+            # Cockatrice resolves it through the custom XML (and thus looks for its
+            # image in pics/CUSTOM/) rather than falling back to the built-in DB and
+            # its internet-based image fetcher.
+            _is_real_dfc_front = (getattr(card, 'real', 0) and
+                                   getattr(card, 'special', None) in ('mdfc-front', 'transform-front')
+                                   and card.related)
+            if _is_real_dfc_front:
+                _norm_back = (card.related
+                              .replace('’', "'").replace('‘', "'")
+                              .replace('"', '').replace('.', ' ')
+                              .replace("'", '').replace(' // ', ' -- ').replace('/', ''))
+                _back_layout = 'modal_dfc' if 'mdfc' in (card.special or '') else 'transform'
+                # Derive back-face card type from the combined type string (part after ' // ')
+                _combined_type = card.cardtype or ''
+                _back_type_raw = _combined_type.split(' // ')[1].strip() if ' // ' in _combined_type else ''
+                # Identify the primary (non-supertype) card type for <maintype>
+                _back_maintype = next(
+                    (ct.capitalize() for ct in Card.cardtypes if ct.lower() in _back_type_raw.lower()),
+                    _back_type_raw.split()[0] if _back_type_raw else ''
+                )
+                _back_muid = str(randint(900000, 999999))
+                _back_uuid = ("d41b07c8-f0c8-4654-" + str(randint(1000, 9999)) +
+                              "-" + str(randint(100000000000, 999999999999)))
+                cdict[_norm_back] = ''
+                cdict[_norm_back] += '        <card>\n'
+                cdict[_norm_back] += '            <name>' + _norm_back + '</name>\n'
+                cdict[_norm_back] += '            <text></text>\n'
+                cdict[_norm_back] += '            <prop>\n'
+                cdict[_norm_back] += '                <format-penny>legal</format-penny>\n'
+                cdict[_norm_back] += '                <coloridentity>' + coloridentity + '</coloridentity>\n'
+                cdict[_norm_back] += '                <format-pioneer>legal</format-pioneer>\n'
+                cdict[_norm_back] += '                <side>back</side>\n'
+                if _back_type_raw:
+                    cdict[_norm_back] += '                <type>' + _back_type_raw + '</type>\n'
+                    cdict[_norm_back] += '                <format-duel>legal</format-duel>\n'
+                    cdict[_norm_back] += '                <maintype>' + _back_maintype + '</maintype>\n'
+                cdict[_norm_back] += '                <cmc>0</cmc>\n'
+                cdict[_norm_back] += '                <format-vintage>legal</format-vintage>\n'
+                cdict[_norm_back] += '                <format-modern>legal</format-modern>\n'
+                cdict[_norm_back] += '                <manacost></manacost>\n'
+                cdict[_norm_back] += '                <colors></colors>\n'
+                cdict[_norm_back] += '                <format-legacy>legal</format-legacy>\n'
+                cdict[_norm_back] += '                <layout>' + _back_layout + '</layout>\n'
+                cdict[_norm_back] += '                <format-commander>legal</format-commander>\n'
+                cdict[_norm_back] += '            </prop>\n'
+                cdict[_norm_back] += ('            <set muid="' + _back_muid + '" uuid="' + _back_uuid +
+                                      '" num="0" rarity="' + rarity + '">' + setname + '</set>\n')
+                cdict[_norm_back] += '            <related>' + name + '</related>\n'
+                cdict[_norm_back] += '            <tablerow>1</tablerow>\n'
+                cdict[_norm_back] += '        </card>\n'
     # Update the custom.json and custom_tokens.json to contain all of the new (if any) card data in this deck:
     try:
         customjson = open(json_filepath)

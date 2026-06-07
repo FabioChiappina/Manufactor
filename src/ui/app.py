@@ -2195,14 +2195,21 @@ def publish_assembly_line(deck_name):
         if os.path.isfile(staged_img):
             shutil.copy2(staged_img, os.path.join(cards_dir, staged_img_filename))
 
-        # Also copy back face staged image for DFCs
+        # Also copy back face staged image for DFCs (custom or real MDFC)
         updated_data_entry = entry.get('updated', {})
         back_face_data = updated_data_entry.get('back') or {}
         back_face_name = back_face_data.get('name')
+        if not back_face_name:
+            # Real MDFC: back face name is the part after ' // ' in the front name
+            _front_name_e = (updated_data_entry.get('front') or {}).get('name', '') or ''
+            _cardtype_e = (updated_data_entry.get('front') or {}).get('cardtype', '') or ''
+            if updated_data_entry.get('real') and ' // ' in _front_name_e and ' // ' in _cardtype_e:
+                back_face_name = _front_name_e.split(' // ')[1]
         if back_face_name:
-            staged_back = os.path.join(staging_dir, f"{back_face_name}.jpg")
+            _back_safe = back_face_name.replace('/', '-')
+            staged_back = os.path.join(staging_dir, f"{_back_safe}.jpg")
             if os.path.isfile(staged_back):
-                shutil.copy2(staged_back, os.path.join(cards_dir, f"{back_face_name}.jpg"))
+                shutil.copy2(staged_back, os.path.join(cards_dir, f"{_back_safe}.jpg"))
 
         # Replace the deck JSON entry with the updated data (not merge — merge would
         # leave removed fields like subspell/back/double_faced_type in place).
@@ -2251,8 +2258,14 @@ def publish_assembly_line(deck_name):
             os.remove(staged_img)
         updated_entry = entry.get('updated') or {}
         back_face_name = (updated_entry.get('back') or {}).get('name')
+        if not back_face_name:
+            _fn = (updated_entry.get('front') or {}).get('name', '') or ''
+            _ct = (updated_entry.get('front') or {}).get('cardtype', '') or ''
+            if updated_entry.get('real') and ' // ' in _fn and ' // ' in _ct:
+                back_face_name = _fn.split(' // ')[1]
         if back_face_name:
-            staged_back = os.path.join(staging_dir, f"{back_face_name}.jpg")
+            _back_safe = back_face_name.replace('/', '-')
+            staged_back = os.path.join(staging_dir, f"{_back_safe}.jpg")
             if os.path.isfile(staged_back):
                 os.remove(staged_back)
     save_staging(folder_path, {})
@@ -2288,6 +2301,27 @@ def publish_assembly_line(deck_name):
         'staged_count': 0,
         'published_cards': list(staging.keys()),
     })
+
+
+@app.route('/deck/<deck_name>/export-cockatrice', methods=['POST'])
+def export_cockatrice(deck_name):
+    """Re-run Cockatrice export for an already-published deck without requiring staged changes."""
+    deck_name = unquote(deck_name)
+    deck_data = load_deck_by_name(deck_name)
+    if not deck_data:
+        return jsonify({'error': 'Deck not found'}), 404
+    setname = deck_data['metadata'].get('setname', 'UNK')
+    try:
+        from src.services.cockatrice_exporter import CockatriceExporter
+        from src.core.deck import Deck
+        exporter = CockatriceExporter()
+        if not exporter.is_cockatrice_available():
+            return jsonify({'success': False, 'error': 'Cockatrice not configured'}), 400
+        deck_obj = Deck.from_json(deck_data['json_path'], setname, deck_data['folder_name'])
+        exporter.export_deck(deck_obj)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/deck/<deck_name>/card/<card_name>/save', methods=['POST'])
@@ -2606,6 +2640,7 @@ def add_real_card(deck_name):
     set_code    = data.get('set', '') or ''
     set_name_v  = data.get('set_name', '') or ''
     artist      = data.get('artist', '') or ''
+    layout      = (data.get('layout', '') or '').strip()
 
     if not card_name or not image_uri:
         return jsonify({'error': 'card name and image_uri required'}), 400
@@ -2647,6 +2682,26 @@ def add_real_card(deck_name):
     except Exception as e:
         return jsonify({'error': f'Failed to download card image: {e}'}), 500
 
+    # For real double-faced cards (modal_dfc or transform layout), also download the
+    # back face image so Cockatrice can display it when the card is flipped.
+    # Scryfall uses .../front/... and .../back/... URL paths for DFC card faces.
+    _back_face_staged_path = None
+    _is_real_dfc = layout in ('modal_dfc', 'transform') and ' // ' in card_name
+    if _is_real_dfc:
+        _back_face_name = card_name.split(' // ')[1]
+        _back_face_safe = _back_face_name.replace('/', '-')
+        _back_image_uri = image_uri.replace('/front/', '/back/')
+        if _back_image_uri != image_uri:
+            _back_face_staged_path = os.path.join(staging_dir, f"{_back_face_safe}.jpg")
+            try:
+                req_back = _url_req.Request(_back_image_uri, headers={'User-Agent': 'MagicManufactor/1.0', 'Accept': 'image/*,*/*'})
+                with _url_req.urlopen(req_back, timeout=20) as resp_back:
+                    back_img_bytes = resp_back.read()
+                with open(_back_face_staged_path, 'wb') as f:
+                    f.write(back_img_bytes)
+            except Exception:
+                _back_face_staged_path = None  # non-fatal; Cockatrice will use its own image DB
+
     card_entry = {
         'front': {
             'name': card_name,
@@ -2673,6 +2728,8 @@ def add_real_card(deck_name):
         'artist': artist,
         'image_uri': image_uri,
     }
+    if layout:
+        card_entry['layout'] = layout
 
     with open(deck_data['json_path'], 'r') as f:
         raw_deck = json.load(f)
