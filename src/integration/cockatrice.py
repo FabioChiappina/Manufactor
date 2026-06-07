@@ -94,7 +94,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 safe_src_name = card.name.replace(' // ', ' -- ').replace('/', '-')
                 _src = os.path.join(DECK_PATH, deck.folder_name, "Cards", safe_src_name + ".jpg")
                 if os.path.isfile(_src):
-                    _dst_name = card.name.replace('’', "'").replace('‘', "'").replace('"', '').replace('.', ' ').replace("'", '').replace(' // ', ' -- ').replace('/', '')
+                    _dst_name = card.name.replace('\u2019', "'").replace('\u2018', "'").replace('"', '').replace('.', ' ').replace("'", '').replace('?', '').replace(' // ', ' -- ').replace('/', '')
                     try:
                         shutil.copy(_src, os.path.join(COCKATRICE_IMAGE_PATH, _dst_name + ".full.jpeg"))
                     except Exception:
@@ -110,7 +110,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                         _back_safe = _back_name.replace('/', '-')
                         _back_src = os.path.join(DECK_PATH, deck.folder_name, "Cards", _back_safe + ".jpg")
                         if os.path.isfile(_back_src):
-                            _back_dst = _back_name.replace('’', "'").replace('‘', "'").replace('"', '').replace('.', ' ').replace("'", '').replace(' // ', ' -- ').replace('/', '')
+                            _back_dst = _back_name.replace('\u2019', "'").replace('\u2018', "'").replace('"', '').replace('.', ' ').replace("'", '').replace('?', '').replace(' // ', ' -- ').replace('/', '')
                             try:
                                 shutil.copy(_back_src, os.path.join(COCKATRICE_IMAGE_PATH, _back_dst + ".full.jpeg"))
                             except Exception:
@@ -127,17 +127,17 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             # Use folder_name for filesystem paths
             base_path_this_token = os.path.join(DECK_PATH, deck.folder_name, "Tokens", card.name+".jpg")
             if os.path.exists(base_path_this_token):
-                duplicate_token_names.append(this_card_name.replace('"', '').replace("."," "))
+                duplicate_token_names.append(this_card_name.replace('"', '').replace("."," ").replace("?",""))
                 tokens_with_this_name_paths.append(base_path_this_token)
-                tokens_cockatrice_target_paths.append(os.path.join(COCKATRICE_IMAGE_PATH, this_card_name.replace('"', '').replace("."," ")+".full.jpeg"))
+                tokens_cockatrice_target_paths.append(os.path.join(COCKATRICE_IMAGE_PATH, this_card_name.replace('"', '').replace("."," ").replace("?","")+".full.jpeg"))
                 found_this_token = True
             this_token_counter = 1
             while True:
                 incremented_token_path = os.path.join(DECK_PATH, deck.folder_name, "Tokens", card.name+"_"+str(this_token_counter)+".jpg")
                 if os.path.isfile(incremented_token_path):
-                    duplicate_token_names.append(this_card_name.replace('"', '').replace("."," ")+"_"+str(this_token_counter))
+                    duplicate_token_names.append(this_card_name.replace('"', '').replace("."," ").replace("?","")+"_"+str(this_token_counter))
                     tokens_with_this_name_paths.append(incremented_token_path)
-                    tokens_cockatrice_target_paths.append(os.path.join(COCKATRICE_IMAGE_PATH, this_card_name.replace('"', '').replace("."," ")+"_"+str(this_token_counter)+".full.jpeg"))
+                    tokens_cockatrice_target_paths.append(os.path.join(COCKATRICE_IMAGE_PATH, this_card_name.replace('"', '').replace("."," ").replace("?","")+"_"+str(this_token_counter)+".full.jpeg"))
                     found_this_token = True
                     this_token_counter += 1
                 else:
@@ -146,7 +146,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 print(f"\nWARNING: Could not find any tokens with the name {card.name} in the tokens path:", os.path.join(DECK_PATH, deck.folder_name, "Tokens"), "  This token's artwork was not added to Cockatrice.")
                 # Register without the setname prefix so Cockatrice can resolve
                 # common tokens (Clue, Treasure, Food, etc.) from its built-in database.
-                duplicate_token_names.append(card.name.replace('"', '').replace(".", " "))
+                duplicate_token_names.append(card.name.replace('"', '').replace(".", " ").replace("?", ""))
             for saved_token_path, target_cockatrice_token_path in zip(tokens_with_this_name_paths, tokens_cockatrice_target_paths):
                 try:
                     shutil.copy(saved_token_path, target_cockatrice_token_path)
@@ -165,12 +165,12 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
             safe_cards_filename = card.name.replace(' // ', ' -- ').replace('/', '-')
             current_image_path = os.path.join(DECK_PATH, deck.folder_name, "Cards", safe_cards_filename+".jpg")
             # Cockatrice image filename: normalize Unicode apostrophes → straight, then strip all apostrophes
-            modified_this_card_name = this_card_name.replace('\u2019',"'").replace('\u2018',"'").replace('"', '').replace("."," ").replace("'","").replace(" // ", " -- ").replace("/","")
+            modified_this_card_name = this_card_name.replace('\u2019',"'").replace('\u2018',"'").replace('"', '').replace("."," ").replace("?","").replace("'","").replace(" // ", " -- ").replace("/","")
             try:
                 shutil.copy(current_image_path, os.path.join(COCKATRICE_IMAGE_PATH, modified_this_card_name+".full.jpeg"))
             except:
                 print("\nWARNING: Could not copy the image from the path " + current_image_path + " to the Cockatrice path. This card's artwork was not added to Cockatrice. Check to make sure the image exists.")
-        name = (this_card_name).replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
+        name = (this_card_name).replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace("?","").replace(" // ", " -- ")
         if card.rules is None:
             text = ""
         else:
@@ -223,10 +223,10 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 tdict[duplicate_token_name] += '            <set>' +setname+ '</set>\n'
                 if (card.related is not None) and isinstance(card.related, list) and (len(card.related) > 0):
                     for this_related in card.related:
-                        normalized_related = this_related.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
+                        normalized_related = this_related.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace("?","").replace(" // ", " -- ")
                         tdict[duplicate_token_name] += '            <reverse-related>' + normalized_related + '</reverse-related>\n'
                 elif (card.related is not None) and isinstance(card.related, str) and len(card.related) > 0:
-                    normalized_related = card.related.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
+                    normalized_related = card.related.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace("?","").replace(" // ", " -- ")
                     tdict[duplicate_token_name] += '            <reverse-related>' + normalized_related + '</reverse-related>\n'
                 tdict[duplicate_token_name] += '            <token>1</token>\n'
                 tdict[duplicate_token_name] += '            <tablerow>2</tablerow>\n'
@@ -262,9 +262,9 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                                       getattr(card, 'special', None) in ('mdfc-front', 'transform-front'))
                 if _is_real_dfc_front:
                     _norm_back = (card.related
-                                  .replace('’', "'").replace('‘', "'")
+                                  .replace('\u2019', "'").replace('\u2018', "'")
                                   .replace('"', '').replace('.', ' ')
-                                  .replace("'", '').replace(' // ', ' -- ').replace('/', ''))
+                                  .replace("'", '').replace('?', '').replace(' // ', ' -- ').replace('/', ''))
                     cdict[this_card_name] += '            <related attach="attach">' + _norm_back + '</related>\n'
                 else:
                     cdict[this_card_name] += '            <related attach="attach">' +card.related+ '</related>\n'
@@ -280,9 +280,9 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                                    and card.related)
             if _is_real_dfc_front:
                 _norm_back = (card.related
-                              .replace('’', "'").replace('‘', "'")
+                              .replace('\u2019', "'").replace('\u2018', "'")
                               .replace('"', '').replace('.', ' ')
-                              .replace("'", '').replace(' // ', ' -- ').replace('/', ''))
+                              .replace("'", '').replace('?', '').replace(' // ', ' -- ').replace('/', ''))
                 _back_layout = 'modal_dfc' if 'mdfc' in (card.special or '') else 'transform'
                 # Derive back-face card type from the combined type string (part after ' // ')
                 _combined_type = card.cardtype or ''
@@ -413,7 +413,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                 if card.name in custom_prefixed_basics:
                     cdeck_cardname = setname + "_" + card.name
                 else:
-                    cdeck_cardname = card.name.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
+                    cdeck_cardname = card.name.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace("?","").replace(" // ", " -- ")
                 qty = int(card.quantity) if (card.quantity and int(card.quantity) > 0) else 1
                 cdeck.write('        <card number="'+str(qty)+'" name="'+cdeck_cardname+'"/>\n')
             for basic_name, basic_count in deck.basics_dict.items():
@@ -431,7 +431,7 @@ def update_cockatrice(deck, xml_filepath=None, json_filepath=None, xml_filepath_
                     if card.name in custom_prefixed_basics:
                         cdeck_cardname = setname + "_" + card.name
                     else:
-                        cdeck_cardname = card.name.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace(" // ", " -- ")
+                        cdeck_cardname = card.name.replace('\u2019',"'").replace('\u2018',"'").replace('"','&quot;').replace("."," ").replace("'","").replace("?","").replace(" // ", " -- ")
                     qty = int(card.quantity) if (card.quantity and int(card.quantity) > 0) else 1
                     cdeck.write('        <card number="'+str(qty)+'" name="'+cdeck_cardname+'"/>\n')
                 cdeck.write('    </zone>\n')
